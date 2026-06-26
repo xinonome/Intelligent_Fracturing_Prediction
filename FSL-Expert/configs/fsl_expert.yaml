@@ -1,0 +1,31 @@
+data:
+  path: C:/Workspace/Intelligent_Fracturing_Prediction/Data/raw_frac
+  reference_header_path: C:/Workspace/Intelligent_Fracturing_Prediction/Data/raw_frac/FDBH26.xlsx
+  exclude_name_patterns:
+    - WITHfiltered
+
+columns:
+  segment: FDBH
+  time: SGSJ
+  label: WORKING_TYPE
+  normal_label: 正常
+  sand: SB
+
+sampling:
+  window_sizes: [1, 2, 3, 4, 5, 6]
+  train_ratio: 0.7
+  test_ratio: 0.1
+  val_ratio: 0.1
+  transfer_ratio: 0.1
+
+small_sample:
+  trim_before_sand: true
+  add_dynamic_features: true
+  rolling_windows: [3, 5, 10]
+  class_weight_power: 0.5
+  class_weight_max_ratio: 10.0
+  oversample_minority: true
+  oversample_target_ratio: 0.2
+  augment_minority: true
+  augment_target_ratio: 0.2
+  augment_noise_std: 0.02

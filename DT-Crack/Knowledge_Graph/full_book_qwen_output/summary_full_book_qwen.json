@@ -1,0 +1,21 @@
+{
+  "book_dir": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\Data\\multimodal\\陪陵页岩气田试气压裂作业井复杂情况与故障案例分析271\\hybrid_auto",
+  "output_dir": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\DT-Crack\\Knowledge_Graph\\full_book_qwen_output",
+  "processed_pages": 268,
+  "failed_pages": 0,
+  "entity_count": 2187,
+  "triple_count": 2057,
+  "rule_count": 621,
+  "include_images": false,
+  "model": "qwen3.5-plus",
+  "vision_model": "qwen-vl-plus",
+  "generated_at": "2026-06-26T09:22:54",
+  "files": {
+    "kg": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\DT-Crack\\Knowledge_Graph\\full_book_qwen_output\\kg_full_book_qwen.json",
+    "html": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\DT-Crack\\Knowledge_Graph\\full_book_qwen_output\\index_full_book_qwen.html",
+    "entities_csv": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\DT-Crack\\Knowledge_Graph\\full_book_qwen_output\\entities_full_book_qwen.csv",
+    "triples_csv": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\DT-Crack\\Knowledge_Graph\\full_book_qwen_output\\triples_full_book_qwen.csv",
+    "rules_csv": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\DT-Crack\\Knowledge_Graph\\full_book_qwen_output\\rules_full_book_qwen.csv"
+  },
+  "failures": []
+}
