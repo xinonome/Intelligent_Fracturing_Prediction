@@ -1,0 +1,115 @@
+{
+  "rules": [
+    {
+      "rule_id": "SP-R01",
+      "rule_name": "压力快速上升强触发砂堵",
+      "source": "Smart_Annotation3.py + 书籍砂堵案例",
+      "book_pages": "15, 18, 21",
+      "condition": "在加砂或试挤过程中，施工压力/泵压快速升高，达到限压或接近限压，并伴随超压停泵。",
+      "data_expression": "delta_pressure >= 10 MPa 且 pressure_slope >= 1.5 MPa/min，可作为强砂堵风险触发。",
+      "label": "砂堵",
+      "action": "停止继续升砂比或升排量，优先低排量试挤；试挤无效时进入解堵流程。",
+      "confidence": "high"
+    },
+    {
+      "rule_id": "SP-R02",
+      "rule_name": "压力持续上升基础触发砂堵风险",
+      "source": "Smart_Annotation3.py + 书籍经验教训",
+      "book_pages": "16, 22",
+      "condition": "加砂阶段压力呈逐步上升趋势，尤其在较高砂比或转换液性后压力明显抬升。",
+      "data_expression": "delta_pressure >= 8 MPa 且 pressure_slope >= 1.0 MPa/min 且持续时间 >= 30 s。",
+      "label": "砂堵风险",
+      "action": "增加隔离液量，实时控制砂比，待压力平稳后再逐步提升砂比。",
+      "confidence": "high"
+    },
+    {
+      "rule_id": "SP-R03",
+      "rule_name": "压力上升并伴随排量下降",
+      "source": "Smart_Annotation3.py",
+      "book_pages": "15-22",
+      "condition": "压力上升后，排量出现连续递减，说明井筒或近井带过流能力下降。",
+      "data_expression": "pressure_trigger=true 且 flow_has_decrease=true。",
+      "label": "砂堵(降排量)",
+      "action": "降低排量，观察压力是否回落；必要时低排量试挤或放喷解堵。",
+      "confidence": "medium-high"
+    },
+    {
+      "rule_id": "SP-R04",
+      "rule_name": "压力上升并伴随砂比下降",
+      "source": "Smart_Annotation3.py",
+      "book_pages": "16, 22",
+      "condition": "压力上升后，砂比出现连续下降或现场主动降砂比仍无法稳定压力。",
+      "data_expression": "pressure_trigger=true 且 sand_ratio_has_decrease=true。",
+      "label": "砂堵(降砂比)",
+      "action": "停止继续提高砂比，降低砂比或转入低砂比施工，压力稳定后再恢复。",
+      "confidence": "medium-high"
+    },
+    {
+      "rule_id": "SP-R05",
+      "rule_name": "压力上升并伴随排量、砂比同时下降",
+      "source": "Smart_Annotation3.py",
+      "book_pages": "15-22",
+      "condition": "压力上升后，排量和砂比均连续下降，表明现场已经在降参但压力仍异常。",
+      "data_expression": "pressure_trigger=true 且 flow_has_decrease=true 且 sand_ratio_has_decrease=true。",
+      "label": "砂堵(降排量降砂比)",
+      "action": "判为较高风险砂堵，进入低排量试挤、酸液或放喷等处置流程。",
+      "confidence": "high"
+    },
+    {
+      "rule_id": "SP-R06",
+      "rule_name": "提排量导致的压力上升不直接标砂堵",
+      "source": "Smart_Annotation3.py",
+      "book_pages": "14-22",
+      "condition": "压力上升同时排量连续升高，且砂比未下降，可能是提排量引起的正常压力响应。",
+      "data_expression": "flow_has_increase=true 且 flow_rise >= 1.0 m3/min 且 sand_ratio_has_decrease=false。",
+      "label": "不标砂堵/需观察",
+      "action": "作为排除规则，避免把正常提排量误判为砂堵。",
+      "confidence": "medium"
+    },
+    {
+      "rule_id": "SP-R07",
+      "rule_name": "近 120 秒砂比为 0 时排除砂堵",
+      "source": "Smart_Annotation3.py",
+      "book_pages": "15-22",
+      "condition": "压力异常发生前短时间内砂比为 0，缺少支撑剂进入条件，砂堵可能性降低。",
+      "data_expression": "recent_120s_has_zero_sand_ratio=true。",
+      "label": "不标砂堵/井筒效应或压力波动",
+      "action": "作为排除规则；可转为压力异常波动或井筒效应待复核。",
+      "confidence": "medium"
+    },
+    {
+      "rule_id": "SP-R08",
+      "rule_name": "设备故障停泵后沉砂诱发砂堵",
+      "source": "书籍案例经验",
+      "book_pages": "17",
+      "condition": "压裂设备故障导致停泵，支撑剂沉降，恢复施工后压力异常升高。",
+      "data_expression": "pump_stop_or_equipment_fault=true 且 resume_pump_pressure_rise=true。",
+      "label": "砂堵风险",
+      "action": "施工前加强设备维护；停泵后恢复施工需低排量试挤并重点监测压力。",
+      "confidence": "high"
+    },
+    {
+      "rule_id": "SP-R09",
+      "rule_name": "高砂比或液性转换前隔离液不足诱发砂堵",
+      "source": "书籍经验教训",
+      "book_pages": "16, 22",
+      "condition": "高砂比加砂或减阻水/胶液转换时隔离液不足，压力出现大幅上升。",
+      "data_expression": "high_sand_ratio_or_fluid_switch=true 且 pressure_rise=true。",
+      "label": "砂堵风险",
+      "action": "转换液性前顶替足够隔离液；高砂比阶段压力不稳时降低砂比。",
+      "confidence": "high"
+    },
+    {
+      "rule_id": "SP-R10",
+      "rule_name": "试挤无效后采用放喷/酸液解堵",
+      "source": "书籍处理过程",
+      "book_pages": "15, 18, 20, 21",
+      "condition": "砂堵停泵后低排量试挤或酸液试挤无明显压降，重复试挤压力仍快速上升。",
+      "data_expression": "low_rate_squeeze_failed=true 或 acid_squeeze_no_pressure_drop=true。",
+      "label": "处置规则",
+      "action": "采用控制放喷，利用地层压力反向冲刷炮眼；必要时配合酸液解堵。",
+      "confidence": "medium-high"
+    }
+  ],
+  "candidate_count": 54
+}

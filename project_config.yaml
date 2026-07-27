@@ -1,0 +1,26 @@
+project:
+  name: Intelligent Fracturing Prediction
+  root: C:/Workspace/Intelligent_Fracturing_Prediction
+
+data:
+  root: C:/Workspace/Intelligent_Fracturing_Prediction/Data
+  raw_frac: C:/Workspace/Intelligent_Fracturing_Prediction/Data/raw_frac
+  knowledge_graph: C:/Workspace/Intelligent_Fracturing_Prediction/Data/knowledge_graph
+  multimodal: C:/Workspace/Intelligent_Fracturing_Prediction/Data/multimodal
+  processed: C:/Workspace/Intelligent_Fracturing_Prediction/Data/processed
+  manifest: C:/Workspace/Intelligent_Fracturing_Prediction/Data/manifests/data_manifest.json
+
+modules:
+  fsl_expert: C:/Workspace/Intelligent_Fracturing_Prediction/FSL-Expert
+  dt_crack: C:/Workspace/Intelligent_Fracturing_Prediction/DT-Crack
+  hmi_ke: C:/Workspace/Intelligent_Fracturing_Prediction/HMI-KE
+  app: C:/Workspace/Intelligent_Fracturing_Prediction/App
+
+defaults:
+  segment_column: FDBH
+  time_column: SGSJ
+  label_column: WORKING_TYPE
+  normal_label: 正常
+  frac_regression_target: SGBY
+  outputs: C:/Workspace/Intelligent_Fracturing_Prediction/outputs
+  artifacts: C:/Workspace/Intelligent_Fracturing_Prediction/artifacts

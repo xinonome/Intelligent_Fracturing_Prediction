@@ -1,0 +1,6 @@
+-r requirements-core.txt
+gymnasium
+stable-baselines3
+torch
+torch-geometric
+lightgbm

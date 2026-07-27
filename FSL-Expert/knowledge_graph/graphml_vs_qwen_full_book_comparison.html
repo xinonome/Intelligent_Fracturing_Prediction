@@ -1,0 +1,94 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>GraphML 与 Qwen 全书知识图谱对比</title>
+  <style>
+    body { margin:0; font-family:"Microsoft YaHei", sans-serif; background:#f5efe5; color:#1f2937; }
+    header { padding:26px 34px; background:linear-gradient(120deg,#1f4e5f,#b96536); color:white; }
+    h1 { margin:0 0 8px; font-size:30px; }
+    main { padding:22px 34px 34px; display:grid; gap:22px; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    .card { background:#fffaf2; border:1px solid rgba(0,0,0,.12); border-radius:18px; padding:18px; box-shadow:0 12px 28px rgba(0,0,0,.08); }
+    .old { border-top:6px solid #1f4e5f; }
+    .new { border-top:6px solid #b96536; }
+    .metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:12px 0 16px; }
+    .metric { background:white; border:1px solid rgba(0,0,0,.10); border-radius:12px; padding:10px; }
+    .metric span { display:block; color:#667085; font-size:13px; }
+    .metric b { display:block; font-size:25px; margin-top:4px; }
+    .old .metric b { color:#1f4e5f; } .new .metric b { color:#b96536; }
+    li { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px dashed rgba(0,0,0,.16); }
+    ul { list-style:none; padding:0; margin:8px 0 0; }
+    iframe { width:100%; height:640px; border:1px solid rgba(0,0,0,.14); border-radius:18px; background:white; }
+    .note { background:white; border-left:6px solid #2f9aa0; border-radius:14px; padding:16px 18px; line-height:1.8; }
+    a.btn { display:inline-block; margin-right:10px; padding:8px 12px; border-radius:999px; background:#1f4e5f; color:white; text-decoration:none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>书籍知识图谱版本对比：GraphML 局部图谱 → Qwen 全书图谱</h1>
+    <div>旧版来自原展示页默认 GraphML；新版来自 Qwen3.5-Plus 对全书文本的批量抽取。</div>
+  </header>
+  <main>
+    <section class="grid">
+      <div class="card old">
+        <h2>旧版：GraphML 局部书籍图谱</h2>
+        <div class="metrics">
+          <div class="metric"><span>节点数</span><b>161</b></div>
+          <div class="metric"><span>边数</span><b>158</b></div>
+          <div class="metric"><span>规则数</span><b>0</b></div>
+        </div>
+        <p>这是之前展示页默认加载的局部 GraphML 图谱，规模约一百多个节点，主要用于证明书籍图谱构建流程已经跑通。</p>
+        <h3>主要实体类型</h3><ul><li><span>EVENT</span><b>27</b></li>
+<li><span>PARAMETER</span><b>21</b></li>
+<li><span>OPERATION</span><b>17</b></li>
+<li><span>TIME</span><b>15</b></li>
+<li><span>FIGURE</span><b>13</b></li>
+<li><span>EQUIPMENT</span><b>12</b></li>
+<li><span>WELL</span><b>10</b></li>
+<li><span>FLUID_SYSTEM</span><b>10</b></li>
+<li><span>STAGE</span><b>9</b></li>
+<li><span>FORMATION_LAYER</span><b>9</b></li>
+<li><span>PROPPANT</span><b>9</b></li>
+<li><span>CHEMICAL</span><b>3</b></li>
+<li><span>DOCUMENT</span><b>3</b></li>
+<li><span>ROCK_PROPERTY</span><b>2</b></li></ul>
+      </div>
+      <div class="card new">
+        <h2>新版：Qwen 全书文本知识图谱</h2>
+        <div class="metrics">
+          <div class="metric"><span>节点数</span><b>2487</b></div>
+          <div class="metric"><span>边数</span><b>2057</b></div>
+          <div class="metric"><span>规则数</span><b>621</b></div>
+        </div>
+        <p>新版对全书 268 页文本进行批量抽取，重点沉淀故障类型、现象、原因、处置措施、风险和专家规则。</p>
+        <h3>主要实体类型</h3><ul><li><span>处置措施</span><b>475</b></li>
+<li><span>原因</span><b>345</b></li>
+<li><span>其他</span><b>321</b></li>
+<li><span>现象</span><b>273</b></li>
+<li><span>故障类型</span><b>220</b></li>
+<li><span>施工参数</span><b>212</b></li>
+<li><span>设备</span><b>191</b></li>
+<li><span>井</span><b>120</b></li>
+<li><span>指标</span><b>107</b></li>
+<li><span>材料</span><b>88</b></li>
+<li><span>工况</span><b>81</b></li>
+<li><span>风险</span><b>28</b></li>
+<li><span>地层</span><b>26</b></li></ul>
+      </div>
+    </section>
+    <section class="note">
+      <b>汇报口径：</b>旧版 GraphML 证明我们已跑通书籍图谱构建和展示流程，但覆盖范围较小；新版 Qwen 全书图谱把覆盖范围扩展到 268 页文本，并新增 621 条专家规则，更适合支撑后续工况解释、风险判断和处置建议。
+    </section>
+    <section>
+      <a class="btn" href="graphml_book_sample_view.html" target="_blank">打开旧版 GraphML 图谱</a>
+      <a class="btn" href="full_book_qwen_output/index_full_book_qwen.html" target="_blank">打开新版 Qwen 全书图谱</a>
+      <a class="btn" href="full_book_qwen_output/rules_full_book_qwen.csv" target="_blank">查看新版规则 CSV</a>
+    </section>
+    <section class="grid">
+      <div><h2>旧版 GraphML 局部图谱</h2><iframe src="graphml_book_sample_view.html"></iframe></div>
+      <div><h2>新版 Qwen 全书图谱</h2><iframe src="full_book_qwen_output/index_full_book_qwen.html"></iframe></div>
+    </section>
+  </main>
+</body>
+</html>

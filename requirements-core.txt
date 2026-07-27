@@ -1,0 +1,11 @@
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+openpyxl
+pytest
+xlrd
+pyyaml
+networkx
+plotly

@@ -1,0 +1,11 @@
+﻿rule_id,rule_name,source,book_pages,condition,data_expression,label,action,confidence
+SP-R01,压力快速上升强触发砂堵,Smart_Annotation3.py + 书籍砂堵案例,"15, 18, 21",在加砂或试挤过程中，施工压力/泵压快速升高，达到限压或接近限压，并伴随超压停泵。,delta_pressure >= 10 MPa 且 pressure_slope >= 1.5 MPa/min，可作为强砂堵风险触发。,砂堵,停止继续升砂比或升排量，优先低排量试挤；试挤无效时进入解堵流程。,high
+SP-R02,压力持续上升基础触发砂堵风险,Smart_Annotation3.py + 书籍经验教训,"16, 22",加砂阶段压力呈逐步上升趋势，尤其在较高砂比或转换液性后压力明显抬升。,delta_pressure >= 8 MPa 且 pressure_slope >= 1.0 MPa/min 且持续时间 >= 30 s。,砂堵风险,增加隔离液量，实时控制砂比，待压力平稳后再逐步提升砂比。,high
+SP-R03,压力上升并伴随排量下降,Smart_Annotation3.py,15-22,压力上升后，排量出现连续递减，说明井筒或近井带过流能力下降。,pressure_trigger=true 且 flow_has_decrease=true。,砂堵(降排量),降低排量，观察压力是否回落；必要时低排量试挤或放喷解堵。,medium-high
+SP-R04,压力上升并伴随砂比下降,Smart_Annotation3.py,"16, 22",压力上升后，砂比出现连续下降或现场主动降砂比仍无法稳定压力。,pressure_trigger=true 且 sand_ratio_has_decrease=true。,砂堵(降砂比),停止继续提高砂比，降低砂比或转入低砂比施工，压力稳定后再恢复。,medium-high
+SP-R05,压力上升并伴随排量、砂比同时下降,Smart_Annotation3.py,15-22,压力上升后，排量和砂比均连续下降，表明现场已经在降参但压力仍异常。,pressure_trigger=true 且 flow_has_decrease=true 且 sand_ratio_has_decrease=true。,砂堵(降排量降砂比),判为较高风险砂堵，进入低排量试挤、酸液或放喷等处置流程。,high
+SP-R06,提排量导致的压力上升不直接标砂堵,Smart_Annotation3.py,14-22,压力上升同时排量连续升高，且砂比未下降，可能是提排量引起的正常压力响应。,flow_has_increase=true 且 flow_rise >= 1.0 m3/min 且 sand_ratio_has_decrease=false。,不标砂堵/需观察,作为排除规则，避免把正常提排量误判为砂堵。,medium
+SP-R07,近 120 秒砂比为 0 时排除砂堵,Smart_Annotation3.py,15-22,压力异常发生前短时间内砂比为 0，缺少支撑剂进入条件，砂堵可能性降低。,recent_120s_has_zero_sand_ratio=true。,不标砂堵/井筒效应或压力波动,作为排除规则；可转为压力异常波动或井筒效应待复核。,medium
+SP-R08,设备故障停泵后沉砂诱发砂堵,书籍案例经验,17,压裂设备故障导致停泵，支撑剂沉降，恢复施工后压力异常升高。,pump_stop_or_equipment_fault=true 且 resume_pump_pressure_rise=true。,砂堵风险,施工前加强设备维护；停泵后恢复施工需低排量试挤并重点监测压力。,high
+SP-R09,高砂比或液性转换前隔离液不足诱发砂堵,书籍经验教训,"16, 22",高砂比加砂或减阻水/胶液转换时隔离液不足，压力出现大幅上升。,high_sand_ratio_or_fluid_switch=true 且 pressure_rise=true。,砂堵风险,转换液性前顶替足够隔离液；高砂比阶段压力不稳时降低砂比。,high
+SP-R10,试挤无效后采用放喷/酸液解堵,书籍处理过程,"15, 18, 20, 21",砂堵停泵后低排量试挤或酸液试挤无明显压降，重复试挤压力仍快速上升。,low_rate_squeeze_failed=true 或 acid_squeeze_no_pressure_drop=true。,处置规则,采用控制放喷，利用地层压力反向冲刷炮眼；必要时配合酸液解堵。,medium-high

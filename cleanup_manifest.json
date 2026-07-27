@@ -1,0 +1,678 @@
+{
+  "created_at": "2026-07-24T13:40:55",
+  "project_root": "C:\\Workspace\\Intelligent_Fracturing_Prediction",
+  "policy": "explicit allowlist cleanup; Data/raw_frac and Data/3Dfrac are protected",
+  "representative_artifacts": [
+    "artifacts/fsl",
+    "artifacts/dt",
+    "artifacts/hmi"
+  ],
+  "entries": [
+    {
+      "action": "delete_directory",
+      "path": "__pycache__",
+      "exists": true,
+      "files": 1,
+      "size_bytes": 5113
+    },
+    {
+      "action": "delete_directory",
+      "path": ".pytest_cache",
+      "exists": true,
+      "files": 6,
+      "size_bytes": 1303
+    },
+    {
+      "action": "delete_directory",
+      "path": "active_run_data",
+      "exists": true,
+      "files": 0,
+      "size_bytes": 0
+    },
+    {
+      "action": "delete_directory",
+      "path": "archive",
+      "exists": true,
+      "files": 0,
+      "size_bytes": 0
+    },
+    {
+      "action": "delete_directory",
+      "path": "pkn_time_output",
+      "exists": true,
+      "files": 44,
+      "size_bytes": 20912886
+    },
+    {
+      "action": "delete_directory",
+      "path": "Reports",
+      "exists": true,
+      "files": 161,
+      "size_bytes": 86240500
+    },
+    {
+      "action": "delete_directory",
+      "path": "Data/public_beijing_air",
+      "exists": true,
+      "files": 17,
+      "size_bytes": 48892219
+    },
+    {
+      "action": "delete_directory",
+      "path": "Data/knowledge_graph",
+      "exists": true,
+      "files": 0,
+      "size_bytes": 0
+    },
+    {
+      "action": "delete_directory",
+      "path": "Data/processed",
+      "exists": true,
+      "files": 0,
+      "size_bytes": 0
+    },
+    {
+      "action": "delete_directory",
+      "path": "FSL-Expert/runs",
+      "exists": true,
+      "files": 477,
+      "size_bytes": 51256955
+    },
+    {
+      "action": "delete_directory",
+      "path": "FSL-Expert/time_series_forecasting",
+      "exists": true,
+      "files": 294,
+      "size_bytes": 20720857
+    },
+    {
+      "action": "delete_directory",
+      "path": "FSL-Expert/report_figures",
+      "exists": true,
+      "files": 14,
+      "size_bytes": 891164
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/full_dataset",
+      "exists": true,
+      "files": 21,
+      "size_bytes": 1639298441
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/陪陵页岩气田试气压裂作业井复杂情况与故障案例分析271",
+      "exists": true,
+      "files": 134,
+      "size_bytes": 1136206717
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/active_run_data",
+      "exists": true,
+      "files": 661,
+      "size_bytes": 579256302
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/examples",
+      "exists": true,
+      "files": 412,
+      "size_bytes": 126804713
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/time_series_forecasting",
+      "exists": true,
+      "files": 779,
+      "size_bytes": 75999960
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/dataset_picture_cleaned",
+      "exists": true,
+      "files": 35,
+      "size_bytes": 31477908
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/image_dataset_working",
+      "exists": true,
+      "files": 86,
+      "size_bytes": 19935182
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/full_dataset_working",
+      "exists": true,
+      "files": 15,
+      "size_bytes": 11583143
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/image_dataset_working",
+      "exists": true,
+      "files": 86,
+      "size_bytes": 19935182
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/picture",
+      "exists": true,
+      "files": 32,
+      "size_bytes": 6667012
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/runs",
+      "exists": true,
+      "files": 35,
+      "size_bytes": 901200
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/full_dataset_output",
+      "exists": true,
+      "files": 7,
+      "size_bytes": 806101
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/image_dataset_output",
+      "exists": true,
+      "files": 3,
+      "size_bytes": 523642
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/src",
+      "exists": true,
+      "files": 46,
+      "size_bytes": 7861285
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/scripts",
+      "exists": true,
+      "files": 20,
+      "size_bytes": 114299
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/data_processing",
+      "exists": true,
+      "files": 6,
+      "size_bytes": 16685
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/online_correction",
+      "exists": true,
+      "files": 6,
+      "size_bytes": 7196
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/physics_learning",
+      "exists": true,
+      "files": 8,
+      "size_bytes": 4627
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/inversion_demo",
+      "exists": true,
+      "files": 627,
+      "size_bytes": 285281612
+    },
+    {
+      "action": "delete_directory",
+      "path": "DT-Crack/docs",
+      "exists": true,
+      "files": 16,
+      "size_bytes": 465436
+    },
+    {
+      "action": "delete_directory",
+      "path": "HMI-KE/runs",
+      "exists": true,
+      "files": 203,
+      "size_bytes": 2520975528
+    },
+    {
+      "action": "delete_file",
+      "path": "prepare_code_release.ps1",
+      "exists": true,
+      "size_bytes": 5042,
+      "sha256": "681284f318c1a13f8444a8034d122e8a2e307e5c5417f516cb113d50205d357c"
+    },
+    {
+      "action": "delete_file",
+      "path": "prepare_fsl_github_release.ps1",
+      "exists": true,
+      "size_bytes": 6206,
+      "sha256": "95078183f3442fb3bf0db9878f7c0639a9ca03114da92e1e400909bf71344a87"
+    },
+    {
+      "action": "delete_file",
+      "path": "Data/multimodal/陪陵页岩气田试气压裂作业井复杂情况与故障案例分析271.zip",
+      "exists": true,
+      "size_bytes": 889338581,
+      "sha256": "0e5f8f7369098c6938d5964ffdb9051bec2b5e2e280f48008afcec5d3f811437"
+    },
+    {
+      "action": "delete_file",
+      "path": "Data/multimodal/陪陵页岩气田试气压裂作业井复杂情况与故障案例分析271/hybrid_auto/陪陵页岩气田试气压裂作业井复杂情况与故障案例分析271_layout.pdf",
+      "exists": true,
+      "size_bytes": 553634240,
+      "sha256": "e8047ccde28c046d4f508096eb49ec3f6fcdf0f2f0897b89902da949b6fe4212"
+    },
+    {
+      "action": "delete_file",
+      "path": "Data/multimodal/陪陵页岩气田试气压裂作业井复杂情况与故障案例分析271/hybrid_auto/陪陵页岩气田试气压裂作业井复杂情况与故障案例分析271_middle.json",
+      "exists": true,
+      "size_bytes": 12965147,
+      "sha256": "0bd0f1710bba9f586441667efb3051370eaff9c0e01cc102842c58b1fb1c6006"
+    },
+    {
+      "action": "delete_file",
+      "path": "DT-Crack/main.py",
+      "exists": true,
+      "size_bytes": 11666,
+      "sha256": "8e73af557a5846ece261bbfd75cd19a5d4afbe8698258c4a0c022ed7f81ef8e2"
+    },
+    {
+      "action": "delete_file",
+      "path": "DT-Crack/run_dt_pipeline.py",
+      "exists": true,
+      "size_bytes": 4698,
+      "sha256": "7f7db0524a3d97787a1efd4be10639212cf500f462139a20c7605c4de841de98"
+    },
+    {
+      "action": "delete_file",
+      "path": "DT-Crack/example.py",
+      "exists": true,
+      "size_bytes": 509,
+      "sha256": "3d5469e1553c4b9dc58ea2fd38fda91c05b43506e53bf3497b706978f4d6257b"
+    },
+    {
+      "action": "delete_file",
+      "path": "DT-Crack/pkn4.py",
+      "exists": true,
+      "size_bytes": 24319,
+      "sha256": "f1acb1b6e6dcfaaf84fded87420d81ffb094fdf342af64842840dfea17521c81"
+    },
+    {
+      "action": "delete_file",
+      "path": "DT-Crack/fracture_animation.py",
+      "exists": true,
+      "size_bytes": 5811,
+      "sha256": "8fffce299797fe0017a207b45f7fc12b96c29d641785dbb2490e23a61cbaf0c4"
+    },
+    {
+      "action": "delete_file",
+      "path": "DT-Crack/generate_architecture_diagrams.py",
+      "exists": true,
+      "size_bytes": 5474,
+      "sha256": "0308033f76716d278cbb5206af446293e665e7b82d77e531d1c697738ba2267e"
+    },
+    {
+      "action": "delete_file",
+      "path": "DT-Crack/HANDOVER.md",
+      "exists": true,
+      "size_bytes": 1612,
+      "sha256": "4043067f8d35f9bf9437621d9b9096871264fc449b62a87f9ae008eb5fcae642"
+    },
+    {
+      "action": "delete_file",
+      "path": "DT-Crack/chinese_font.py",
+      "exists": true,
+      "size_bytes": 1458,
+      "sha256": "52c6bf45991fce0e3a33d7b2d37c4dea213d4520cbab5ccb4917263abbcc4dc8"
+    },
+    {
+      "action": "delete_file",
+      "path": "DT-Crack/复现.md",
+      "exists": true,
+      "size_bytes": 29998,
+      "sha256": "51fff491935caaf718571041c741a8e8e8ae1d6851f9f4f3b3ba274bd7590d41"
+    },
+    {
+      "action": "delete_file",
+      "path": "DT-Crack/dt_crack_api.py",
+      "exists": true,
+      "size_bytes": 4572,
+      "sha256": "641dee3aa5fdc19b515ecb2f639b5b6ec26a1f539ec0d51a1736d8c7f07a2f91"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/第三部分_基于GNN的压裂工况标签识别阶段总结.md",
+      "exists": true,
+      "size_bytes": 4055,
+      "sha256": "cbb706a0020c64724fc8c393206f17ead758096498be1cf5cf9a089f5954ac6d"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/accuracy_90_metric_options.md",
+      "exists": true,
+      "size_bytes": 1169,
+      "sha256": "1234cb178a61737f52a74121fceb7316c85b6963234f7a92240570696d10fc56"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/analyze_frac_gnn_predictions.py",
+      "exists": true,
+      "size_bytes": 9328,
+      "sha256": "a48ebe97dea40855f93d414ae79f1372561c0bf1cf1a361b26397c9c39cf25c6"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/analyze_frac_gnn_thresholds.py",
+      "exists": true,
+      "size_bytes": 6585,
+      "sha256": "ac9c681b3bb54a60c8084bfc88ec0ea19f60f8dcd375532e68f528065634f4ff"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/analyze_working_type_transitions.py",
+      "exists": true,
+      "size_bytes": 4767,
+      "sha256": "c2bea7d379fca237ce4c883442b9c4eedcc313de3d268bbad8faa1b161c19acb"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/augment_gnn_report_summary.py",
+      "exists": true,
+      "size_bytes": 7001,
+      "sha256": "e54baa12d0e199d768a168e3b7956c662fb901f7649804fec626a1c4178e0305"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/build_gnn_ppt_addendum.py",
+      "exists": true,
+      "size_bytes": 8364,
+      "sha256": "6787defe9a561814c4beec38922f080225f10d36658155f889ba0bd5b0f3a7e3"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/build_gnn_report_section.py",
+      "exists": true,
+      "size_bytes": 24466,
+      "sha256": "e9b1c4d7b36e6c3dee2999fb4ccea81eba86de429c8ace854083a2be7b6979eb"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/build_gnn_report_section_rich.py",
+      "exists": true,
+      "size_bytes": 35564,
+      "sha256": "8294712f4918f26f565069f41b563f2953c85f18ed9a20aee6826aa376a4c2f5"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/generate_report_figures.py",
+      "exists": true,
+      "size_bytes": 8096,
+      "sha256": "07bd7a18d8efa66ec7f6f65b71fa55a23dcc456b4ff9f0e6c86361152886b85c"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/GNN_压裂数据集训练与划分说明.md",
+      "exists": true,
+      "size_bytes": 7141,
+      "sha256": "63eba299a5312f224092d4054b14ef732c5bc2ac457604e8b133e0a4d8fe0b0f"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/plot_frac_gnn_results.py",
+      "exists": true,
+      "size_bytes": 6558,
+      "sha256": "0601c95725c853570a8682d82b71a0dde73202fa495ccd6d7659612ebf1a04db"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/plot_seed1_multiclass_metrics.py",
+      "exists": true,
+      "size_bytes": 2702,
+      "sha256": "ff485827cf90d3c79ee0122316d53349f961b50ea7389b25299fde3af2ef008e"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/plot_segment_timeseries_with_labels.py",
+      "exists": true,
+      "size_bytes": 9427,
+      "sha256": "d08e8e09dd407eccc38e632a2e4ffe3ddf9bd81b960fd7c689e92cecabc77191"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/run_fsl_pipeline.py",
+      "exists": true,
+      "size_bytes": 3787,
+      "sha256": "76f2aa3adf86e5a8f708a7838bdc23a33a37dcbc068d8b581bb4ea5325801686"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/search_split_for_normal_f1.py",
+      "exists": true,
+      "size_bytes": 5596,
+      "sha256": "860a30ea47e0ab9753b6100ee3aa9e7d3ac63e3067fd5984a6b6797dc9158c0a"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/split_search_interim_summary.md",
+      "exists": true,
+      "size_bytes": 1681,
+      "sha256": "96706f6194265cc07388f5ed712d9cfcae49319adae6bacd40384f6e45071737"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/summarize_accuracy_metric_options.py",
+      "exists": true,
+      "size_bytes": 3843,
+      "sha256": "ef7285c3e38d9b7907a07c1aa86603012ae5eccff12dfc7d22067dd0d77b8d58"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/train_frac_lgbm.py",
+      "exists": true,
+      "size_bytes": 9451,
+      "sha256": "c19aea00b9c185169dcb5f27b4e5c5ea864667d1efc3747b90295c6a1df63f3a"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/train_hierarchical_working_type_lgbm.py",
+      "exists": true,
+      "size_bytes": 18446,
+      "sha256": "c1fa4d604c6bbeaa96b7d4487b094a49bc8ef461f62bc5ee84719d977c6252c0"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/tune_multiclass_normal_f1_grid.py",
+      "exists": true,
+      "size_bytes": 6745,
+      "sha256": "a0c3488a641c9f5b7b4db5fc8b23dd6be267ca723ffb07e64df2fb6840eead20"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/tune_multiclass_normal_threshold_best.py",
+      "exists": true,
+      "size_bytes": 6460,
+      "sha256": "1ebad44d02d1122d9d8223f7f0aa3e3adabde7e6f1f900537c1a3d1eb362846f"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/tune_normal_f1_threshold.py",
+      "exists": true,
+      "size_bytes": 5015,
+      "sha256": "d362cd541579133260e4c44500e161bd0eea2f2d0a79dafa2a23c815729a97d0"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/utf8_test.py",
+      "exists": true,
+      "size_bytes": 44,
+      "sha256": "f0032f66d42853c2c91f6f7e51a182a032f169c02bc389ae85038544aefab388"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/write_ppt_script.py",
+      "exists": true,
+      "size_bytes": 8437,
+      "sha256": "1510679316fed499d39c36719b543938822015a1a041a8d21f23a38002897add"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/便签数据1(已自动还原).xlsx",
+      "exists": true,
+      "size_bytes": 7340112,
+      "sha256": "2134408e492ac7333be734a1cf813458b67beb33ed2b1ac087eef3ebfa91d542"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/项目介绍and系统架构.pptx",
+      "exists": true,
+      "size_bytes": 3829877,
+      "sha256": "f22bbb0078a8147a1e395e12c8d7cf483f804405c082e41baf4687d1188d4018"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/build_graphml_vs_qwen_comparison.py",
+      "exists": true,
+      "size_bytes": 14138,
+      "sha256": "e76bc2995b9a61a8d13bedc82e7665fc66a269cb8472971ac50380e7e843b21c"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/build_kg_comparison_report.py",
+      "exists": true,
+      "size_bytes": 9380,
+      "sha256": "3dbec1c74fdd068bf41031a83f0e762b8d172915542c4a321d6c788c2c45517e"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/build_kg.py",
+      "exists": true,
+      "size_bytes": 23096,
+      "sha256": "a14dc59d75c441ed8ce70e79c243fe8680502b2805807ba855f59a9489c482ed"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/export_excel_windows.py",
+      "exists": true,
+      "size_bytes": 11329,
+      "sha256": "64dbc144c0e0d26f8b54ae1899715e0e93c9cf316caa91fba17f9725b0146260"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/export_triples.py",
+      "exists": true,
+      "size_bytes": 13716,
+      "sha256": "a5333a337c83a66470f90943e64f86d7429822825e88f56f8f299e0635ae05c2"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/full_book_qwen_usage.md",
+      "exists": true,
+      "size_bytes": 2846,
+      "sha256": "f28c1ad9e6bdbcfef3a4de9ea02684f84d4b5953c83b35dc16b888c27ae7e4f6"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/graphml_qwen_demo_usage.md",
+      "exists": true,
+      "size_bytes": 1260,
+      "sha256": "a3bfd5864664d46b735888308ad82835c8f2417d817a91cfa18374a6e07f0b46"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/graphml_vs_qwen_full_book_comparison.md",
+      "exists": true,
+      "size_bytes": 1959,
+      "sha256": "0a3fca8b21acdbf16cc7a28c196775bef6ef03f33bb1b0293ec0fcb9d6b121d4"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/graphml_vs_qwen_full_book_speech.md",
+      "exists": true,
+      "size_bytes": 1054,
+      "sha256": "6bce12d41cd3bcecce2ae5f2d8fa4626687c5079ed1881c29c7a948edd723b69"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/knowledge_graph_comparison_speech.md",
+      "exists": true,
+      "size_bytes": 2692,
+      "sha256": "5d0b4c89ab5db917423f7878e2df88999a452352ae52efa35bb508c93e2f676c"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/knowledge_graph/knowledge_graph_version_comparison.md",
+      "exists": true,
+      "size_bytes": 1851,
+      "sha256": "b725c1ab07f6a37a6da3d19c99733d5974bb18304d812e342a8976da639b9254"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/rule_fusion/一种基于多规则融合的压裂施工工况智能标注方法.docx",
+      "exists": true,
+      "size_bytes": 452210,
+      "sha256": "76e8bfc62177a137707ebd54852dba7c16ef3170acd7a938af25fb741ac38239"
+    },
+    {
+      "action": "delete_file",
+      "path": "FSL-Expert/rule_fusion/专利补充材料-泵序优化.doc",
+      "exists": true,
+      "size_bytes": 44032,
+      "sha256": "7aa1cbff3715a66fad78e1c8904a89eaede7aada752bef65d774171929bb8f8c"
+    },
+    {
+      "action": "delete_file",
+      "path": "HMI-KE/run_hmi_demo.py",
+      "exists": true,
+      "size_bytes": 2230,
+      "sha256": "0bce634754a2b833b99d046a00bfead81a1b845a1d2167fa0afc1aeb3e490a67"
+    },
+    {
+      "action": "delete_file",
+      "path": "HMI-KE/run_realtime_monitoring_agent_demo.py",
+      "exists": true,
+      "size_bytes": 13700,
+      "sha256": "8c7b93253536e2a7b1eb59e77b6ad1149255e3841ef8e5a57dab3264315e6f11"
+    },
+    {
+      "action": "delete_file",
+      "path": "HMI-KE/simulator/generate_fsl_real_scenario_visualization.py",
+      "exists": true,
+      "size_bytes": 16865,
+      "sha256": "302b2b70dc2251485038e0c2c070dea4945f7f255c0bcc2fa0be23d0c06dea2a"
+    },
+    {
+      "action": "delete_file",
+      "path": "HMI-KE/simulator/generate_scenario_visualization.py",
+      "exists": true,
+      "size_bytes": 13367,
+      "sha256": "45797814d6f6852d7a44ffeeb84984daa8678330ceaae946c30c560f77ad8e27"
+    },
+    {
+      "action": "delete_file",
+      "path": "HMI-KE/docs/泵序约束与奖励函数说明.md",
+      "exists": true,
+      "size_bytes": 7035,
+      "sha256": "226eef63ee595deff4043206ef90d4beecea4b2ca91f39cb570ade0fd3139884"
+    },
+    {
+      "action": "delete_file",
+      "path": "HMI-KE/docs/第三部分_技术路线与执行计划.md",
+      "exists": true,
+      "size_bytes": 7154,
+      "sha256": "36eff5b0a7f525fc82a649e57b1a52f2322b87eaa77316b944da00afd014e706"
+    },
+    {
+      "action": "delete_file",
+      "path": "HMI-KE/docs/秒点策略智能体框架计划.md",
+      "exists": true,
+      "size_bytes": 4721,
+      "sha256": "d268af8effa1b94140efc3779c96783df7b52c2b956603a80a3fc3855a1cb539"
+    }
+  ],
+  "planned_delete_bytes": 8161101853
+}

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>知识图谱版本对比</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --ink: #1f2328;
+      --muted: #667085;
+      --old: #476f95;
+      --new: #b9643a;
+      --card: #fffaf2;
+      --line: rgba(31,35,40,.14);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", "Noto Sans SC", sans-serif;
+      background: radial-gradient(circle at 5% 0%, #fff7df, transparent 35%),
+                  radial-gradient(circle at 90% 10%, #d9ecf1, transparent 32%),
+                  var(--bg);
+      color: var(--ink);
+    }
+    header {
+      padding: 28px 34px 20px;
+      background: linear-gradient(125deg, rgba(71,111,149,.14), rgba(185,100,58,.18));
+      border-bottom: 1px solid var(--line);
+    }
+    h1 { margin: 0 0 10px; font-size: 30px; letter-spacing: .03em; }
+    header p { margin: 0; color: var(--muted); line-height: 1.8; }
+    main { padding: 24px 34px 34px; display: grid; gap: 22px; }
+    .summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: 0 14px 30px rgba(31,35,40,.08);
+    }
+    .card.old { border-top: 6px solid var(--old); }
+    .card.new { border-top: 6px solid var(--new); }
+    .card h2 { margin: 0 0 14px; font-size: 22px; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+    .metric { background: white; border-radius: 14px; padding: 12px; border: 1px solid var(--line); }
+    .metric span { display: block; color: var(--muted); font-size: 13px; }
+    .metric b { display: block; font-size: 26px; margin-top: 6px; }
+    .old .metric b { color: var(--old); }
+    .new .metric b { color: var(--new); }
+    ul { padding: 0; list-style: none; margin: 8px 0 0; }
+    li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+    li b { font-variant-numeric: tabular-nums; }
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    iframe {
+      width: 100%;
+      height: 620px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: white;
+    }
+    .note {
+      background: #fff;
+      border-left: 6px solid #2f9aa0;
+      border-radius: 14px;
+      padding: 16px 18px;
+      line-height: 1.8;
+    }
+    .links a {
+      display: inline-block;
+      margin-right: 12px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      color: white;
+      text-decoration: none;
+      background: #254f5f;
+    }
+    @media (max-width: 1100px) {
+      .summary, .compare { grid-template-columns: 1fr; }
+      iframe { height: 520px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>知识图谱版本对比：小图谱 → 全书知识图谱</h1>
+    <p>本周工作重点：使用 Qwen 大模型对《涪陵页岩气田试气压裂作业井复杂情况与故障案例分析》全书文本进行知识抽取，将原先面向施工数据的小型图谱扩展为覆盖全书案例、故障、原因、处置措施和专家规则的知识图谱。</p>
+  </header>
+  <main>
+    <section class="summary">
+      <div class="card old">
+        <h2>旧版：施工数据小图谱</h2>
+        <div class="metrics">
+          <div class="metric"><span>节点数</span><b>2116</b></div>
+          <div class="metric"><span>关系数</span><b>2115</b></div>
+          <div class="metric"><span>规则数</span><b>0</b></div>
+        </div>
+        <p>来源：结构化压裂施工数据、分段统计量、工况标签和处置建议。特点是和现场时序数据绑定紧密，但知识覆盖范围有限。</p>
+        <h3>主要节点类型</h3>
+        <ul><li><span>stat</span><b>1500</b></li><li><span>time</span><b>251</b></li><li><span>worktype</span><b>114</b></li><li><span>suggestion</span><b>114</b></li><li><span>condition</span><b>102</b></li><li><span>segment</span><b>34</b></li><li><span>well</span><b>1</b></li></ul>
+      </div>
+      <div class="card new">
+        <h2>新版：全书 Qwen 知识图谱</h2>
+        <div class="metrics">
+          <div class="metric"><span>节点数</span><b>2487</b></div>
+          <div class="metric"><span>关系数</span><b>2057</b></div>
+          <div class="metric"><span>规则数</span><b>621</b></div>
+        </div>
+        <p>来源：全书 268 页文本，模型：qwen3.5-plus，生成时间：2026-06-26T09:22:54。特点是覆盖故障案例、原因、现象、措施、设备、材料和施工参数。</p>
+        <h3>主要节点类型</h3>
+        <ul><li><span>处置措施</span><b>475</b></li><li><span>原因</span><b>345</b></li><li><span>其他</span><b>321</b></li><li><span>现象</span><b>273</b></li><li><span>故障类型</span><b>220</b></li><li><span>施工参数</span><b>212</b></li><li><span>设备</span><b>191</b></li><li><span>井</span><b>120</b></li><li><span>指标</span><b>107</b></li><li><span>材料</span><b>88</b></li></ul>
+      </div>
+    </section>
+    <section class="note">
+      <b>汇报口径：</b>旧版图谱主要展示“施工数据结构化组织能力”，新版图谱展示“专家案例知识抽取与规则沉淀能力”。本周迭代的核心不是简单增加节点，而是把知识来源从少量结构化数据扩展到全书案例文本，新增了故障原因、现象、处置措施和规则级知识。
+    </section>
+    <section class="links">
+      <a href="index.html" target="_blank">打开旧版小图谱</a>
+      <a href="full_book_qwen_output/index_full_book_qwen.html" target="_blank">打开新版全书图谱</a>
+      <a href="full_book_qwen_output/triples_full_book_qwen.csv" target="_blank">查看新版三元组 CSV</a>
+      <a href="full_book_qwen_output/rules_full_book_qwen.csv" target="_blank">查看新版规则 CSV</a>
+    </section>
+    <section class="compare">
+      <div>
+        <h2>旧版展示</h2>
+        <iframe src="index.html"></iframe>
+      </div>
+      <div>
+        <h2>新版展示</h2>
+        <iframe src="full_book_qwen_output/index_full_book_qwen.html"></iframe>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

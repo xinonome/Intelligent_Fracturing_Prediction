@@ -1,0 +1,96 @@
+scenarios:
+  baseline:
+    display_name: 历史基线
+    description: 不额外扰动历史数据，仅用于和多工况场景对照。
+    pressure_offset_mpa: 0.0
+    pressure_trend_mpa: 0.0
+    flow_multiplier: 1.0
+    sand_multiplier: 1.0
+    posterior_error_base: 0.10
+    posterior_error_trend: 0.00
+    abnormal_probability_base: 0.04
+    abnormal_probability_trend: 0.00
+    sand_plug_probability_base: 0.02
+    sand_plug_probability_trend: 0.00
+    length_growth_multiplier: 1.00
+    balance_imbalance: 0.08
+
+  normal_growth:
+    display_name: 正常裂缝扩展
+    description: 压力平稳、异常风险低、裂缝增长连续，用于训练正常加砂和稳态扩展策略。
+    pressure_offset_mpa: -2.0
+    pressure_trend_mpa: 1.0
+    flow_multiplier: 1.0
+    sand_multiplier: 1.0
+    posterior_error_base: 0.08
+    posterior_error_trend: -0.02
+    abnormal_probability_base: 0.03
+    abnormal_probability_trend: 0.01
+    sand_plug_probability_base: 0.01
+    sand_plug_probability_trend: 0.01
+    length_growth_multiplier: 1.15
+    balance_imbalance: 0.05
+
+  sand_plug_risk:
+    display_name: 砂堵风险
+    description: 随时间压力和砂堵概率上升，用于训练降低砂比、避免激进加砂的策略。
+    pressure_offset_mpa: 4.0
+    pressure_trend_mpa: 16.0
+    flow_multiplier: 1.0
+    sand_multiplier: 1.25
+    posterior_error_base: 0.12
+    posterior_error_trend: 0.08
+    abnormal_probability_base: 0.18
+    abnormal_probability_trend: 0.35
+    sand_plug_probability_base: 0.15
+    sand_plug_probability_trend: 0.45
+    length_growth_multiplier: 0.75
+    balance_imbalance: 0.22
+
+  cluster_imbalance:
+    display_name: 分簇进液不均衡
+    description: 裂缝增长不均衡、EnKF后验误差偏高，用于训练转向和人工确认策略。
+    pressure_offset_mpa: 1.5
+    pressure_trend_mpa: 6.0
+    flow_multiplier: 1.05
+    sand_multiplier: 1.10
+    posterior_error_base: 0.14
+    posterior_error_trend: 0.07
+    abnormal_probability_base: 0.12
+    abnormal_probability_trend: 0.20
+    sand_plug_probability_base: 0.08
+    sand_plug_probability_trend: 0.16
+    length_growth_multiplier: 0.90
+    balance_imbalance: 0.38
+
+  pressure_limit:
+    display_name: 压力接近上限
+    description: 井底压力或净压力接近安全边界，用于训练控压和保守动作。
+    pressure_offset_mpa: 12.0
+    pressure_trend_mpa: 12.0
+    flow_multiplier: 1.15
+    sand_multiplier: 1.00
+    posterior_error_base: 0.10
+    posterior_error_trend: 0.04
+    abnormal_probability_base: 0.10
+    abnormal_probability_trend: 0.18
+    sand_plug_probability_base: 0.06
+    sand_plug_probability_trend: 0.10
+    length_growth_multiplier: 0.95
+    balance_imbalance: 0.15
+
+  diversion_stage:
+    display_name: 暂堵转向阶段
+    description: 中等异常风险和较高分簇不均衡，用于训练保持砂比、准备暂堵和人工确认策略。
+    pressure_offset_mpa: 3.0
+    pressure_trend_mpa: 4.0
+    flow_multiplier: 0.95
+    sand_multiplier: 0.85
+    posterior_error_base: 0.13
+    posterior_error_trend: 0.03
+    abnormal_probability_base: 0.16
+    abnormal_probability_trend: 0.12
+    sand_plug_probability_base: 0.07
+    sand_plug_probability_trend: 0.08
+    length_growth_multiplier: 1.05
+    balance_imbalance: 0.30
