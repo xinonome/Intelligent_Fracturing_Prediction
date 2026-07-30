@@ -44,6 +44,7 @@ def main() -> None:
     parser.add_argument("--eval-episodes", type=int, default=4)
     parser.add_argument("--episode-steps", type=int, default=30)
     parser.add_argument("--hierarchical", action="store_true")
+    parser.add_argument("--response-model", choices=["empirical", "digital_twin"], default="digital_twin")
     parser.add_argument("--continue-on-error", action="store_true")
     parser.add_argument("--run-dir", default=str(ROOT / "runs" / "scenario_suite"))
     args = parser.parse_args()
@@ -64,6 +65,7 @@ def main() -> None:
             "--max-samples", str(args.max_samples),
             "--eval-episodes", str(args.eval_episodes),
             "--episode-steps", str(args.episode_steps),
+            "--response-model", args.response_model,
             "--run-dir", str(scenario_root),
         ]
         if args.hierarchical:

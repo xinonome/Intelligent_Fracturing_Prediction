@@ -1,0 +1,813 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/m1wvqtk3",
+    "id": "m1wvqtk3",
+    "slide": 21,
+    "layoutId": "/ppt/slideLayouts/slideLayout1.xml",
+    "layoutName": "Blank",
+    "layoutType": "blank",
+    "masterLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "PPTD",
+    "colors": {
+      "accent1": "#4472C4",
+      "accent2": "#ED7D31",
+      "accent3": "#A5A5A5",
+      "accent4": "#FFC000",
+      "accent5": "#5B9BD5",
+      "accent6": "#70AD47",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#44546A",
+      "lt2": "#E7E6E6",
+      "hlink": "#0563C1",
+      "folHlink": "#954F72"
+    },
+    "fontScheme": {
+      "name": "PPTD",
+      "majorFont": {
+        "latinTypeface": "MiSans",
+        "eastAsianTypeface": "MiSans",
+        "complexScriptTypeface": "MiSans"
+      },
+      "minorFont": {
+        "latinTypeface": "MiSans",
+        "eastAsianTypeface": "MiSans",
+        "complexScriptTypeface": "MiSans"
+      }
+    },
+    "typefaces": [
+      "Arial",
+      "MiSans",
+      "微软雅黑"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "/ppt/slideLayouts/slideLayout1.xml",
+      "name": "Blank",
+      "type": "blank",
+      "parentLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "/ppt/slideMasters/slideMaster1.xml",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/mdwbmlc3",
+      "id": "19",
+      "name": "bg-logo",
+      "bbox": [
+        95.73,
+        685.07,
+        133.6,
+        23.07
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image1.png",
+        "contentType": "image/png",
+        "byteLength": 2429
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image1.png",
+        "contentType": "image/png",
+        "byteLength": 2429
+      }
+    },
+    {
+      "order": 2,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/alonqx03",
+      "id": "20",
+      "name": "bg",
+      "bbox": [
+        0,
+        0,
+        1276.93,
+        720
+      ],
+      "contentType": "image/jpeg",
+      "asset": {
+        "assetId": "/ppt/media/image3.jpeg",
+        "contentType": "image/jpeg",
+        "byteLength": 78329
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image3.jpeg",
+        "contentType": "image/jpeg",
+        "byteLength": 78329
+      }
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ra9kryp8",
+      "id": "4",
+      "name": "footer",
+      "bbox": [
+        815.87,
+        663.87,
+        284.13,
+        30
+      ],
+      "geometry": "rect",
+      "text": "中石化石油工程技术研究院有限公司\nSINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+      "textPreview": "中石化石油工程技术研究院有限公司 | SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "中石化石油工程技术研究院有限公司"
+          },
+          {
+            "index": 2,
+            "text": "SINOPEC Research Institute of Petroleum Engineering"
+          },
+          {
+            "index": 3,
+            "text": "Co., Ltd."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "中石化石油工程技术研究院有限公司",
+          "lineSpacingPercent": 110000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "中石化石油工程技术研究院有限公司",
+              "fontSize": 14,
+              "typeface": "微软雅黑",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+          "lineSpacingPercent": 110000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+              "fontSize": 10.67,
+              "typeface": "Arial",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/b6xoj21o",
+      "id": "21",
+      "name": "hbar",
+      "bbox": [
+        2,
+        49.73,
+        1275.07,
+        38.13
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image4.png",
+        "contentType": "image/png",
+        "byteLength": 866
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image4.png",
+        "contentType": "image/png",
+        "byteLength": 866
+      }
+    },
+    {
+      "order": 5,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/w765s7i9",
+      "id": "22",
+      "name": "flogo",
+      "bbox": [
+        57.07,
+        657.47,
+        113.87,
+        36.4
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image5.png",
+        "contentType": "image/png",
+        "byteLength": 4253
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image5.png",
+        "contentType": "image/png",
+        "byteLength": 4253
+      }
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/sb2lk36t",
+      "id": "7",
+      "name": "chtitle",
+      "bbox": [
+        106.67,
+        24,
+        1066.67,
+        48
+      ],
+      "geometry": "rect",
+      "text": "二、获得的创新成果",
+      "textPreview": "二、获得的创新成果",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "二、获得的创新成果"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "二、获得的创新成果",
+          "lineSpacingPercent": 90000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "二、获得的创新成果",
+              "fontSize": 37.33,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/b6d432pc",
+      "id": "8",
+      "name": "subtitle",
+      "bbox": [
+        40,
+        88,
+        1200,
+        40
+      ],
+      "geometry": "rect",
+      "text": "成果2-5：3D裂缝形态与2D缝长曲线连续联动",
+      "textPreview": "成果2-5：3D裂缝形态与2D缝长曲线连续联动",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "成果2-5：3D裂缝形态与2D缝长曲线连续联动"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "成果2-5：3D裂缝形态与2D缝长曲线连续联动",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "成果2-5：3D裂缝形态与2D缝长曲线连续联动",
+              "fontSize": 25.33,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/al43uxor",
+      "id": "9",
+      "name": "h1",
+      "bbox": [
+        53.33,
+        136,
+        400,
+        29.33
+      ],
+      "geometry": "rect",
+      "text": "WebGL三维展示",
+      "textPreview": "WebGL三维展示",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "WebGL三维展示"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "WebGL三维展示",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "WebGL三维展示",
+              "fontSize": 18.67,
+              "typeface": "微软雅黑",
+              "color": "#005B9F",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4jax4nqd",
+      "id": "10",
+      "name": "work",
+      "bbox": [
+        53.33,
+        170.67,
+        613.33,
+        160
+      ],
+      "geometry": "rect",
+      "text": "显示真实井轨迹、簇位置、PKN先验状态和EnKF后验状态；支持鼠标旋转、缩放、时间步切换和连续播放。",
+      "textPreview": "显示真实井轨迹、簇位置、PKN先验状态和EnKF后验状态；支持鼠标旋转、缩放、时间步切换和连续播放。",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "显示真实井轨迹、簇位置、PKN先验状态和EnKF后验状态；支持鼠标旋转、缩放、"
+          },
+          {
+            "index": 2,
+            "text": "时间步切换和连续播放。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "显示真实井轨迹、簇位置、PKN先验状态和EnKF后验状态；支持鼠标旋转、缩放、时间步切换和连续播放。",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "显示真实井轨迹、簇位置、PKN先验状态和EnKF后验状态；支持鼠标旋转、缩放、时间步切换和连续播放。",
+              "fontSize": 16.67,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/5kjydsri",
+      "id": "11",
+      "name": "h2",
+      "bbox": [
+        53.33,
+        336,
+        400,
+        29.33
+      ],
+      "geometry": "rect",
+      "text": "二维联动",
+      "textPreview": "二维联动",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "二维联动"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "二维联动",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "二维联动",
+              "fontSize": 18.67,
+              "typeface": "微软雅黑",
+              "color": "#005B9F",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ixsf2d87",
+      "id": "12",
+      "name": "dt",
+      "bbox": [
+        53.33,
+        370.67,
+        613.33,
+        213.33
+      ],
+      "geometry": "rect",
+      "text": "2D区域只展示每簇缝长随时间变化，便于发现突变、倒退和簇间差异；hover显示簇级液砂贡献、观测因子和参数更新。",
+      "textPreview": "2D区域只展示每簇缝长随时间变化，便于发现突变、倒退和簇间差异；hover显示簇级液砂贡献、观测因子和参数更新。",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "2D区域只展示每簇缝长随时间变化，便于发现突变、倒退和簇间差异；hover显示"
+          },
+          {
+            "index": 2,
+            "text": "簇级液砂贡献、观测因子和参数更新。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "2D区域只展示每簇缝长随时间变化，便于发现突变、倒退和簇间差异；hover显示簇级液砂贡献、观测因子和参数更新。",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "2D区域只展示每簇缝长随时间变化，便于发现突变、倒退和簇间差异；hover显示簇级液砂贡献、观测因子和参数更新。",
+              "fontSize": 16.67,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 12,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/x8f6lsje",
+      "id": "23",
+      "name": "twin",
+      "bbox": [
+        693.33,
+        146.67,
+        546.67,
+        268
+      ],
+      "contentType": "image/png",
+      "imageCrop": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0
+      },
+      "asset": {
+        "assetId": "/ppt/media/image14.png",
+        "contentType": "image/png",
+        "byteLength": 341884
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image14.png",
+        "contentType": "image/png",
+        "byteLength": 341884
+      }
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wvax03q1",
+      "id": "14",
+      "name": "twin-border",
+      "bbox": [
+        693.33,
+        146.67,
+        546.67,
+        268
+      ],
+      "geometry": "rect",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hwjy98rm",
+      "id": "15",
+      "name": "twincap",
+      "bbox": [
+        693.33,
+        420,
+        546.67,
+        24
+      ],
+      "geometry": "rect",
+      "text": "多簇裂缝三维连续扩展展示",
+      "textPreview": "多簇裂缝三维连续扩展展示",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "多簇裂缝三维连续扩展展示"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "多簇裂缝三维连续扩展展示",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "多簇裂缝三维连续扩展展示",
+              "fontSize": 14.67,
+              "typeface": "微软雅黑",
+              "color": "#595959"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vu1w7y9g",
+      "id": "17",
+      "name": "cube-border",
+      "bbox": [
+        693.33,
+        456,
+        176,
+        168
+      ],
+      "geometry": "rect",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/8rqxw3q5",
+      "id": "18",
+      "name": "cubecap",
+      "bbox": [
+        880,
+        469.33,
+        354.67,
+        146.67
+      ],
+      "geometry": "rect",
+      "text": "3D用于形态理解，2D用于定量检查，两者使用同一时间步数据。",
+      "textPreview": "3D用于形态理解，2D用于定量检查，两者使用同一时间步数据。",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "3D用于形态理解，2D用于定量检查，两者使用同一"
+          },
+          {
+            "index": 2,
+            "text": "时间步数据。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "3D用于形态理解，2D用于定量检查，两者使用同一时间步数据。",
+          "lineSpacingPercent": 150000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "3D用于形态理解，2D用于定量检查，两者使用同一时间步数据。",
+              "fontSize": 15.33,
+              "typeface": "微软雅黑",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

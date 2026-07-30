@@ -1,0 +1,990 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/l0bepsfm",
+    "id": "l0bepsfm",
+    "slide": 21,
+    "layoutId": "/ppt/slideLayouts/slideLayout1.xml",
+    "layoutName": "Blank",
+    "layoutType": "blank",
+    "masterLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "PPTD",
+    "colors": {
+      "accent1": "#4472C4",
+      "accent2": "#ED7D31",
+      "accent3": "#A5A5A5",
+      "accent4": "#FFC000",
+      "accent5": "#5B9BD5",
+      "accent6": "#70AD47",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#44546A",
+      "lt2": "#E7E6E6",
+      "hlink": "#0563C1",
+      "folHlink": "#954F72"
+    },
+    "fontScheme": {
+      "name": "PPTD",
+      "majorFont": {
+        "latinTypeface": "MiSans",
+        "eastAsianTypeface": "MiSans",
+        "complexScriptTypeface": "MiSans"
+      },
+      "minorFont": {
+        "latinTypeface": "MiSans",
+        "eastAsianTypeface": "MiSans",
+        "complexScriptTypeface": "MiSans"
+      }
+    },
+    "typefaces": [
+      "Arial",
+      "MiSans",
+      "微软雅黑"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "/ppt/slideLayouts/slideLayout1.xml",
+      "name": "Blank",
+      "type": "blank",
+      "parentLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "/ppt/slideMasters/slideMaster1.xml",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/76tc729o",
+      "id": "20",
+      "name": "bg-logo",
+      "bbox": [
+        95.73,
+        685.07,
+        133.6,
+        23.07
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image1.png",
+        "contentType": "image/png",
+        "byteLength": 2429
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image1.png",
+        "contentType": "image/png",
+        "byteLength": 2429
+      }
+    },
+    {
+      "order": 2,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/m5kbex8j",
+      "id": "21",
+      "name": "bg",
+      "bbox": [
+        0,
+        0,
+        1276.93,
+        720
+      ],
+      "contentType": "image/jpeg",
+      "asset": {
+        "assetId": "/ppt/media/image3.jpeg",
+        "contentType": "image/jpeg",
+        "byteLength": 78329
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image3.jpeg",
+        "contentType": "image/jpeg",
+        "byteLength": 78329
+      }
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/8fil4b21",
+      "id": "4",
+      "name": "footer",
+      "bbox": [
+        815.87,
+        663.87,
+        284.13,
+        30
+      ],
+      "geometry": "rect",
+      "text": "中石化石油工程技术研究院有限公司\nSINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+      "textPreview": "中石化石油工程技术研究院有限公司 | SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "中石化石油工程技术研究院有限公司"
+          },
+          {
+            "index": 2,
+            "text": "SINOPEC Research Institute of Petroleum Engineering"
+          },
+          {
+            "index": 3,
+            "text": "Co., Ltd."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "中石化石油工程技术研究院有限公司",
+          "lineSpacingPercent": 110000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "中石化石油工程技术研究院有限公司",
+              "fontSize": 14,
+              "typeface": "微软雅黑",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+          "lineSpacingPercent": 110000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+              "fontSize": 10.67,
+              "typeface": "Arial",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/98bu9sru",
+      "id": "22",
+      "name": "hbar",
+      "bbox": [
+        2,
+        49.73,
+        1275.07,
+        38.13
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image4.png",
+        "contentType": "image/png",
+        "byteLength": 866
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image4.png",
+        "contentType": "image/png",
+        "byteLength": 866
+      }
+    },
+    {
+      "order": 5,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/872tgnq9",
+      "id": "23",
+      "name": "flogo",
+      "bbox": [
+        57.07,
+        657.47,
+        113.87,
+        36.4
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image5.png",
+        "contentType": "image/png",
+        "byteLength": 4253
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image5.png",
+        "contentType": "image/png",
+        "byteLength": 4253
+      }
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7e9kv6lg",
+      "id": "7",
+      "name": "chtitle",
+      "bbox": [
+        106.67,
+        24,
+        1066.67,
+        48
+      ],
+      "geometry": "rect",
+      "text": "二、获得的创新成果",
+      "textPreview": "二、获得的创新成果",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "二、获得的创新成果"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "二、获得的创新成果",
+          "lineSpacingPercent": 90000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "二、获得的创新成果",
+              "fontSize": 37.33,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/kbil0r2p",
+      "id": "8",
+      "name": "subtitle",
+      "bbox": [
+        40,
+        88,
+        1200,
+        40
+      ],
+      "geometry": "rect",
+      "text": "合同3（2）②：学习代理与PKN-EnKF共同评估候选动作",
+      "textPreview": "合同3（2）②：学习代理与PKN-EnKF共同评估候选动作",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "合同3（2）②：学习代理与PKN-EnKF共同评估候选动作"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "合同3（2）②：学习代理与PKN-EnKF共同评估候选动作",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "合同3（2）②：学习代理与PKN-EnKF共同评估候选动作",
+              "fontSize": 25.33,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/lcr2tw3a",
+      "id": "9",
+      "name": "h1",
+      "bbox": [
+        53.33,
+        136,
+        400,
+        29.33
+      ],
+      "geometry": "rect",
+      "text": "混合响应模型",
+      "textPreview": "混合响应模型",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "混合响应模型"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "混合响应模型",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "混合响应模型",
+              "fontSize": 18.67,
+              "typeface": "微软雅黑",
+              "color": "#005B9F",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/lsja143i",
+      "id": "10",
+      "name": "work",
+      "bbox": [
+        53.33,
+        170.67,
+        626.67,
+        144
+      ],
+      "geometry": "rect",
+      "text": "学习代理预测施工压力、异常概率、砂堵概率和动作OOD；PKN-EnKF计算裂缝半长、缝宽、净压力和物理参数更新。",
+      "textPreview": "学习代理预测施工压力、异常概率、砂堵概率和动作OOD；PKN-EnKF计算裂缝半长、缝宽、净压力和物理参数更新。",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "学习代理预测施工压力、异常概率、砂堵概率和动作OOD；PKN-EnKF计算裂缝半长"
+          },
+          {
+            "index": 2,
+            "text": "、缝宽、净压力和物理参数更新。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "学习代理预测施工压力、异常概率、砂堵概率和动作OOD；PKN-EnKF计算裂缝半长、缝宽、净压力和物理参数更新。",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "学习代理预测施工压力、异常概率、砂堵概率和动作OOD；PKN-EnKF计算裂缝半长、缝宽、净压力和物理参数更新。",
+              "fontSize": 16.67,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/krat8z2x",
+      "id": "11",
+      "name": "h2",
+      "bbox": [
+        53.33,
+        320,
+        400,
+        29.33
+      ],
+      "geometry": "rect",
+      "text": "环境step流程",
+      "textPreview": "环境step流程",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "环境step流程"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "环境step流程",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "环境step流程",
+              "fontSize": 18.67,
+              "typeface": "微软雅黑",
+              "color": "#005B9F",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/z61szulc",
+      "id": "12",
+      "name": "mix",
+      "bbox": [
+        53.33,
+        354.67,
+        626.67,
+        160
+      ],
+      "geometry": "rect",
+      "text": "候选动作 → 学习代理响应 → PKN正演 → EnKF参数更新 → 后验裂缝状态 → 奖励与安全判定。",
+      "textPreview": "候选动作 → 学习代理响应 → PKN正演 → EnKF参数更新 → 后验裂缝状态 → 奖励与安全判定。",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "候选动作 → 学习代理响应 → PKN正演 → EnKF参数更新 → 后验裂缝状态 →"
+          },
+          {
+            "index": 2,
+            "text": "奖励与安全判定。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "候选动作 → 学习代理响应 → PKN正演 → EnKF参数更新 → 后验裂缝状态 → 奖励与安全判定。",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "候选动作 → 学习代理响应 → PKN正演 → EnKF参数更新 → 后验裂缝状态 → 奖励与安全判定。",
+              "fontSize": 16.67,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/y5sr69kr",
+      "id": "13",
+      "name": "res-bg",
+      "bbox": [
+        53.33,
+        522.67,
+        626.67,
+        104
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFF7E6",
+      "lineColor": "#FFD591",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/x4jax436",
+      "id": "14",
+      "name": "res",
+      "bbox": [
+        74.67,
+        533.33,
+        586.67,
+        82.67
+      ],
+      "geometry": "rect",
+      "text": "相较纯经验响应公式，真实秒点代理可学习不同段中排量/砂比变化与压力响应的统计关系。",
+      "textPreview": "相较纯经验响应公式，真实秒点代理可学习不同段中排量/砂比变化与压力响应的统计关系。",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "相较纯经验响应公式，真实秒点代理可学习不同段中排量/砂比变化与压力响应的统"
+          },
+          {
+            "index": 2,
+            "text": "计关系。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "相较纯经验响应公式，真实秒点代理可学习不同段中排量/砂比变化与压力响应的统计关系。",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "相较纯经验响应公式，真实秒点代理可学习不同段中排量/砂比变化与压力响应的统计关系。",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/b21svulg",
+      "id": "16",
+      "name": "proxy-border",
+      "bbox": [
+        706.67,
+        157.33,
+        528,
+        313.33
+      ],
+      "geometry": "rect",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/a18r2pkv",
+      "id": "17",
+      "name": "proxycap",
+      "bbox": [
+        710,
+        155,
+        510,
+        360
+      ],
+      "geometry": "rect",
+      "text": "混合环境的一个step\n\n候选动作 a_t=(Q_target, sand_ratio_target)\n→ 代理模型预测未来60秒压力与异常概率\n→ PKN计算裂缝扩展和净压力\n→ EnKF依据观测更新物理参数\n→ 合并改造效果、压力、风险、成本和不确定性\n→ 返回下一状态 s_(t+1)、奖励R_t和安全标志",
+      "textPreview": "混合环境的一个step |  | 候选动作 a_t=(Q_target, sand_ratio_target) | → 代理模型预测未来60秒压力与异常概率 | → PKN计算裂缝扩展和净压力 | → EnKF依据观测更新物理参数 | → 合并改造效果、压力、风险、成本和不...",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 8,
+        "lines": [
+          {
+            "index": 1,
+            "text": "混合环境的一个step"
+          },
+          {
+            "index": 2,
+            "text": ""
+          },
+          {
+            "index": 3,
+            "text": "候选动作 a_t=(Q_target, sand_ratio_target)"
+          },
+          {
+            "index": 4,
+            "text": "→ 代理模型预测未来60秒压力与异常概率"
+          },
+          {
+            "index": 5,
+            "text": "→ PKN计算裂缝扩展和净压力"
+          },
+          {
+            "index": 6,
+            "text": "→ EnKF依据观测更新物理参数"
+          },
+          {
+            "index": 7,
+            "text": "→ 合并改造效果、压力、风险、成本和不确定性"
+          },
+          {
+            "index": 8,
+            "text": "→ 返回下一状态 s_(t+1)、奖励R_t和安全标志"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "混合环境的一个step",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "混合环境的一个step",
+              "fontSize": 14.67,
+              "typeface": "微软雅黑",
+              "color": "#595959"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "text": "候选动作 a_t=(Q_target, sand_ratio_target)",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "候选动作 a_t=(Q_target, sand_ratio_target)",
+              "fontSize": 14.67,
+              "typeface": "微软雅黑",
+              "color": "#595959"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "text": "→ 代理模型预测未来60秒压力与异常概率",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "→ 代理模型预测未来60秒压力与异常概率",
+              "fontSize": 14.67,
+              "typeface": "微软雅黑",
+              "color": "#595959"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "text": "→ PKN计算裂缝扩展和净压力",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "→ PKN计算裂缝扩展和净压力",
+              "fontSize": 14.67,
+              "typeface": "微软雅黑",
+              "color": "#595959"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "text": "→ EnKF依据观测更新物理参数",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "→ EnKF依据观测更新物理参数",
+              "fontSize": 14.67,
+              "typeface": "微软雅黑",
+              "color": "#595959"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "text": "→ 合并改造效果、压力、风险、成本和不确定性",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "→ 合并改造效果、压力、风险、成本和不确定性",
+              "fontSize": 14.67,
+              "typeface": "微软雅黑",
+              "color": "#595959"
+            }
+          ]
+        },
+        {
+          "index": 8,
+          "text": "→ 返回下一状态 s_(t+1)、奖励R_t和安全标志",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "→ 返回下一状态 s_(t+1)、奖励R_t和安全标志",
+              "fontSize": 14.67,
+              "typeface": "微软雅黑",
+              "color": "#595959"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/p0zatk3a",
+      "id": "18",
+      "name": "env-bg",
+      "bbox": [
+        706.67,
+        514.67,
+        528,
+        112
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#EAF3FA",
+      "lineColor": "#9DC3E6",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 17,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ozq90f2p",
+      "id": "19",
+      "name": "env",
+      "bbox": [
+        728,
+        525.33,
+        488,
+        90.67
+      ],
+      "geometry": "rect",
+      "text": "数据模型负责可学习响应，物理模型负责守恒和可解释状态。",
+      "textPreview": "数据模型负责可学习响应，物理模型负责守恒和可解释状态。",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "数据模型负责可学习响应，物理模型负责守恒和可解释状态。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "数据模型负责可学习响应，物理模型负责守恒和可解释状态。",
+          "lineSpacingPercent": 150000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "数据模型负责可学习响应，物理模型负责守恒和可解释状态。",
+              "fontSize": 16.67,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

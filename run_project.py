@@ -79,16 +79,32 @@ def dt_command(action: str, extra: list[str]) -> int:
 
 def hmi_command(action: str, extra: list[str]) -> int:
     module = ROOT / "HMI-KE"
+    if action == "acceptance":
+        return run(module / "evaluate_contract3_acceptance.py", extra, module)
+    if action == "train-surrogate":
+        return run(
+            module / "train_response_surrogate.py",
+            ["--data-path", str(DATA / "raw_frac"), "--run-dir", str(OUTPUTS / "hmi" / "response_surrogate"), *extra],
+            module,
+        )
+    if action == "validate-env":
+        return run(module / "validate_simulation_environment.py", extra, module)
+    if action == "full-train":
+        return run(module / "run_full_training.py", extra, module)
+    if action == "curriculum":
+        return run(module / "run_curriculum_training.py", extra, module)
     if action == "train":
         defaults = [
             "--data-path", str(DATA / "raw_frac"),
             "--response-model", "digital_twin",
+            "--scenario-source", "historical",
+            "--hierarchical",
             "--run-dir", str(OUTPUTS / "hmi" / "training"),
         ]
         return run(module / "train_rl_control_agent.py", [*defaults, *extra], module)
     return run(
         module / "run_scenario_suite.py",
-        ["--hierarchical", "--run-dir", str(OUTPUTS / "hmi" / "scenarios"), *extra],
+        ["--hierarchical", "--response-model", "digital_twin", "--run-dir", str(OUTPUTS / "hmi" / "scenarios"), *extra],
         module,
     )
 
@@ -126,7 +142,7 @@ def main() -> None:
         code = dt_command(action, extra)
     elif args.module == "hmi":
         action = args.action or "train"
-        if action not in {"train", "scenarios"}:
+        if action not in {"train", "train-surrogate", "full-train", "curriculum", "validate-env", "scenarios", "acceptance"}:
             parser.error(f"unsupported HMI action: {action}")
         code = hmi_command(action, extra)
     elif args.module == "app":

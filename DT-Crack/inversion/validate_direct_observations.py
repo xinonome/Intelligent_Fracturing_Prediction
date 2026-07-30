@@ -88,7 +88,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--construction-pressure-xls", required=True)
     parser.add_argument("--max-steps", type=int, default=60)
     parser.add_argument("--calibration-ratio", type=float, default=0.70)
-    parser.add_argument("--ensemble-size", type=int, default=120)
+    # 300 members materially reduce seed sensitivity while remaining far below
+    # the 15-second online update budget on the current six-cluster problem.
+    parser.add_argument("--ensemble-size", type=int, default=300)
     parser.add_argument("--share-noise", type=float, default=0.025)
     parser.add_argument("--bottomhole-pressure-noise-mpa", type=float, default=5.0)
     parser.add_argument("--base-eprime-pa", type=float, default=3.2e10)

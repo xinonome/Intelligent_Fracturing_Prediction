@@ -1,0 +1,1773 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/7mdw7yh8",
+    "id": "7mdw7yh8",
+    "slide": 42,
+    "layoutId": "/ppt/slideLayouts/slideLayout1.xml",
+    "layoutName": "Blank",
+    "layoutType": "blank",
+    "masterLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "PPTD",
+    "colors": {
+      "accent1": "#4472C4",
+      "accent2": "#ED7D31",
+      "accent3": "#A5A5A5",
+      "accent4": "#FFC000",
+      "accent5": "#5B9BD5",
+      "accent6": "#70AD47",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#44546A",
+      "lt2": "#E7E6E6",
+      "hlink": "#0563C1",
+      "folHlink": "#954F72"
+    },
+    "fontScheme": {
+      "name": "PPTD",
+      "majorFont": {
+        "latinTypeface": "MiSans",
+        "eastAsianTypeface": "MiSans",
+        "complexScriptTypeface": "MiSans"
+      },
+      "minorFont": {
+        "latinTypeface": "MiSans",
+        "eastAsianTypeface": "MiSans",
+        "complexScriptTypeface": "MiSans"
+      }
+    },
+    "typefaces": [
+      "Arial",
+      "MiSans",
+      "微软雅黑"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "/ppt/slideLayouts/slideLayout1.xml",
+      "name": "Blank",
+      "type": "blank",
+      "parentLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "/ppt/slideMasters/slideMaster1.xml",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/0bqlkzq5",
+      "id": "45",
+      "name": "bg-logo",
+      "bbox": [
+        95.73,
+        685.07,
+        133.6,
+        23.07
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image1.png",
+        "contentType": "image/png",
+        "byteLength": 2429
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image1.png",
+        "contentType": "image/png",
+        "byteLength": 2429
+      }
+    },
+    {
+      "order": 2,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/fahkbu9k",
+      "id": "46",
+      "name": "bg",
+      "bbox": [
+        0,
+        0,
+        1276.93,
+        720
+      ],
+      "contentType": "image/jpeg",
+      "asset": {
+        "assetId": "/ppt/media/image3.jpeg",
+        "contentType": "image/jpeg",
+        "byteLength": 78329
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image3.jpeg",
+        "contentType": "image/jpeg",
+        "byteLength": 78329
+      }
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/0j6dkjul",
+      "id": "4",
+      "name": "footer",
+      "bbox": [
+        815.87,
+        663.87,
+        284.13,
+        30
+      ],
+      "geometry": "rect",
+      "text": "中石化石油工程技术研究院有限公司\nSINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+      "textPreview": "中石化石油工程技术研究院有限公司 | SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "中石化石油工程技术研究院有限公司"
+          },
+          {
+            "index": 2,
+            "text": "SINOPEC Research Institute of Petroleum Engineering"
+          },
+          {
+            "index": 3,
+            "text": "Co., Ltd."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "中石化石油工程技术研究院有限公司",
+          "lineSpacingPercent": 110000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "中石化石油工程技术研究院有限公司",
+              "fontSize": 14,
+              "typeface": "微软雅黑",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+          "lineSpacingPercent": 110000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+              "fontSize": 10.67,
+              "typeface": "Arial",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/e983ip8z",
+      "id": "47",
+      "name": "hbar",
+      "bbox": [
+        2,
+        49.73,
+        1275.07,
+        38.13
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image4.png",
+        "contentType": "image/png",
+        "byteLength": 866
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image4.png",
+        "contentType": "image/png",
+        "byteLength": 866
+      }
+    },
+    {
+      "order": 5,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/9gjmh4rm",
+      "id": "48",
+      "name": "flogo",
+      "bbox": [
+        57.07,
+        657.47,
+        113.87,
+        36.4
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image5.png",
+        "contentType": "image/png",
+        "byteLength": 4253
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image5.png",
+        "contentType": "image/png",
+        "byteLength": 4253
+      }
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/zixcbedg",
+      "id": "7",
+      "name": "chtitle",
+      "bbox": [
+        106.67,
+        24,
+        1066.67,
+        48
+      ],
+      "geometry": "rect",
+      "text": "六、今后工作的建议",
+      "textPreview": "六、今后工作的建议",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "六、今后工作的建议"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "六、今后工作的建议",
+          "lineSpacingPercent": 90000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "六、今后工作的建议",
+              "fontSize": 37.33,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/cfmdgzup",
+      "id": "8",
+      "name": "subtitle",
+      "bbox": [
+        40,
+        88,
+        1200,
+        40
+      ],
+      "geometry": "rect",
+      "text": "（三）验收支撑材料：源代码、数据、模型、指标和演示材料形成闭环证据",
+      "textPreview": "（三）验收支撑材料：源代码、数据、模型、指标和演示材料形成闭环证据",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "（三）验收支撑材料：源代码、数据、模型、指标和演示材料形成闭环证据"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "（三）验收支撑材料：源代码、数据、模型、指标和演示材料形成闭环证据",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "（三）验收支撑材料：源代码、数据、模型、指标和演示材料形成闭环证据",
+              "fontSize": 25.33,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/dgvu94va",
+      "id": "9",
+      "name": "mt0-bg",
+      "bbox": [
+        53.33,
+        149.33,
+        378.67,
+        146.67
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/5w3qp0z2",
+      "id": "10",
+      "name": "mt0-ic",
+      "bbox": [
+        72,
+        166.67,
+        32,
+        32
+      ],
+      "geometry": "custom",
+      "fillColor": "#FF0000",
+      "lineWidth": 0
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4vu9wvih",
+      "id": "11",
+      "name": "mt0-title",
+      "bbox": [
+        117.33,
+        165.33,
+        301.33,
+        34.67
+      ],
+      "geometry": "rect",
+      "text": "源代码",
+      "textPreview": "源代码",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "源代码"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "源代码",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "源代码",
+              "fontSize": 20,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/jul8nahw",
+      "id": "12",
+      "name": "mt0-body",
+      "bbox": [
+        74.67,
+        208,
+        338.67,
+        74.67
+      ],
+      "geometry": "rect",
+      "text": "· 三部分源代码及统一运行入口",
+      "textPreview": "· 三部分源代码及统一运行入口",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "· 三部分源代码及统一运行入口"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "· 三部分源代码及统一运行入口",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 三部分源代码及统一运行入口",
+              "fontSize": 15.33,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/itsru50b",
+      "id": "13",
+      "name": "mt1-bg",
+      "bbox": [
+        453.33,
+        149.33,
+        378.67,
+        146.67
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hsjq10zq",
+      "id": "14",
+      "name": "mt1-ic",
+      "bbox": [
+        472,
+        166.67,
+        32,
+        32
+      ],
+      "geometry": "custom",
+      "fillColor": "#FF0000",
+      "lineWidth": 0
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wra9svi5",
+      "id": "15",
+      "name": "mt1-title",
+      "bbox": [
+        517.33,
+        165.33,
+        301.33,
+        34.67
+      ],
+      "geometry": "rect",
+      "text": "数据清单",
+      "textPreview": "数据清单",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "数据清单"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "数据清单",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "数据清单",
+              "fontSize": 20,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vq18zqhk",
+      "id": "16",
+      "name": "mt1-body",
+      "bbox": [
+        474.67,
+        208,
+        338.67,
+        74.67
+      ],
+      "geometry": "rect",
+      "text": "· 数据manifest和保密数据说明",
+      "textPreview": "· 数据manifest和保密数据说明",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "· 数据manifest和保密数据说明"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "· 数据manifest和保密数据说明",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 数据manifest和保密数据说明",
+              "fontSize": 15.33,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/upsrql0f",
+      "id": "17",
+      "name": "mt2-bg",
+      "bbox": [
+        853.33,
+        149.33,
+        378.67,
+        146.67
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 17,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/94jqxgzu",
+      "id": "18",
+      "name": "mt2-ic",
+      "bbox": [
+        872,
+        166.67,
+        32,
+        32
+      ],
+      "geometry": "custom",
+      "fillColor": "#FF0000",
+      "lineWidth": 0
+    },
+    {
+      "order": 18,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/83a9obi9",
+      "id": "19",
+      "name": "mt2-title",
+      "bbox": [
+        917.33,
+        165.33,
+        301.33,
+        34.67
+      ],
+      "geometry": "rect",
+      "text": "知识图谱",
+      "textPreview": "知识图谱",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "知识图谱"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "知识图谱",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "知识图谱",
+              "fontSize": 20,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 19,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/07u94vq5",
+      "id": "20",
+      "name": "mt2-body",
+      "bbox": [
+        874.67,
+        208,
+        338.67,
+        74.67
+      ],
+      "geometry": "rect",
+      "text": "· 实体、关系、规则、GraphML和HTML",
+      "textPreview": "· 实体、关系、规则、GraphML和HTML",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "· 实体、关系、规则、GraphML和HTML"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "· 实体、关系、规则、GraphML和HTML",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 实体、关系、规则、GraphML和HTML",
+              "fontSize": 15.33,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 20,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/l8nad0rq",
+      "id": "21",
+      "name": "mt3-bg",
+      "bbox": [
+        53.33,
+        312,
+        378.67,
+        146.67
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 21,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/y5cr2l8z",
+      "id": "22",
+      "name": "mt3-ic",
+      "bbox": [
+        72,
+        329.33,
+        32,
+        32
+      ],
+      "geometry": "custom",
+      "fillColor": "#FF0000",
+      "lineWidth": 0
+    },
+    {
+      "order": 22,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/z6l8bq9k",
+      "id": "23",
+      "name": "mt3-title",
+      "bbox": [
+        117.33,
+        328,
+        301.33,
+        34.67
+      ],
+      "geometry": "rect",
+      "text": "识别模型",
+      "textPreview": "识别模型",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "识别模型"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "识别模型",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "识别模型",
+              "fontSize": 20,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 23,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/cju90bqt",
+      "id": "24",
+      "name": "mt3-body",
+      "bbox": [
+        74.67,
+        370.67,
+        338.67,
+        74.67
+      ],
+      "geometry": "rect",
+      "text": "· GNN、迁移学习、两阶段识别模型及指标",
+      "textPreview": "· GNN、迁移学习、两阶段识别模型及指标",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "· GNN、迁移学习、两阶段识别模型及指标"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "· GNN、迁移学习、两阶段识别模型及指标",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· GNN、迁移学习、两阶段识别模型及指标",
+              "fontSize": 15.33,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 24,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/d43q9gre",
+      "id": "25",
+      "name": "mt4-bg",
+      "bbox": [
+        453.33,
+        312,
+        378.67,
+        146.67
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 25,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/qhcry183",
+      "id": "26",
+      "name": "mt4-ic",
+      "bbox": [
+        472,
+        329.33,
+        32,
+        32
+      ],
+      "geometry": "custom",
+      "fillColor": "#FF0000",
+      "lineWidth": 0
+    },
+    {
+      "order": 26,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/bil87698",
+      "id": "27",
+      "name": "mt4-title",
+      "bbox": [
+        517.33,
+        328,
+        301.33,
+        34.67
+      ],
+      "geometry": "rect",
+      "text": "正演反演",
+      "textPreview": "正演反演",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "正演反演"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "正演反演",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "正演反演",
+              "fontSize": 20,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 27,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wfy9cfqd",
+      "id": "28",
+      "name": "mt4-body",
+      "bbox": [
+        474.67,
+        370.67,
+        338.67,
+        74.67
+      ],
+      "geometry": "rect",
+      "text": "· PKN/BEM/代理模型、EnKF结果及性能报告",
+      "textPreview": "· PKN/BEM/代理模型、EnKF结果及性能报告",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "· PKN/BEM/代理模型、EnKF结果及性能报告"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "· PKN/BEM/代理模型、EnKF结果及性能报告",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· PKN/BEM/代理模型、EnKF结果及性能报告",
+              "fontSize": 15.33,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 28,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/x07alk7y",
+      "id": "29",
+      "name": "mt5-bg",
+      "bbox": [
+        853.33,
+        312,
+        378.67,
+        146.67
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 29,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/r6tkryxc",
+      "id": "30",
+      "name": "mt5-ic",
+      "bbox": [
+        872,
+        329.33,
+        32,
+        32
+      ],
+      "geometry": "custom",
+      "fillColor": "#FF0000",
+      "lineWidth": 0
+    },
+    {
+      "order": 30,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/q5k3ytwr",
+      "id": "31",
+      "name": "mt5-title",
+      "bbox": [
+        917.33,
+        328,
+        301.33,
+        34.67
+      ],
+      "geometry": "rect",
+      "text": "三维孪生",
+      "textPreview": "三维孪生",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "三维孪生"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "三维孪生",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "三维孪生",
+              "fontSize": 20,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 31,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/d8bmt8v2",
+      "id": "32",
+      "name": "mt5-body",
+      "bbox": [
+        874.67,
+        370.67,
+        338.67,
+        74.67
+      ],
+      "geometry": "rect",
+      "text": "· 三维数字孪生HTML和关键图表",
+      "textPreview": "· 三维数字孪生HTML和关键图表",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "· 三维数字孪生HTML和关键图表"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "· 三维数字孪生HTML和关键图表",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 三维数字孪生HTML和关键图表",
+              "fontSize": 15.33,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 32,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/s72l03eh",
+      "id": "33",
+      "name": "mt6-bg",
+      "bbox": [
+        53.33,
+        474.67,
+        378.67,
+        146.67
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 33,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/fat4vid8",
+      "id": "34",
+      "name": "mt6-ic",
+      "bbox": [
+        72,
+        492,
+        32,
+        32
+      ],
+      "geometry": "custom",
+      "fillColor": "#FF0000",
+      "lineWidth": 0
+    },
+    {
+      "order": 34,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/e9k32dwn",
+      "id": "35",
+      "name": "mt6-title",
+      "bbox": [
+        117.33,
+        490.67,
+        301.33,
+        34.67
+      ],
+      "geometry": "rect",
+      "text": "策略与验证",
+      "textPreview": "策略与验证",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "策略与验证"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "策略与验证",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "策略与验证",
+              "fontSize": 20,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 35,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/1cvmx8ve",
+      "id": "36",
+      "name": "mt6-body",
+      "bbox": [
+        74.67,
+        533.33,
+        338.67,
+        74.67
+      ],
+      "geometry": "rect",
+      "text": "· PPO/SAC模型、奖励明细、动作轨迹、180秒验证结果",
+      "textPreview": "· PPO/SAC模型、奖励明细、动作轨迹、180秒验证结果",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "·"
+          },
+          {
+            "index": 2,
+            "text": "PPO/SAC模型、奖励明细、动作轨迹、180秒验"
+          },
+          {
+            "index": 3,
+            "text": "证结果"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "· PPO/SAC模型、奖励明细、动作轨迹、180秒验证结果",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· PPO/SAC模型、奖励明细、动作轨迹、180秒验证结果",
+              "fontSize": 15.33,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 36,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/0b2l4net",
+      "id": "37",
+      "name": "mt7-bg",
+      "bbox": [
+        453.33,
+        474.67,
+        378.67,
+        146.67
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 37,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ve9kjex4",
+      "id": "38",
+      "name": "mt7-ic",
+      "bbox": [
+        472,
+        492,
+        32,
+        32
+      ],
+      "geometry": "custom",
+      "fillColor": "#FF0000",
+      "lineWidth": 0
+    },
+    {
+      "order": 38,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ud03q9wj",
+      "id": "39",
+      "name": "mt7-title",
+      "bbox": [
+        517.33,
+        490.67,
+        301.33,
+        34.67
+      ],
+      "geometry": "rect",
+      "text": "测试报告",
+      "textPreview": "测试报告",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "测试报告"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "测试报告",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "测试报告",
+              "fontSize": 20,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 39,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/mxk36t4f",
+      "id": "40",
+      "name": "mt7-body",
+      "bbox": [
+        474.67,
+        533.33,
+        338.67,
+        74.67
+      ],
+      "geometry": "rect",
+      "text": "· 测试报告、源码指纹、环境依赖和安装运行说明",
+      "textPreview": "· 测试报告、源码指纹、环境依赖和安装运行说明",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "· 测试报告、源码指纹、环境依赖和安装运行说明"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "· 测试报告、源码指纹、环境依赖和安装运行说明",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 测试报告、源码指纹、环境依赖和安装运行说明",
+              "fontSize": 15.33,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 40,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/nyd4ze50",
+      "id": "41",
+      "name": "mt8-bg",
+      "bbox": [
+        853.33,
+        474.67,
+        378.67,
+        146.67
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 41,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/8zml8jm5",
+      "id": "42",
+      "name": "mt8-ic",
+      "bbox": [
+        872,
+        492,
+        32,
+        32
+      ],
+      "geometry": "custom",
+      "fillColor": "#FF0000",
+      "lineWidth": 0
+    },
+    {
+      "order": 42,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/90vm1onq",
+      "id": "43",
+      "name": "mt8-title",
+      "bbox": [
+        917.33,
+        490.67,
+        301.33,
+        34.67
+      ],
+      "geometry": "rect",
+      "text": "合同映射",
+      "textPreview": "合同映射",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "合同映射"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "合同映射",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "合同映射",
+              "fontSize": 20,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 43,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/al43at4b",
+      "id": "44",
+      "name": "mt8-body",
+      "bbox": [
+        874.67,
+        533.33,
+        338.67,
+        74.67
+      ],
+      "geometry": "rect",
+      "text": "· 合同条款映射、限制说明及后续数据需求清单",
+      "textPreview": "· 合同条款映射、限制说明及后续数据需求清单",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "· 合同条款映射、限制说明及后续数据需求清单"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "· 合同条款映射、限制说明及后续数据需求清单",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 合同条款映射、限制说明及后续数据需求清单",
+              "fontSize": 15.33,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

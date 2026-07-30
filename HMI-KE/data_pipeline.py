@@ -162,6 +162,17 @@ def _labels(values: np.ndarray) -> str:
     return "|".join(sorted({str(value).strip() for value in values if str(value).strip().lower() not in invalid}))
 
 
+def _label_flags(values: np.ndarray) -> tuple[int, int]:
+    labels = _labels(values)
+    if not labels:
+        return 0, 0
+    normalized = labels.replace("正常工况", "正常")
+    items = [item.strip() for item in normalized.split("|") if item.strip()]
+    abnormal = int(any(item != "正常" for item in items))
+    sand_plug = int(any("砂堵" in item for item in items))
+    return abnormal, sand_plug
+
+
 def build_dataset(
     frames: dict[str, pd.DataFrame],
     state_columns: list[str],
@@ -206,6 +217,8 @@ def build_dataset(
             ]
             x_rows.append(np.concatenate(windows + [np.asarray(stats, dtype=float)]))
             y_rows.append(np.asarray([np.mean(values[column][future]) for column in action_columns]))
+            future_abnormal, future_sand_plug = _label_flags(labels[future])
+            future_pressure = values[state_columns[0]][future]
             meta_rows.append(
                 {
                     "segment_id": segment_id,
@@ -216,6 +229,10 @@ def build_dataset(
                     "current_sand_ratio": values["SB"][end] if "SB" in values else np.nan,
                     "state_working_types": _labels(labels[history]),
                     "future_working_types": _labels(labels[future]),
+                    "future_pressure_mean": float(np.mean(future_pressure)),
+                    "future_pressure_max": float(np.max(future_pressure)),
+                    "future_abnormal": future_abnormal,
+                    "future_sand_plug": future_sand_plug,
                 }
             )
 

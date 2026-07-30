@@ -1,0 +1,393 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/y90nupkv",
+    "id": "y90nupkv",
+    "slide": 1,
+    "layoutId": "/ppt/slideLayouts/slideLayout1.xml",
+    "layoutName": "Blank",
+    "layoutType": "blank",
+    "masterLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "PPTD",
+    "colors": {
+      "accent1": "#4472C4",
+      "accent2": "#ED7D31",
+      "accent3": "#A5A5A5",
+      "accent4": "#FFC000",
+      "accent5": "#5B9BD5",
+      "accent6": "#70AD47",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#44546A",
+      "lt2": "#E7E6E6",
+      "hlink": "#0563C1",
+      "folHlink": "#954F72"
+    },
+    "fontScheme": {
+      "name": "PPTD",
+      "majorFont": {
+        "latinTypeface": "MiSans",
+        "eastAsianTypeface": "MiSans",
+        "complexScriptTypeface": "MiSans"
+      },
+      "minorFont": {
+        "latinTypeface": "MiSans",
+        "eastAsianTypeface": "MiSans",
+        "complexScriptTypeface": "MiSans"
+      }
+    },
+    "typefaces": [
+      "MiSans",
+      "Times New Roman",
+      "微软雅黑"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "/ppt/slideLayouts/slideLayout1.xml",
+      "name": "Blank",
+      "type": "blank",
+      "parentLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "/ppt/slideMasters/slideMaster1.xml",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/dkb2xcfy",
+      "id": "7",
+      "name": "bg-logo",
+      "bbox": [
+        95.73,
+        685.07,
+        133.6,
+        23.07
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image1.png",
+        "contentType": "image/png",
+        "byteLength": 2429
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image1.png",
+        "contentType": "image/png",
+        "byteLength": 2429
+      }
+    },
+    {
+      "order": 2,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/6lgjadw3",
+      "id": "8",
+      "name": "bg",
+      "bbox": [
+        3.47,
+        0,
+        1276.53,
+        720
+      ],
+      "contentType": "image/jpeg",
+      "asset": {
+        "assetId": "/ppt/media/image2.jpeg",
+        "contentType": "image/jpeg",
+        "byteLength": 109072
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image2.jpeg",
+        "contentType": "image/jpeg",
+        "byteLength": 109072
+      }
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7qp4be9c",
+      "id": "4",
+      "name": "title",
+      "bbox": [
+        173.33,
+        173.33,
+        933.33,
+        126.67
+      ],
+      "geometry": "rect",
+      "text": "基于多源信息融合的压裂施工参数智能精准调控方法",
+      "textPreview": "基于多源信息融合的压裂施工参数智能精准调控方法",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "基于多源信息融合的压裂施工参数智能精准"
+          },
+          {
+            "index": 2,
+            "text": "调控方法"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "基于多源信息融合的压裂施工参数智能精准调控方法",
+          "lineSpacingPercent": 110000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "基于多源信息融合的压裂施工参数智能精准调控方法",
+              "fontSize": 48,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/65g3298r",
+      "id": "5",
+      "name": "info",
+      "bbox": [
+        266.67,
+        420.33,
+        746.67,
+        200
+      ],
+      "geometry": "rect",
+      "text": "汇报人：李曦\n外协单位：武汉华夏智能技术有限公司\n合同编号：36650000-25-ZC0609-0020\n2026年7月 30 日",
+      "textPreview": "汇报人：李曦 | 外协单位：武汉华夏智能技术有限公司 | 合同编号：36650000-25-ZC0609-0020 | 2026年7月 30 日",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 4,
+        "lines": [
+          {
+            "index": 1,
+            "text": "汇报人：李曦"
+          },
+          {
+            "index": 2,
+            "text": "外协单位：武汉华夏智能技术有限公司"
+          },
+          {
+            "index": 3,
+            "text": "合同编号：36650000-25-ZC0609-0020"
+          },
+          {
+            "index": 4,
+            "text": "2026年7月 30 日"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "汇报人：李曦",
+          "lineSpacingPercent": 170000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "汇报人：李曦",
+              "fontSize": 26.67,
+              "typeface": "Times New Roman",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "外协单位：武汉华夏智能技术有限公司",
+          "lineSpacingPercent": 170000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "外协单位：武汉华夏智能技术有限公司",
+              "fontSize": 26.67,
+              "typeface": "Times New Roman",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "text": "合同编号：36650000-25-ZC0609-0020",
+          "lineSpacingPercent": 170000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "合同编号：36650000-25-ZC0609-0020",
+              "fontSize": 26.67,
+              "typeface": "Times New Roman",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "text": "2026年7月 30 日",
+          "lineSpacingPercent": 170000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "2026年7月 30 日",
+              "fontSize": 26.67,
+              "typeface": "Times New Roman",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ts7md4r2",
+      "id": "6",
+      "name": "code",
+      "bbox": [
+        1027.6,
+        24.67,
+        223.73,
+        58.67
+      ],
+      "geometry": "rect",
+      "text": "编号： \n序号： ",
+      "textPreview": "编号：  | 序号：",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "编号："
+          },
+          {
+            "index": 2,
+            "text": "序号："
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "编号： ",
+          "lineSpacingPercent": 130000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "编号： ",
+              "fontSize": 18.67,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "序号： ",
+          "lineSpacingPercent": 130000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "序号： ",
+              "fontSize": 18.67,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

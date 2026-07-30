@@ -1,0 +1,4 @@
+﻿episode,step,validation_window_steps,max_bottomhole_or_simulated_pressure_mpa,max_net_pressure_mpa,max_abnormal_probability,max_sand_plug_probability,unsafe_within_180s
+0,0,2,86.81226315200949,17.103394728014237,1.0,1.0,True
+0,1,1,86.81226315200949,17.103394728014237,1.0,1.0,True
+0,2,1,86.81226315200949,17.103394728014237,1.0,1.0,True

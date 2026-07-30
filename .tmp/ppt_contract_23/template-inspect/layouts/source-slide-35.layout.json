@@ -1,0 +1,1190 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/1obmtofm",
+    "id": "1obmtofm",
+    "slide": 35,
+    "layoutId": "/ppt/slideLayouts/slideLayout1.xml",
+    "layoutName": "Blank",
+    "layoutType": "blank",
+    "masterLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "PPTD",
+    "colors": {
+      "accent1": "#4472C4",
+      "accent2": "#ED7D31",
+      "accent3": "#A5A5A5",
+      "accent4": "#FFC000",
+      "accent5": "#5B9BD5",
+      "accent6": "#70AD47",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#44546A",
+      "lt2": "#E7E6E6",
+      "hlink": "#0563C1",
+      "folHlink": "#954F72"
+    },
+    "fontScheme": {
+      "name": "PPTD",
+      "majorFont": {
+        "latinTypeface": "MiSans",
+        "eastAsianTypeface": "MiSans",
+        "complexScriptTypeface": "MiSans"
+      },
+      "minorFont": {
+        "latinTypeface": "MiSans",
+        "eastAsianTypeface": "MiSans",
+        "complexScriptTypeface": "MiSans"
+      }
+    },
+    "typefaces": [
+      "Arial",
+      "MiSans",
+      "微软雅黑"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "/ppt/slideLayouts/slideLayout1.xml",
+      "name": "Blank",
+      "type": "blank",
+      "parentLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "/ppt/slideMasters/slideMaster1.xml",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/szilcjyt",
+      "id": "23",
+      "name": "bg-logo",
+      "bbox": [
+        95.73,
+        685.07,
+        133.6,
+        23.07
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image1.png",
+        "contentType": "image/png",
+        "byteLength": 2429
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image1.png",
+        "contentType": "image/png",
+        "byteLength": 2429
+      }
+    },
+    {
+      "order": 2,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/ja9kfehc",
+      "id": "24",
+      "name": "bg",
+      "bbox": [
+        0,
+        0,
+        1276.93,
+        720
+      ],
+      "contentType": "image/jpeg",
+      "asset": {
+        "assetId": "/ppt/media/image3.jpeg",
+        "contentType": "image/jpeg",
+        "byteLength": 78329
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image3.jpeg",
+        "contentType": "image/jpeg",
+        "byteLength": 78329
+      }
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/gb6lcn6x",
+      "id": "4",
+      "name": "footer",
+      "bbox": [
+        815.87,
+        663.87,
+        284.13,
+        30
+      ],
+      "geometry": "rect",
+      "text": "中石化石油工程技术研究院有限公司\nSINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+      "textPreview": "中石化石油工程技术研究院有限公司 | SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "中石化石油工程技术研究院有限公司"
+          },
+          {
+            "index": 2,
+            "text": "SINOPEC Research Institute of Petroleum Engineering"
+          },
+          {
+            "index": 3,
+            "text": "Co., Ltd."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "中石化石油工程技术研究院有限公司",
+          "lineSpacingPercent": 110000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "中石化石油工程技术研究院有限公司",
+              "fontSize": 14,
+              "typeface": "微软雅黑",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+          "lineSpacingPercent": 110000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+              "fontSize": 10.67,
+              "typeface": "Arial",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/i9gj69gr",
+      "id": "25",
+      "name": "hbar",
+      "bbox": [
+        2,
+        49.73,
+        1275.07,
+        38.13
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image4.png",
+        "contentType": "image/png",
+        "byteLength": 866
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image4.png",
+        "contentType": "image/png",
+        "byteLength": 866
+      }
+    },
+    {
+      "order": 5,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/5cr2hoz2",
+      "id": "26",
+      "name": "flogo",
+      "bbox": [
+        57.07,
+        657.47,
+        113.87,
+        36.4
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image5.png",
+        "contentType": "image/png",
+        "byteLength": 4253
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image5.png",
+        "contentType": "image/png",
+        "byteLength": 4253
+      }
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vad43ipc",
+      "id": "7",
+      "name": "chtitle",
+      "bbox": [
+        106.67,
+        24,
+        1066.67,
+        48
+      ],
+      "geometry": "rect",
+      "text": "三、HSE 风险辨识与控制措施",
+      "textPreview": "三、HSE 风险辨识与控制措施",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "三、HSE 风险辨识与控制措施"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "三、HSE 风险辨识与控制措施",
+          "lineSpacingPercent": 90000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "三、HSE 风险辨识与控制措施",
+              "fontSize": 37.33,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/87ml836l",
+      "id": "8",
+      "name": "subtitle",
+      "bbox": [
+        40,
+        88,
+        1200,
+        40
+      ],
+      "geometry": "rect",
+      "text": "研发、数据和控制建议全过程设置安全边界",
+      "textPreview": "研发、数据和控制建议全过程设置安全边界",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "研发、数据和控制建议全过程设置安全边界"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "研发、数据和控制建议全过程设置安全边界",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "研发、数据和控制建议全过程设置安全边界",
+              "fontSize": 25.33,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/t8vm1876",
+      "id": "9",
+      "name": "hse1-bg",
+      "bbox": [
+        53.33,
+        146.67,
+        381.33,
+        400
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/5of6xcbi",
+      "id": "10",
+      "name": "hse1-ic",
+      "bbox": [
+        72,
+        164,
+        32,
+        32
+      ],
+      "geometry": "custom",
+      "fillColor": "#FF0000",
+      "lineWidth": 0
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4n65o7ax",
+      "id": "11",
+      "name": "hse1-title",
+      "bbox": [
+        117.33,
+        162.67,
+        304,
+        34.67
+      ],
+      "geometry": "rect",
+      "text": "研发与现场HSE",
+      "textPreview": "研发与现场HSE",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "研发与现场HSE"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "研发与现场HSE",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "研发与现场HSE",
+              "fontSize": 20,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/3mxov2tc",
+      "id": "12",
+      "name": "hse1-body",
+      "bbox": [
+        74.67,
+        205.33,
+        341.33,
+        328
+      ],
+      "geometry": "rect",
+      "text": "· 现场数据接入遵守甲方管理制度，不由软件直接操作设备\n· 当前决策系统为建议模式，高风险动作必须人工确认\n· 压力、排量、砂比、单步变化量和停泵规则设置硬边界\n· 异常概率或模型不确定性过高时执行保持、降级或人工接管",
+      "textPreview": "· 现场数据接入遵守甲方管理制度，不由软件直接操作设备 | · 当前决策系统为建议模式，高风险动作必须人工确认 | · 压力、排量、砂比、单步变化量和停泵规则设置硬边界 | · 异常概率或模型不确定性过高时执行保持、降级或人工接管",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 15,
+        "lines": [
+          {
+            "index": 1,
+            "text": "·"
+          },
+          {
+            "index": 2,
+            "text": "现场数据接入遵守甲方管理制度，不由软件直接"
+          },
+          {
+            "index": 3,
+            "text": "操作设备"
+          },
+          {
+            "index": 4,
+            "text": ""
+          },
+          {
+            "index": 5,
+            "text": "·"
+          },
+          {
+            "index": 6,
+            "text": "当前决策系统为建议模式，高风险动作必须人工"
+          },
+          {
+            "index": 7,
+            "text": "确认"
+          },
+          {
+            "index": 8,
+            "text": ""
+          },
+          {
+            "index": 9,
+            "text": "·"
+          },
+          {
+            "index": 10,
+            "text": "压力、排量、砂比、单步变化量和停泵规则设置"
+          },
+          {
+            "index": 11,
+            "text": "硬边界"
+          },
+          {
+            "index": 12,
+            "text": ""
+          },
+          {
+            "index": 13,
+            "text": "·"
+          },
+          {
+            "index": 14,
+            "text": "异常概率或模型不确定性过高时执行保持、降级"
+          },
+          {
+            "index": 15,
+            "text": "或人工接管"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "· 现场数据接入遵守甲方管理制度，不由软件直接操作设备",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 现场数据接入遵守甲方管理制度，不由软件直接操作设备",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "· 当前决策系统为建议模式，高风险动作必须人工确认",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 当前决策系统为建议模式，高风险动作必须人工确认",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "text": "· 压力、排量、砂比、单步变化量和停泵规则设置硬边界",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 压力、排量、砂比、单步变化量和停泵规则设置硬边界",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "text": "· 异常概率或模型不确定性过高时执行保持、降级或人工接管",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 异常概率或模型不确定性过高时执行保持、降级或人工接管",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ilonmxsr",
+      "id": "13",
+      "name": "hse2-bg",
+      "bbox": [
+        450.67,
+        146.67,
+        381.33,
+        400
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hkv6tsb6",
+      "id": "14",
+      "name": "hse2-ic",
+      "bbox": [
+        469.33,
+        164,
+        32,
+        32
+      ],
+      "geometry": "custom",
+      "fillColor": "#FF0000",
+      "lineWidth": 0
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/gjm5knal",
+      "id": "15",
+      "name": "hse2-title",
+      "bbox": [
+        514.67,
+        162.67,
+        304,
+        34.67
+      ],
+      "geometry": "rect",
+      "text": "数据安全",
+      "textPreview": "数据安全",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "数据安全"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "数据安全",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "数据安全",
+              "fontSize": 20,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vidorit0",
+      "id": "16",
+      "name": "hse2-body",
+      "bbox": [
+        472,
+        205.33,
+        341.33,
+        328
+      ],
+      "geometry": "rect",
+      "text": "· 真实施工Excel、光纤和压力数据集中保存在Data目录\n· 代码发布默认排除Data、Excel、模型权重、密钥和运行日志\n· 数据manifest标记公开性，区分公开书籍资料与甲方保密数据",
+      "textPreview": "· 真实施工Excel、光纤和压力数据集中保存在Data目录 | · 代码发布默认排除Data、Excel、模型权重、密钥和运行日志 | · 数据manifest标记公开性，区分公开书籍资料与甲方保密数据",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 11,
+        "lines": [
+          {
+            "index": 1,
+            "text": "·"
+          },
+          {
+            "index": 2,
+            "text": "真实施工Excel、光纤和压力数据集中保存在Dat"
+          },
+          {
+            "index": 3,
+            "text": "a目录"
+          },
+          {
+            "index": 4,
+            "text": ""
+          },
+          {
+            "index": 5,
+            "text": "·"
+          },
+          {
+            "index": 6,
+            "text": "代码发布默认排除Data、Excel、模型权重、密"
+          },
+          {
+            "index": 7,
+            "text": "钥和运行日志"
+          },
+          {
+            "index": 8,
+            "text": ""
+          },
+          {
+            "index": 9,
+            "text": "·"
+          },
+          {
+            "index": 10,
+            "text": "数据manifest标记公开性，区分公开书籍资料与"
+          },
+          {
+            "index": 11,
+            "text": "甲方保密数据"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "· 真实施工Excel、光纤和压力数据集中保存在Data目录",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 真实施工Excel、光纤和压力数据集中保存在Data目录",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "· 代码发布默认排除Data、Excel、模型权重、密钥和运行日志",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 代码发布默认排除Data、Excel、模型权重、密钥和运行日志",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "text": "· 数据manifest标记公开性，区分公开书籍资料与甲方保密数据",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 数据manifest标记公开性，区分公开书籍资料与甲方保密数据",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/uh4nidsv",
+      "id": "17",
+      "name": "hse3-bg",
+      "bbox": [
+        848,
+        146.67,
+        381.33,
+        400
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D9D9D9",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 17,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/tgv6psba",
+      "id": "18",
+      "name": "hse3-ic",
+      "bbox": [
+        866.67,
+        164,
+        32,
+        32
+      ],
+      "geometry": "custom",
+      "fillColor": "#FF0000",
+      "lineWidth": 0
+    },
+    {
+      "order": 18,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/8fm5gnap",
+      "id": "19",
+      "name": "hse3-title",
+      "bbox": [
+        912,
+        162.67,
+        304,
+        34.67
+      ],
+      "geometry": "rect",
+      "text": "模型安全",
+      "textPreview": "模型安全",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "模型安全"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "模型安全",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "模型安全",
+              "fontSize": 20,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 19,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/kzq5wnil",
+      "id": "20",
+      "name": "hse3-body",
+      "bbox": [
+        869.33,
+        205.33,
+        341.33,
+        328
+      ],
+      "geometry": "rect",
+      "text": "· 超出历史动作范围输出OOD评分\n· EnKF更新参数设置物理上下界\n· 180秒安全门禁检查压力、风险和动作约束\n· 所有控制建议保留输入、输出、模型版本和源码指纹",
+      "textPreview": "· 超出历史动作范围输出OOD评分 | · EnKF更新参数设置物理上下界 | · 180秒安全门禁检查压力、风险和动作约束 | · 所有控制建议保留输入、输出、模型版本和源码指纹",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 9,
+        "lines": [
+          {
+            "index": 1,
+            "text": "· 超出历史动作范围输出OOD评分"
+          },
+          {
+            "index": 2,
+            "text": ""
+          },
+          {
+            "index": 3,
+            "text": "· EnKF更新参数设置物理上下界"
+          },
+          {
+            "index": 4,
+            "text": ""
+          },
+          {
+            "index": 5,
+            "text": "· 180秒安全门禁检查压力、风险和动作约束"
+          },
+          {
+            "index": 6,
+            "text": ""
+          },
+          {
+            "index": 7,
+            "text": "·"
+          },
+          {
+            "index": 8,
+            "text": "所有控制建议保留输入、输出、模型版本和源码"
+          },
+          {
+            "index": 9,
+            "text": "指纹"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "· 超出历史动作范围输出OOD评分",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 超出历史动作范围输出OOD评分",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "· EnKF更新参数设置物理上下界",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· EnKF更新参数设置物理上下界",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "text": "· 180秒安全门禁检查压力、风险和动作约束",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 180秒安全门禁检查压力、风险和动作约束",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "text": "· 所有控制建议保留输入、输出、模型版本和源码指纹",
+          "lineSpacingPercent": 145000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "· 所有控制建议保留输入、输出、模型版本和源码指纹",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 20,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/l0z65sj6",
+      "id": "21",
+      "name": "note-bg",
+      "bbox": [
+        53.33,
+        565.33,
+        1176,
+        61.33
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFF7E6",
+      "lineColor": "#FFD591",
+      "lineWidth": 1.33
+    },
+    {
+      "order": 21,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/yxonud0f",
+      "id": "22",
+      "name": "note",
+      "bbox": [
+        74.67,
+        574.67,
+        1136,
+        42.67
+      ],
+      "geometry": "rect",
+      "text": "事故情况：项目期间是否发生人员伤害、环保或数据安全事件，请由项目负责人最终确认后填写。",
+      "textPreview": "事故情况：项目期间是否发生人员伤害、环保或数据安全事件，请由项目负责人最终确认后填写。",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "事故情况：项目期间是否发生人员伤害、环保或数据安全事件，请由项目负责人最终确认后填写。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "事故情况：项目期间是否发生人员伤害、环保或数据安全事件，请由项目负责人最终确认后填写。",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "事故情况：",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815",
+              "bold": true
+            },
+            {
+              "index": 2,
+              "text": "项目期间是否发生人员伤害、环保或数据安全事件，请由项目负责人最终确认后填写。",
+              "fontSize": 16,
+              "typeface": "微软雅黑",
+              "color": "#231815"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}
