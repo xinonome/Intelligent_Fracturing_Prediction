@@ -1,0 +1,315 @@
+{
+  "module": "Gymnasium lightweight hierarchical fracturing control agent",
+  "algorithm": "PPO",
+  "source_fingerprint": {
+    "sha256": "14a1444fba7a47ed101d018d05c3fb4fc6f1d3980699257c00e416af33e9b17c",
+    "files": [
+      "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\train_rl_control_agent.py",
+      "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\rl\\fracturing_env.py",
+      "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\rl\\digital_twin_env.py",
+      "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\decision_engine\\integrated_reward.py",
+      "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\simulator\\scenario_generator.py",
+      "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\simulator\\validation_180s.py"
+    ]
+  },
+  "hierarchical": true,
+  "hierarchical_design": {
+    "high_level_policy": "rule/knowledge option selector",
+    "high_level_options": [
+      "hold",
+      "grow",
+      "divert",
+      "safe"
+    ],
+    "low_level_policy": "Stable-Baselines3 PPO continuous controller",
+    "refresh_interval_steps": 6
+  },
+  "scientific_status": "demo_only",
+  "warning": "Action-conditioned response is an offline surrogate. Field use requires same-well synchronization and simulator calibration.",
+  "state": "current 300s pressure/rate/sand ratio plus available DT/risk context",
+  "action": "next 60s mean rate and sand ratio",
+  "reward": "fracture effectiveness - pressure risk - abnormal risk - construction cost",
+  "total_timesteps": 100000,
+  "completed_timesteps": 100352,
+  "resumed_from": null,
+  "eval_only": false,
+  "evaluated_scenarios": [
+    "historical_real"
+  ],
+  "n_envs": 2,
+  "policy_hidden_layers": [
+    128,
+    128
+  ],
+  "scenario": {
+    "name": "historical_real",
+    "display_name": "真实分段历史状态与动作响应",
+    "note": "Fixed synthetic scenarios are reserved for stress testing, not duplicated during main training."
+  },
+  "scenario_training_weights": null,
+  "response_surrogate_path": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\response_surrogate\\20260728_205957\\response_surrogate.joblib",
+  "response_model": "learned_hybrid",
+  "train_samples": 169311,
+  "test_samples": 20418,
+  "environment": {
+    "episode_steps": 60,
+    "pressure_action_gain": 0.35,
+    "pressure_sand_gain": 0.18,
+    "pressure_relaxation": 0.12,
+    "fracture_flow_exponent": 0.62,
+    "fracture_sand_gain": 0.35,
+    "abnormal_pressure_gain": 0.35,
+    "abnormal_sand_gain": 0.25,
+    "unsafe_termination_penalty": 8.0,
+    "terminate_on_unsafe": true,
+    "schedule_reward_weight": 0.25,
+    "reward_clip": 20.0,
+    "severe_pressure_multiplier": 2.0,
+    "abnormal_probability_max": 0.45,
+    "sand_plug_probability_max": 0.35,
+    "posterior_error_max": 0.3,
+    "high_level_interval_steps": 6,
+    "high_pressure_ratio": 0.92,
+    "medium_abnormal_probability": 0.25,
+    "high_abnormal_probability": 0.45,
+    "high_posterior_error": 0.15,
+    "n_clusters": 6,
+    "ensemble_size": 48,
+    "action_seconds": 60.0,
+    "initial_elapsed_seconds": 300.0,
+    "length_observation_std_m": 12.0,
+    "pressure_observation_std_mpa": 3.0,
+    "fiber_imbalance_strength": 0.12,
+    "minimum_pkn_flow_m3_min": 1.0,
+    "low_flow_pressure_relaxation": 0.25,
+    "low_flow_abnormal_decay": 0.72,
+    "low_flow_sand_plug_decay": 0.62
+  },
+  "reward_config": {
+    "effectiveness_weight": 3.0,
+    "pressure_safety_weight": 3.0,
+    "abnormal_risk_weight": 4.0,
+    "construction_cost_weight": 1.0,
+    "bottomhole_pressure_min_mpa": 45.0,
+    "bottomhole_pressure_max_mpa": 110.0,
+    "net_pressure_min_mpa": 0.0,
+    "net_pressure_max_mpa": 35.0,
+    "target_posterior_error": 0.15
+  },
+  "pump_schedule_constraint": {
+    "name": "continuous",
+    "description": "连续/无间隔加砂：砂比逐级提升，不主动回到零砂比。",
+    "max_flow_m3_min": 18.0,
+    "max_sand_ratio_percent": 14.0,
+    "max_flow_step_m3_min": 4.0,
+    "max_sand_increase_percent": 3.0,
+    "allow_sand_pause": false
+  },
+  "context_provenance": {
+    "alignment_mode": "normalized_progress",
+    "scientific_status": "demo_only",
+    "digital_twin_source": null,
+    "abnormal_probability_source": null,
+    "available_components": [
+      "multi_condition_scenario"
+    ],
+    "scenario": {
+      "name": "historical_real",
+      "display_name": "真实分段历史状态与动作响应",
+      "note": "Fixed synthetic scenarios are reserved for stress testing, not duplicated during main training."
+    },
+    "scenario_source": "historical"
+  },
+  "rl_policy": {
+    "episode_reward_mean": 98.48224379179986,
+    "episode_reward_std": 22.69998439763287,
+    "step_reward_mean": 1.641370729863331,
+    "unsafe_rate": 0.004166666666666667,
+    "uncertain_rate": 0.016666666666666666,
+    "action_clipped_rate": 0.025,
+    "mean_integrated_reward": 1.33038024147871,
+    "mean_effectiveness_reward": 2.580953823934857,
+    "mean_pressure_safety_penalty": 0.0,
+    "mean_abnormal_risk_penalty": 0.6255229334372214,
+    "mean_construction_cost_penalty": 0.6250506490189257
+  },
+  "historical_baseline": {
+    "episode_reward_mean": 77.37187709165752,
+    "episode_reward_std": 52.518899009825,
+    "step_reward_mean": 1.2895312848609586,
+    "unsafe_rate": 0.0,
+    "uncertain_rate": 0.04583333333333333,
+    "action_clipped_rate": 0.0,
+    "mean_integrated_reward": 0.9186744981404231,
+    "mean_effectiveness_reward": 1.6200071614118323,
+    "mean_pressure_safety_penalty": 0.08471659504346532,
+    "mean_abnormal_risk_penalty": 0.38876665703890073,
+    "mean_construction_cost_penalty": 0.22784941118904306
+  },
+  "rl_policy_by_scenario": {
+    "historical_real": {
+      "episode_reward_mean": 98.48224379179986,
+      "episode_reward_std": 22.69998439763287,
+      "step_reward_mean": 1.641370729863331,
+      "unsafe_rate": 0.004166666666666667,
+      "uncertain_rate": 0.016666666666666666,
+      "action_clipped_rate": 0.025,
+      "mean_integrated_reward": 1.33038024147871,
+      "mean_effectiveness_reward": 2.580953823934857,
+      "mean_pressure_safety_penalty": 0.0,
+      "mean_abnormal_risk_penalty": 0.6255229334372214,
+      "mean_construction_cost_penalty": 0.6250506490189257
+    }
+  },
+  "historical_baseline_by_scenario": {
+    "historical_real": {
+      "episode_reward_mean": 77.37187709165752,
+      "episode_reward_std": 52.518899009825,
+      "step_reward_mean": 1.2895312848609586,
+      "unsafe_rate": 0.0,
+      "uncertain_rate": 0.04583333333333333,
+      "action_clipped_rate": 0.0,
+      "mean_integrated_reward": 0.9186744981404231,
+      "mean_effectiveness_reward": 1.6200071614118323,
+      "mean_pressure_safety_penalty": 0.08471659504346532,
+      "mean_abnormal_risk_penalty": 0.38876665703890073,
+      "mean_construction_cost_penalty": 0.22784941118904306
+    }
+  },
+  "validation_180s": {
+    "rl_policy": {
+      "validation_available": true,
+      "validation_seconds": 180.0,
+      "horizon_steps": 3,
+      "candidate_windows": 240,
+      "eligible_complete_windows": 232,
+      "incomplete_windows": 8,
+      "coverage_rate": 0.9666666666666667,
+      "unsafe_within_180s_rate": 0.01293103448275862,
+      "safe_within_180s_rate": 0.9870689655172413,
+      "uncertain_within_180s_rate": 0.017241379310344827,
+      "pass_180s_safety": false,
+      "max_abnormal_probability_180s": 0.46240169721374635,
+      "max_sand_plug_probability_180s": 0.0689786904678792,
+      "max_posterior_error_180s": 2.8898448033310316,
+      "config": {
+        "action_seconds": 60.0,
+        "validation_seconds": 180.0,
+        "bottomhole_pressure_max_mpa": 110.0,
+        "net_pressure_max_mpa": 35.0,
+        "abnormal_probability_max": 0.45,
+        "sand_plug_probability_max": 0.35,
+        "posterior_error_uncertainty_threshold": 0.3,
+        "require_full_horizon": true,
+        "target_safe_rate": 1.0
+      }
+    },
+    "historical_baseline": {
+      "validation_available": true,
+      "validation_seconds": 180.0,
+      "horizon_steps": 3,
+      "candidate_windows": 240,
+      "eligible_complete_windows": 232,
+      "incomplete_windows": 8,
+      "coverage_rate": 0.9666666666666667,
+      "unsafe_within_180s_rate": 0.0,
+      "safe_within_180s_rate": 1.0,
+      "uncertain_within_180s_rate": 0.08189655172413793,
+      "pass_180s_safety": true,
+      "max_abnormal_probability_180s": 0.36452669522728864,
+      "max_sand_plug_probability_180s": 0.025508449328064075,
+      "max_posterior_error_180s": 3.242877964921993,
+      "config": {
+        "action_seconds": 60.0,
+        "validation_seconds": 180.0,
+        "bottomhole_pressure_max_mpa": 110.0,
+        "net_pressure_max_mpa": 35.0,
+        "abnormal_probability_max": 0.45,
+        "sand_plug_probability_max": 0.35,
+        "posterior_error_uncertainty_threshold": 0.3,
+        "require_full_horizon": true,
+        "target_safe_rate": 1.0
+      }
+    },
+    "rl_policy_by_scenario": {
+      "historical_real": {
+        "validation_available": true,
+        "validation_seconds": 180.0,
+        "horizon_steps": 3,
+        "candidate_windows": 240,
+        "eligible_complete_windows": 232,
+        "incomplete_windows": 8,
+        "coverage_rate": 0.9666666666666667,
+        "unsafe_within_180s_rate": 0.01293103448275862,
+        "safe_within_180s_rate": 0.9870689655172413,
+        "uncertain_within_180s_rate": 0.017241379310344827,
+        "pass_180s_safety": false,
+        "max_abnormal_probability_180s": 0.46240169721374635,
+        "max_sand_plug_probability_180s": 0.0689786904678792,
+        "max_posterior_error_180s": 2.8898448033310316,
+        "config": {
+          "action_seconds": 60.0,
+          "validation_seconds": 180.0,
+          "bottomhole_pressure_max_mpa": 110.0,
+          "net_pressure_max_mpa": 35.0,
+          "abnormal_probability_max": 0.45,
+          "sand_plug_probability_max": 0.35,
+          "posterior_error_uncertainty_threshold": 0.3,
+          "require_full_horizon": true,
+          "target_safe_rate": 1.0
+        }
+      }
+    },
+    "historical_baseline_by_scenario": {
+      "historical_real": {
+        "validation_available": true,
+        "validation_seconds": 180.0,
+        "horizon_steps": 3,
+        "candidate_windows": 240,
+        "eligible_complete_windows": 232,
+        "incomplete_windows": 8,
+        "coverage_rate": 0.9666666666666667,
+        "unsafe_within_180s_rate": 0.0,
+        "safe_within_180s_rate": 1.0,
+        "uncertain_within_180s_rate": 0.08189655172413793,
+        "pass_180s_safety": true,
+        "max_abnormal_probability_180s": 0.36452669522728864,
+        "max_sand_plug_probability_180s": 0.025508449328064075,
+        "max_posterior_error_180s": 3.242877964921993,
+        "config": {
+          "action_seconds": 60.0,
+          "validation_seconds": 180.0,
+          "bottomhole_pressure_max_mpa": 110.0,
+          "net_pressure_max_mpa": 35.0,
+          "abnormal_probability_max": 0.45,
+          "sand_plug_probability_max": 0.35,
+          "posterior_error_uncertainty_threshold": 0.3,
+          "require_full_horizon": true,
+          "target_safe_rate": 1.0
+        }
+      }
+    }
+  },
+  "quality_gate": {
+    "checks": {
+      "reward_not_worse_than_baseline": true,
+      "unsafe_rate_not_worse_than_baseline": false,
+      "all_complete_180s_windows_safe": false,
+      "all_scenarios_have_complete_windows": true,
+      "all_scenarios_pass_180s": false
+    },
+    "passed": false,
+    "status": "development_only"
+  },
+  "outputs": {
+    "model": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\runs\\rl_control_agent\\ppo_20260728_212437\\ppo_fracturing_policy.zip",
+    "rl_evaluation": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\runs\\rl_control_agent\\ppo_20260728_212437\\rl_evaluation.csv",
+    "historical_evaluation": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\runs\\rl_control_agent\\ppo_20260728_212437\\historical_baseline_evaluation.csv",
+    "rl_180s_validation": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\runs\\rl_control_agent\\ppo_20260728_212437\\rl_180s_validation.csv",
+    "historical_baseline_180s_validation": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\runs\\rl_control_agent\\ppo_20260728_212437\\historical_baseline_180s_validation.csv",
+    "rl_180s_failures": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\runs\\rl_control_agent\\ppo_20260728_212437\\rl_180s_failures.csv",
+    "rl_180s_uncertain_windows": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\runs\\rl_control_agent\\ppo_20260728_212437\\rl_180s_uncertain_windows.csv",
+    "comparison_plot": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\runs\\rl_control_agent\\ppo_20260728_212437\\rl_vs_historical_reward.png",
+    "scenario_180s_safety_plot": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\HMI-KE\\runs\\rl_control_agent\\ppo_20260728_212437\\scenario_180s_safety.png"
+  }
+}

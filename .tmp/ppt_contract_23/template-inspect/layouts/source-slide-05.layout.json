@@ -1,0 +1,1685 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/i107q5of",
+    "id": "i107q5of",
+    "slide": 5,
+    "layoutId": "/ppt/slideLayouts/slideLayout1.xml",
+    "layoutName": "Blank",
+    "layoutType": "blank",
+    "masterLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "PPTD",
+    "colors": {
+      "accent1": "#4472C4",
+      "accent2": "#ED7D31",
+      "accent3": "#A5A5A5",
+      "accent4": "#FFC000",
+      "accent5": "#5B9BD5",
+      "accent6": "#70AD47",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#44546A",
+      "lt2": "#E7E6E6",
+      "hlink": "#0563C1",
+      "folHlink": "#954F72"
+    },
+    "fontScheme": {
+      "name": "PPTD",
+      "majorFont": {
+        "latinTypeface": "MiSans",
+        "eastAsianTypeface": "MiSans",
+        "complexScriptTypeface": "MiSans"
+      },
+      "minorFont": {
+        "latinTypeface": "MiSans",
+        "eastAsianTypeface": "MiSans",
+        "complexScriptTypeface": "MiSans"
+      }
+    },
+    "typefaces": [
+      "Arial",
+      "MiSans",
+      "微软雅黑"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "/ppt/slideLayouts/slideLayout1.xml",
+      "name": "Blank",
+      "type": "blank",
+      "parentLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "/ppt/slideMasters/slideMaster1.xml",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/6p4fyl47",
+      "id": "11",
+      "name": "bg-logo",
+      "bbox": [
+        95.73,
+        685.07,
+        133.6,
+        23.07
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image1.png",
+        "contentType": "image/png",
+        "byteLength": 2429
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image1.png",
+        "contentType": "image/png",
+        "byteLength": 2429
+      }
+    },
+    {
+      "order": 2,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/tcve903i",
+      "id": "12",
+      "name": "bg",
+      "bbox": [
+        0,
+        0,
+        1276.93,
+        720
+      ],
+      "contentType": "image/jpeg",
+      "asset": {
+        "assetId": "/ppt/media/image3.jpeg",
+        "contentType": "image/jpeg",
+        "byteLength": 78329
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image3.jpeg",
+        "contentType": "image/jpeg",
+        "byteLength": 78329
+      }
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/z2tcnm5s",
+      "id": "4",
+      "name": "footer",
+      "bbox": [
+        815.87,
+        663.87,
+        284.13,
+        30
+      ],
+      "geometry": "rect",
+      "text": "中石化石油工程技术研究院有限公司\nSINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+      "textPreview": "中石化石油工程技术研究院有限公司 | SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "中石化石油工程技术研究院有限公司"
+          },
+          {
+            "index": 2,
+            "text": "SINOPEC Research Institute of Petroleum Engineering"
+          },
+          {
+            "index": 3,
+            "text": "Co., Ltd."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "中石化石油工程技术研究院有限公司",
+          "lineSpacingPercent": 110000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "中石化石油工程技术研究院有限公司",
+              "fontSize": 14,
+              "typeface": "微软雅黑",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "text": "SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+          "lineSpacingPercent": 110000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "SINOPEC Research Institute of Petroleum Engineering Co., Ltd.",
+              "fontSize": 10.67,
+              "typeface": "Arial",
+              "color": "#231815",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/srmx0vmd",
+      "id": "13",
+      "name": "hbar",
+      "bbox": [
+        2,
+        49.73,
+        1275.07,
+        38.13
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image4.png",
+        "contentType": "image/png",
+        "byteLength": 866
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image4.png",
+        "contentType": "image/png",
+        "byteLength": 866
+      }
+    },
+    {
+      "order": 5,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/jmdw3qlg",
+      "id": "14",
+      "name": "flogo",
+      "bbox": [
+        57.07,
+        657.47,
+        113.87,
+        36.4
+      ],
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "/ppt/media/image5.png",
+        "contentType": "image/png",
+        "byteLength": 4253
+      },
+      "fillImage": {
+        "assetId": "/ppt/media/image5.png",
+        "contentType": "image/png",
+        "byteLength": 4253
+      }
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/032tgr6d",
+      "id": "7",
+      "name": "chtitle",
+      "bbox": [
+        106.67,
+        24,
+        1066.67,
+        48
+      ],
+      "geometry": "rect",
+      "text": "一、规定研究任务及指标完成情况",
+      "textPreview": "一、规定研究任务及指标完成情况",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "一、规定研究任务及指标完成情况"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "一、规定研究任务及指标完成情况",
+          "lineSpacingPercent": 90000,
+          "resolvedTextStyle": {
+            "alignment": "center"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "一、规定研究任务及指标完成情况",
+              "fontSize": 37.33,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/n6dcr65o",
+      "id": "8",
+      "name": "subtitle",
+      "bbox": [
+        40,
+        88,
+        1200,
+        40
+      ],
+      "geometry": "rect",
+      "text": "（二）研究内容及完成情况：十二项合同内容均已形成代码基础",
+      "textPreview": "（二）研究内容及完成情况：十二项合同内容均已形成代码基础",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "（二）研究内容及完成情况：十二项合同内容均已形成代码基础"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "（二）研究内容及完成情况：十二项合同内容均已形成代码基础",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "（二）研究内容及完成情况：十二项合同内容均已形成代码基础",
+              "fontSize": 25.33,
+              "typeface": "微软雅黑",
+              "color": "#FF0000",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "table",
+      "scope": "slide",
+      "aid": "tb/ql47mto7",
+      "id": "15",
+      "name": "tbl",
+      "bbox": [
+        40,
+        136,
+        1200,
+        490.67
+      ],
+      "text": "合同模块 | 当前主要实现 | 当前状态\n1.1 GNN专家知识图谱 | 全书知识抽取、GraphML/JSON图谱、GNN工况识别、规则融合 | 已形成原型与可视化\n1.2 迁移学习 | 源域预训练、迁移集支持/查询划分、微调评估 | 已完成阶段实验\n1.3 增强与重采样 | 类别权重、异常过采样、噪声增强、加砂后截断、动态特征 | 已接入训练流程\n1.4 多模态数据库 | 施工秒点、标签、书籍图文、光纤、压力、井轨迹及manifest | 已形成统一数据目录\n2.1 多源融合与同步 | 光纤文本/API、压力表、井轨迹适配器和统一控制量 | 已完成真实数据接入\n2.2 裂缝反演模型 | coupled PKN、reduced BEM、数据代理统一正演接口 | 已完成可替换模型框架\n2.3 EnKF实时修正 | 更新物理参数及分簇参数，重新正演生成后验结果 | 已完成直接观测验证\n2.4 数字孪生闭环 | 正演—观测—残差—参数更新—再正演—3D播放 | 已形成Web演示闭环\n3.1 物理约束HRL | 规则高层选项 + PPO/SAC低层连续控制 | 已形成轻量分层原型\n3.2 不确定性决策 | 模型残差、异常概率、越界动作、OOD评分 | 已接入风险判断\n3.3 人机协同接口 | 建议模式、权限分级、二次确认、证据字段 | 已形成接口原型\n3.4 多工况仿真 | 历史回放、六类压力测试、真实动作响应代理、180秒验证 | 已形成训练验证链路",
+      "textPreview": "合同模块 | 当前主要实现 | 当前状态 | 1.1 GNN专家知识图谱 | 全书知识抽取、GraphML/JSON图谱、GNN工况识别、规则融合 | 已形成原型与可视化 | 1.2 迁移学习 | 源域预训练、迁移集支持/查询划分、微调评估 | 已完成阶段实验 | 1.3 ...",
+      "rows": 13,
+      "cols": 3,
+      "cells": [
+        {
+          "index": 1,
+          "row": 1,
+          "column": 1,
+          "bbox": [
+            40,
+            136,
+            252,
+            37.29
+          ],
+          "text": "合同模块",
+          "textPreview": "合同模块",
+          "fillColor": "#D1EAEC",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "合同模块",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "合同模块",
+                  "fontSize": 17.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "row": 1,
+          "column": 2,
+          "bbox": [
+            292,
+            136,
+            612,
+            37.29
+          ],
+          "text": "当前主要实现",
+          "textPreview": "当前主要实现",
+          "fillColor": "#D1EAEC",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "当前主要实现",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "当前主要实现",
+                  "fontSize": 17.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "row": 1,
+          "column": 3,
+          "bbox": [
+            904,
+            136,
+            336,
+            37.29
+          ],
+          "text": "当前状态",
+          "textPreview": "当前状态",
+          "fillColor": "#D1EAEC",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "当前状态",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "当前状态",
+                  "fontSize": 17.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 4,
+          "row": 2,
+          "column": 1,
+          "bbox": [
+            40,
+            173.29,
+            252,
+            37.78
+          ],
+          "text": "1.1 GNN专家知识图谱",
+          "textPreview": "1.1 GNN专家知识图谱",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1.1 GNN专家知识图谱",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1.1 GNN专家知识图谱",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "row": 2,
+          "column": 2,
+          "bbox": [
+            292,
+            173.29,
+            612,
+            37.78
+          ],
+          "text": "全书知识抽取、GraphML/JSON图谱、GNN工况识别、规则融合",
+          "textPreview": "全书知识抽取、GraphML/JSON图谱、GNN工况识别、规则融合",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "全书知识抽取、GraphML/JSON图谱、GNN工况识别、规则融合",
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "全书知识抽取、GraphML/JSON图谱、GNN工况识别、规则融合",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "row": 2,
+          "column": 3,
+          "bbox": [
+            904,
+            173.29,
+            336,
+            37.78
+          ],
+          "text": "已形成原型与可视化",
+          "textPreview": "已形成原型与可视化",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "已形成原型与可视化",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "已形成原型与可视化",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "row": 3,
+          "column": 1,
+          "bbox": [
+            40,
+            211.07,
+            252,
+            37.78
+          ],
+          "text": "1.2 迁移学习",
+          "textPreview": "1.2 迁移学习",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1.2 迁移学习",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1.2 迁移学习",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 8,
+          "row": 3,
+          "column": 2,
+          "bbox": [
+            292,
+            211.07,
+            612,
+            37.78
+          ],
+          "text": "源域预训练、迁移集支持/查询划分、微调评估",
+          "textPreview": "源域预训练、迁移集支持/查询划分、微调评估",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "源域预训练、迁移集支持/查询划分、微调评估",
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "源域预训练、迁移集支持/查询划分、微调评估",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 9,
+          "row": 3,
+          "column": 3,
+          "bbox": [
+            904,
+            211.07,
+            336,
+            37.78
+          ],
+          "text": "已完成阶段实验",
+          "textPreview": "已完成阶段实验",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "已完成阶段实验",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "已完成阶段实验",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 10,
+          "row": 4,
+          "column": 1,
+          "bbox": [
+            40,
+            248.85,
+            252,
+            37.78
+          ],
+          "text": "1.3 增强与重采样",
+          "textPreview": "1.3 增强与重采样",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1.3 增强与重采样",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1.3 增强与重采样",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 11,
+          "row": 4,
+          "column": 2,
+          "bbox": [
+            292,
+            248.85,
+            612,
+            37.78
+          ],
+          "text": "类别权重、异常过采样、噪声增强、加砂后截断、动态特征",
+          "textPreview": "类别权重、异常过采样、噪声增强、加砂后截断、动态特征",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "类别权重、异常过采样、噪声增强、加砂后截断、动态特征",
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "类别权重、异常过采样、噪声增强、加砂后截断、动态特征",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 12,
+          "row": 4,
+          "column": 3,
+          "bbox": [
+            904,
+            248.85,
+            336,
+            37.78
+          ],
+          "text": "已接入训练流程",
+          "textPreview": "已接入训练流程",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "已接入训练流程",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "已接入训练流程",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 13,
+          "row": 5,
+          "column": 1,
+          "bbox": [
+            40,
+            286.63,
+            252,
+            37.78
+          ],
+          "text": "1.4 多模态数据库",
+          "textPreview": "1.4 多模态数据库",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "1.4 多模态数据库",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "1.4 多模态数据库",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 14,
+          "row": 5,
+          "column": 2,
+          "bbox": [
+            292,
+            286.63,
+            612,
+            37.78
+          ],
+          "text": "施工秒点、标签、书籍图文、光纤、压力、井轨迹及manifest",
+          "textPreview": "施工秒点、标签、书籍图文、光纤、压力、井轨迹及manifest",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "施工秒点、标签、书籍图文、光纤、压力、井轨迹及manifest",
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "施工秒点、标签、书籍图文、光纤、压力、井轨迹及manifest",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 15,
+          "row": 5,
+          "column": 3,
+          "bbox": [
+            904,
+            286.63,
+            336,
+            37.78
+          ],
+          "text": "已形成统一数据目录",
+          "textPreview": "已形成统一数据目录",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "已形成统一数据目录",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "已形成统一数据目录",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 16,
+          "row": 6,
+          "column": 1,
+          "bbox": [
+            40,
+            324.42,
+            252,
+            37.78
+          ],
+          "text": "2.1 多源融合与同步",
+          "textPreview": "2.1 多源融合与同步",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "2.1 多源融合与同步",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "2.1 多源融合与同步",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 17,
+          "row": 6,
+          "column": 2,
+          "bbox": [
+            292,
+            324.42,
+            612,
+            37.78
+          ],
+          "text": "光纤文本/API、压力表、井轨迹适配器和统一控制量",
+          "textPreview": "光纤文本/API、压力表、井轨迹适配器和统一控制量",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "光纤文本/API、压力表、井轨迹适配器和统一控制量",
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "光纤文本/API、压力表、井轨迹适配器和统一控制量",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 18,
+          "row": 6,
+          "column": 3,
+          "bbox": [
+            904,
+            324.42,
+            336,
+            37.78
+          ],
+          "text": "已完成真实数据接入",
+          "textPreview": "已完成真实数据接入",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "已完成真实数据接入",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "已完成真实数据接入",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 19,
+          "row": 7,
+          "column": 1,
+          "bbox": [
+            40,
+            362.2,
+            252,
+            37.78
+          ],
+          "text": "2.2 裂缝反演模型",
+          "textPreview": "2.2 裂缝反演模型",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "2.2 裂缝反演模型",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "2.2 裂缝反演模型",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 20,
+          "row": 7,
+          "column": 2,
+          "bbox": [
+            292,
+            362.2,
+            612,
+            37.78
+          ],
+          "text": "coupled PKN、reduced BEM、数据代理统一正演接口",
+          "textPreview": "coupled PKN、reduced BEM、数据代理统一正演接口",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "coupled PKN、reduced BEM、数据代理统一正演接口",
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "coupled PKN、reduced BEM、数据代理统一正演接口",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 21,
+          "row": 7,
+          "column": 3,
+          "bbox": [
+            904,
+            362.2,
+            336,
+            37.78
+          ],
+          "text": "已完成可替换模型框架",
+          "textPreview": "已完成可替换模型框架",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "已完成可替换模型框架",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "已完成可替换模型框架",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 22,
+          "row": 8,
+          "column": 1,
+          "bbox": [
+            40,
+            399.98,
+            252,
+            37.78
+          ],
+          "text": "2.3 EnKF实时修正",
+          "textPreview": "2.3 EnKF实时修正",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "2.3 EnKF实时修正",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "2.3 EnKF实时修正",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 23,
+          "row": 8,
+          "column": 2,
+          "bbox": [
+            292,
+            399.98,
+            612,
+            37.78
+          ],
+          "text": "更新物理参数及分簇参数，重新正演生成后验结果",
+          "textPreview": "更新物理参数及分簇参数，重新正演生成后验结果",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "更新物理参数及分簇参数，重新正演生成后验结果",
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "更新物理参数及分簇参数，重新正演生成后验结果",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 24,
+          "row": 8,
+          "column": 3,
+          "bbox": [
+            904,
+            399.98,
+            336,
+            37.78
+          ],
+          "text": "已完成直接观测验证",
+          "textPreview": "已完成直接观测验证",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "已完成直接观测验证",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "已完成直接观测验证",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 25,
+          "row": 9,
+          "column": 1,
+          "bbox": [
+            40,
+            437.76,
+            252,
+            37.78
+          ],
+          "text": "2.4 数字孪生闭环",
+          "textPreview": "2.4 数字孪生闭环",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "2.4 数字孪生闭环",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "2.4 数字孪生闭环",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 26,
+          "row": 9,
+          "column": 2,
+          "bbox": [
+            292,
+            437.76,
+            612,
+            37.78
+          ],
+          "text": "正演—观测—残差—参数更新—再正演—3D播放",
+          "textPreview": "正演—观测—残差—参数更新—再正演—3D播放",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "正演—观测—残差—参数更新—再正演—3D播放",
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "正演—观测—残差—参数更新—再正演—3D播放",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 27,
+          "row": 9,
+          "column": 3,
+          "bbox": [
+            904,
+            437.76,
+            336,
+            37.78
+          ],
+          "text": "已形成Web演示闭环",
+          "textPreview": "已形成Web演示闭环",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "已形成Web演示闭环",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "已形成Web演示闭环",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 28,
+          "row": 10,
+          "column": 1,
+          "bbox": [
+            40,
+            475.54,
+            252,
+            37.78
+          ],
+          "text": "3.1 物理约束HRL",
+          "textPreview": "3.1 物理约束HRL",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "3.1 物理约束HRL",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "3.1 物理约束HRL",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 29,
+          "row": 10,
+          "column": 2,
+          "bbox": [
+            292,
+            475.54,
+            612,
+            37.78
+          ],
+          "text": "规则高层选项 + PPO/SAC低层连续控制",
+          "textPreview": "规则高层选项 + PPO/SAC低层连续控制",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "规则高层选项 + PPO/SAC低层连续控制",
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "规则高层选项 + PPO/SAC低层连续控制",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 30,
+          "row": 10,
+          "column": 3,
+          "bbox": [
+            904,
+            475.54,
+            336,
+            37.78
+          ],
+          "text": "已形成轻量分层原型",
+          "textPreview": "已形成轻量分层原型",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "已形成轻量分层原型",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "已形成轻量分层原型",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 31,
+          "row": 11,
+          "column": 1,
+          "bbox": [
+            40,
+            513.32,
+            252,
+            37.78
+          ],
+          "text": "3.2 不确定性决策",
+          "textPreview": "3.2 不确定性决策",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "3.2 不确定性决策",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "3.2 不确定性决策",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 32,
+          "row": 11,
+          "column": 2,
+          "bbox": [
+            292,
+            513.32,
+            612,
+            37.78
+          ],
+          "text": "模型残差、异常概率、越界动作、OOD评分",
+          "textPreview": "模型残差、异常概率、越界动作、OOD评分",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "模型残差、异常概率、越界动作、OOD评分",
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "模型残差、异常概率、越界动作、OOD评分",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 33,
+          "row": 11,
+          "column": 3,
+          "bbox": [
+            904,
+            513.32,
+            336,
+            37.78
+          ],
+          "text": "已接入风险判断",
+          "textPreview": "已接入风险判断",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "已接入风险判断",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "已接入风险判断",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 34,
+          "row": 12,
+          "column": 1,
+          "bbox": [
+            40,
+            551.1,
+            252,
+            37.78
+          ],
+          "text": "3.3 人机协同接口",
+          "textPreview": "3.3 人机协同接口",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "3.3 人机协同接口",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "3.3 人机协同接口",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 35,
+          "row": 12,
+          "column": 2,
+          "bbox": [
+            292,
+            551.1,
+            612,
+            37.78
+          ],
+          "text": "建议模式、权限分级、二次确认、证据字段",
+          "textPreview": "建议模式、权限分级、二次确认、证据字段",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "建议模式、权限分级、二次确认、证据字段",
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "建议模式、权限分级、二次确认、证据字段",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 36,
+          "row": 12,
+          "column": 3,
+          "bbox": [
+            904,
+            551.1,
+            336,
+            37.78
+          ],
+          "text": "已形成接口原型",
+          "textPreview": "已形成接口原型",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "已形成接口原型",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "已形成接口原型",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 37,
+          "row": 13,
+          "column": 1,
+          "bbox": [
+            40,
+            588.89,
+            252,
+            37.78
+          ],
+          "text": "3.4 多工况仿真",
+          "textPreview": "3.4 多工况仿真",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "3.4 多工况仿真",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "3.4 多工况仿真",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 38,
+          "row": 13,
+          "column": 2,
+          "bbox": [
+            292,
+            588.89,
+            612,
+            37.78
+          ],
+          "text": "历史回放、六类压力测试、真实动作响应代理、180秒验证",
+          "textPreview": "历史回放、六类压力测试、真实动作响应代理、180秒验证",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "历史回放、六类压力测试、真实动作响应代理、180秒验证",
+              "resolvedTextStyle": {
+                "alignment": "left"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "历史回放、六类压力测试、真实动作响应代理、180秒验证",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "index": 39,
+          "row": 13,
+          "column": 3,
+          "bbox": [
+            904,
+            588.89,
+            336,
+            37.78
+          ],
+          "text": "已形成训练验证链路",
+          "textPreview": "已形成训练验证链路",
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "已形成训练验证链路",
+              "resolvedTextStyle": {
+                "alignment": "center"
+              },
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "已形成训练验证链路",
+                  "fontSize": 15.33,
+                  "typeface": "微软雅黑",
+                  "color": "#231815"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/w32dkbuh",
+      "id": "10",
+      "name": "note",
+      "bbox": [
+        40,
+        622.13,
+        1200,
+        24
+      ],
+      "geometry": "rect",
+      "text": "注：表中状态为研发进度口径；现场级验证最终以项目组统一确认为准。",
+      "textPreview": "注：表中状态为研发进度口径；现场级验证最终以项目组统一确认为准。",
+      "resolvedFontSize": 18.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18.67,
+        "verticalAlignment": "top",
+        "wrap": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "注：表中状态为研发进度口径；现场级验证最终以项目组统一确认为准。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "注：表中状态为研发进度口径；现场级验证最终以项目组统一确认为准。",
+          "lineSpacingPercent": 140000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "注：表中状态为研发进度口径；现场级验证最终以项目组统一确认为准。",
+              "fontSize": 14.67,
+              "typeface": "微软雅黑",
+              "color": "#595959"
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

@@ -19,9 +19,18 @@ from rl.fracturing_env import (
     HierarchicalFracturingControlEnv,
     HierarchicalFracturingEnvConfig,
 )
+from rl.digital_twin_env import (
+    HierarchicalDigitalTwinEnvConfig,
+    HierarchicalDigitalTwinFracturingControlEnv,
+)
 from simulator.scenario_generator import apply_scenario
 from simulator.fsl_scenario_library import annotate_real_scenarios, select_real_scenario
 from simulator.validation_180s import validate_180s
+from simulator.contract_acceptance import (
+    annotate_5min_warnings,
+    evaluate_direct_5min_warning,
+    summarize_decision_latency,
+)
 
 
 def build_env() -> FracturingControlEnv:
@@ -120,12 +129,162 @@ def test_scenario_generation_and_180s_validation() -> None:
             "net_pressure_mpa": [12.0, 14.0, 15.0, 16.0],
             "abnormal_probability": [0.1, 0.2, 0.5, 0.2],
             "sand_plug_probability": [0.1, 0.2, 0.2, 0.2],
+            "posterior_error": [0.1, 0.4, 0.2, 0.1],
+            "uncertain": [False, True, False, False],
             "unsafe": [False, False, False, False],
         }
     )
     rows, summary = validate_180s(evaluation)
     assert summary["validation_available"]
     assert rows["unsafe_within_180s"].any()
+    assert rows["uncertain_within_180s"].any()
+    assert summary["eligible_complete_windows"] == 2
+    assert summary["incomplete_windows"] == 2
+    assert "preventive_safe_within_180s_rate" in summary
+    assert "recovered_within_180s_rate" in summary
+
+
+def test_five_minute_warning_and_latency_gate() -> None:
+    rows = []
+    for step in range(8):
+        rows.append(
+            {
+                "episode": 0,
+                "step": step,
+                "bottomhole_pressure_mpa": 80.0,
+                "net_pressure_mpa": 15.0,
+                "abnormal_probability": 0.10 if step < 4 else 0.55,
+                "sand_plug_probability": 0.05,
+                "unsafe": step >= 4,
+                "decision_compute_seconds": 0.02,
+            }
+        )
+    warnings, summary = annotate_5min_warnings(pd.DataFrame(rows))
+    assert summary["available"]
+    assert summary["event_windows"] > 0
+    assert warnings["warning_5min"].any()
+    latency = summarize_decision_latency(pd.DataFrame(rows))
+    assert latency["pass_15s"]
+    assert latency["p95_seconds"] < 15.0
+    direct = evaluate_direct_5min_warning(
+        pd.DataFrame(
+            {
+                "future_abnormal": [0, 0, 1, 1],
+                "predicted_abnormal_probability": [0.05, 0.2, 0.8, 0.9],
+            }
+        )
+    )
+    assert direct["pass_5min_warning_recall"]
+
+
+def test_episode_does_not_cross_segment_boundary() -> None:
+    env = build_env()
+    env.meta["segment_id"] = ["A"] * 6 + ["B"] * 6
+    env = FracturingControlEnv(
+        env.features,
+        env.meta,
+        env.context,
+        env.schedule,
+        env.reward_config,
+        FracturingEnvConfig(episode_steps=10),
+        random_start=False,
+    )
+    env.reset(options={"start_index": 0})
+    steps = 0
+    done = False
+    while not done:
+        _, _, terminated, truncated, _ = env.step(np.zeros(2, dtype=np.float32))
+        done = terminated or truncated
+        steps += 1
+    assert steps == 6
+
+
+def test_hierarchical_digital_twin_environment_runs() -> None:
+    base = build_env()
+    env = HierarchicalDigitalTwinFracturingControlEnv(
+        base.features,
+        base.meta,
+        base.context,
+        base.schedule,
+        base.reward_config,
+        HierarchicalDigitalTwinEnvConfig(episode_steps=4, ensemble_size=12),
+        random_start=False,
+    )
+    observation, info = env.reset(seed=7)
+    assert observation.shape == env.observation_space.shape
+    assert info["high_level_option"] in env.OPTIONS
+    _, reward, _, _, step_info = env.step(np.zeros(2, dtype=np.float32))
+    assert np.isfinite(reward)
+    assert step_info["response_model"] == "pkn_enkf_digital_twin"
+
+
+def test_risk_preempts_to_safe_and_allows_emergency_sand_reduction() -> None:
+    base = build_env()
+    base.context["sand_plug_probability"] = 0.80
+    env = HierarchicalFracturingControlEnv(
+        base.features,
+        base.meta,
+        base.context,
+        base.schedule,
+        base.reward_config,
+        HierarchicalFracturingEnvConfig(episode_steps=5, high_level_interval_steps=6),
+        random_start=False,
+    )
+    env.reset()
+    initial_sand = env._current_sand
+    _, _, terminated, _, info = env.step(np.array([-1.0, -1.0], dtype=np.float32))
+    assert info["high_level_option"] == "safe"
+    assert info["sand_ratio_percent"] < initial_sand
+    assert not terminated
+
+    env.reset()
+    initial_flow = env._current_flow
+    initial_sand = env._current_sand
+    _, _, _, _, conservative = env.step(np.array([1.0, 1.0], dtype=np.float32))
+    assert conservative["flow_m3_min"] <= initial_flow - 0.5 * env.schedule.max_flow_step_m3_min + 1e-6
+    assert conservative["sand_ratio_percent"] <= initial_sand - 0.75 * env.schedule.max_sand_increase_percent + 1e-6
+
+
+def test_low_flow_skips_pkn_and_preserves_fracture_length() -> None:
+    base = build_env()
+    base.meta["current_flow"] = 0.2
+    base.meta["current_sand_ratio"] = 0.0
+    env = HierarchicalDigitalTwinFracturingControlEnv(
+        base.features,
+        base.meta,
+        base.context,
+        base.schedule,
+        base.reward_config,
+        HierarchicalDigitalTwinEnvConfig(episode_steps=4, ensemble_size=12, minimum_pkn_flow_m3_min=1.0),
+        random_start=False,
+    )
+    env.reset(seed=11)
+    initial_length = env._previous_length
+    _, reward, _, _, info = env.step(np.array([-1.0, -1.0], dtype=np.float32))
+    assert np.isfinite(reward)
+    assert info["pkn_update_skipped"]
+    assert info["simulated_half_length_m"] == initial_length
+    assert np.isfinite(info["posterior_error"])
+
+
+def test_posterior_error_is_uncertainty_not_operational_unsafe() -> None:
+    env = build_env()
+    env.context["posterior_error"] = 0.8
+    env = HierarchicalFracturingControlEnv(
+        env.features,
+        env.meta,
+        env.context,
+        env.schedule,
+        env.reward_config,
+        HierarchicalFracturingEnvConfig(episode_steps=4),
+        random_start=False,
+    )
+    _, reset_info = env.reset()
+    assert reset_info["high_level_option"] == "hold"
+    _, _, _, _, info = env.step(np.zeros(2, dtype=np.float32))
+    assert info["uncertain"]
+    assert not info["unsafe"]
+    assert info["uncertainty_reasons"] == "posterior_error"
 
 
 def test_fsl_real_scenario_selection_uses_working_type_without_perturbing_features() -> None:
