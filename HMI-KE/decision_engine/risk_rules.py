@@ -5,16 +5,23 @@ NORMAL_STATE = "正常"
 ABNORMAL_STATES = {
     "砂堵",
     "缝口暂堵",
-    "主缝延伸",
+    "缝内暂堵",
     "延伸受阻",
-    "新缝开启",
     "滤失过大",
+    "缝高延伸",
+    "新缝开启",
+    "其他",
     "异常",
 }
 
 
+def is_abnormal_state(state: str) -> bool:
+    text = str(state).strip()
+    return text != NORMAL_STATE and any(label in text for label in ABNORMAL_STATES)
+
+
 def risk_level(next_state: str, transition_probability: float, uncertainty: str) -> str:
-    abnormal = next_state in ABNORMAL_STATES
+    abnormal = is_abnormal_state(next_state)
     if abnormal and (transition_probability >= 0.2 or uncertainty == "high"):
         return "high"
     if abnormal or uncertainty == "medium":

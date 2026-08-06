@@ -30,7 +30,8 @@ class ActionResponseSurrogate:
     This model only learns field-data residual response: pressure and condition risk.
     """
 
-    version = "action_response_surrogate_v1"
+    version = "action_response_surrogate_v2_abnormal_only"
+    risk_label_policy = "explicit_abnormal_labels_only"
 
     def __init__(self, feature_names: list[str], action_bounds: dict, seed: int = 2026) -> None:
         self.feature_names = list(feature_names)

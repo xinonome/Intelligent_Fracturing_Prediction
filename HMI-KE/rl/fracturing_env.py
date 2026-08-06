@@ -310,6 +310,11 @@ class FracturingControlEnv(gym.Env):
 
     def step(self, action: np.ndarray):
         pre_action_context = self._base_context(self._cursor)
+        # Preserve the measured/current control state before decoding the
+        # proposed action.  The action is a future 60-second mean setting and
+        # must not be presented as the current field input.
+        pre_action_flow = float(self._current_flow)
+        pre_action_sand = float(self._current_sand)
         pre_action_bottomhole = float(
             pre_action_context.get("bottomhole_pressure_mpa", self._current_pressure)
         )
@@ -390,6 +395,8 @@ class FracturingControlEnv(gym.Env):
         terminated = bool((severe_pressure and self.config.terminate_on_unsafe) or boundary_reached)
         truncated = bool(self._steps >= self.config.episode_steps)
         info = {
+            "pre_action_flow_m3_min": pre_action_flow,
+            "pre_action_sand_ratio_percent": pre_action_sand,
             "flow_m3_min": flow,
             "sand_ratio_percent": sand,
             "action_clipped": action_clipped,
