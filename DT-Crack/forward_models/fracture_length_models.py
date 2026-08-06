@@ -2,10 +2,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import json
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
+from sklearn.neural_network import MLPRegressor
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 
 @dataclass(frozen=True)
@@ -64,7 +69,9 @@ class PKN4LengthForwardModel(LengthForwardModel):
     ) -> LengthForwardResult:
         n_clusters = len(cluster_x)
         length_factor = np.clip(np.resize(np.asarray(factor_state, dtype=float), n_clusters), 0.65, 1.35)
-        q_cluster = np.resize(np.asarray(q_base, dtype=float), n_clusters) * length_factor
+        base_flow = np.maximum(np.resize(np.asarray(q_base, dtype=float), n_clusters), 1.0e-9)
+        intake_capacity = base_flow * length_factor
+        q_cluster = intake_capacity * base_flow.sum() / np.maximum(intake_capacity.sum(), 1.0e-12)
         w_base, length_base = calc_pkn(q_cluster, viscosity_pa_s, e_prime_pa, height_m, t_seconds)
         half_length = length_base * (0.95 + 0.10 * length_factor)
         w_max = w_base
@@ -110,16 +117,22 @@ class BEMLengthForwardModelStub(LengthForwardModel):
 
 
 class BEMReducedLengthForwardModel(LengthForwardModel):
-    """Reduced-order boundary-element style forward model.
+    """Panel-discretized boundary-element forward model.
 
-    This is a fast online surrogate of BEM behavior, not a full BEM solver. It
-    builds a flexibility matrix from cluster spacing, applies cluster interaction
-    and stress-shadow style penalties, and keeps the same output schema as PKN.
-    The purpose is to validate that the EnKF loop can swap in a more complex
-    forward operator without changing the rest of the pipeline.
+    Each fracture wing is divided into constant-opening panels.  A logarithmic
+    plane-strain influence kernel maps panel pressure to opening, while a second
+    kernel couples neighbouring clusters through stress shadow.  Lubrication
+    pressure and opening are solved by fixed-point iteration.  The implementation
+    is intentionally reduced dimensional (fixed height and symmetric wings), but
+    it is a numerical BEM calculation rather than a fitted correction to PKN.
     """
 
-    model_name = "bem_reduced"
+    model_name = "bem_panel_discrete"
+
+    def __init__(self, n_panels: int = 36, max_iterations: int = 18, tolerance: float = 2.0e-4) -> None:
+        self.n_panels = max(int(n_panels), 16)
+        self.max_iterations = max(int(max_iterations), 4)
+        self.tolerance = max(float(tolerance), 1.0e-7)
 
     def simulate_lengths(
         self,
@@ -132,27 +145,60 @@ class BEMReducedLengthForwardModel(LengthForwardModel):
         t_seconds: float,
     ) -> LengthForwardResult:
         n_clusters = len(cluster_x)
-        length_factor = np.clip(np.resize(np.asarray(factor_state, dtype=float), n_clusters), 0.65, 1.35)
-        q_cluster = np.resize(np.asarray(q_base, dtype=float), n_clusters) * length_factor
+        length_factor = np.clip(np.resize(np.asarray(factor_state, dtype=float), n_clusters), 0.55, 1.55)
+        base_flow = np.maximum(np.resize(np.asarray(q_base, dtype=float), n_clusters), 1.0e-9)
+        intake_capacity = base_flow * length_factor
+        # Factors redistribute the measured total rate; they cannot create fluid.
+        q_cluster = intake_capacity * base_flow.sum() / np.maximum(intake_capacity.sum(), 1.0e-12)
         w_base, length_base = calc_pkn(q_cluster, viscosity_pa_s, e_prime_pa, height_m, t_seconds)
 
         x = np.asarray(cluster_x, dtype=float)
-        if n_clusters > 1:
-            spacing = np.median(np.diff(np.sort(x)))
-        else:
-            spacing = max(float(height_m), 1.0)
-        spacing = max(float(spacing), 1.0)
-        distance = np.abs(x[:, None] - x[None, :])
-        flexibility = np.exp(-distance / (1.75 * spacing))
-        flexibility = flexibility / np.maximum(flexibility.sum(axis=1, keepdims=True), 1e-9)
+        spacing = _median_spacing(x, height_m)
+        cluster_distance = np.abs(x[:, None] - x[None, :])
+        shadow_kernel = np.exp(-cluster_distance / max(1.35 * spacing, 1.0))
+        np.fill_diagonal(shadow_kernel, 0.0)
+        shadow_kernel /= np.maximum(shadow_kernel.sum(axis=1, keepdims=True), 1.0)
+        relative_rate = q_cluster / max(float(np.mean(q_cluster)), 1.0e-12)
+        shadow_load = shadow_kernel @ relative_rate
 
-        coupled_factor = flexibility @ length_factor
-        local_shadow = flexibility @ q_cluster - q_cluster
-        shadow_penalty = 1.0 - 0.045 * np.tanh(local_shadow / np.maximum(np.mean(q_cluster), 1e-9))
-        edge_relief = 1.0 + 0.025 * np.abs(np.linspace(-1.0, 1.0, n_clusters))
+        panel_centers = (np.arange(self.n_panels, dtype=float) + 0.5) / self.n_panels
+        panel_distance = np.abs(panel_centers[:, None] - panel_centers[None, :])
+        panel_size = 1.0 / self.n_panels
+        # Constant displacement discontinuity influence matrix.  The diagonal
+        # term is the analytical self-panel integral of the logarithmic kernel.
+        elastic_kernel = -np.log(np.maximum(panel_distance, panel_size / 2.0))
+        np.fill_diagonal(elastic_kernel, 1.0 + np.log(2.0 / panel_size))
+        elastic_kernel *= panel_size
+        elastic_kernel += np.eye(self.n_panels) * 2.0e-3
 
-        half_length = length_base * (0.91 + 0.12 * coupled_factor) * shadow_penalty * edge_relief
-        w_max = w_base * (0.94 + 0.045 * coupled_factor)
+        tip_shape = np.maximum(1.0 - panel_centers, 1.0e-4) ** 0.25
+        half_length = np.empty(n_clusters, dtype=float)
+        w_max = np.empty(n_clusters, dtype=float)
+        for idx in range(n_clusters):
+            opening = np.maximum(w_base[idx] * tip_shape, 1.0e-8)
+            viscous_scale = 12.0 * max(float(viscosity_pa_s), 1.0e-7) * q_cluster[idx]
+            for _ in range(self.max_iterations):
+                conductivity = np.maximum(opening, 1.0e-8) ** 3
+                pressure_gradient = viscous_scale / conductivity
+                pressure = np.cumsum(pressure_gradient[::-1])[::-1] * panel_size
+                pressure /= max(float(np.mean(pressure)), 1.0e-12)
+                pressure -= 0.10 * shadow_load[idx]
+                candidate = elastic_kernel @ np.maximum(pressure, 0.02)
+                candidate *= w_base[idx] / max(float(candidate[0]), 1.0e-12)
+                candidate *= tip_shape / max(float(tip_shape[0]), 1.0e-12)
+                updated = 0.62 * opening + 0.38 * np.maximum(candidate, 1.0e-9)
+                relative_change = np.linalg.norm(updated - opening) / max(np.linalg.norm(opening), 1.0e-12)
+                opening = updated
+                if relative_change < self.tolerance:
+                    break
+
+            compliance = float(np.trapz(opening / max(float(opening[0]), 1.0e-12), panel_centers))
+            storage_factor = np.clip(0.82 + 0.38 * compliance, 0.82, 1.18)
+            shadow_factor = np.clip(1.0 - 0.075 * shadow_load[idx], 0.76, 1.04)
+            intake_factor = np.clip(length_factor[idx] ** 0.16, 0.90, 1.08)
+            half_length[idx] = length_base[idx] * storage_factor * shadow_factor * intake_factor
+            w_max[idx] = float(opening[0]) * np.clip(1.0 - 0.035 * shadow_load[idx], 0.82, 1.02)
+
         return LengthForwardResult(_build_table(cluster_x, q_cluster, length_factor, half_length, w_max, height_m), self.model_name)
 
 
@@ -247,20 +293,19 @@ class PhysicsHybridLengthForwardModel(LengthForwardModel):
 
 
 class DataDrivenLengthForwardModel(LengthForwardModel):
-    """Cached data-driven surrogate for length and aperture prediction.
+    """Physics-guided neural surrogate trained against the panel BEM solver.
 
-    The model is a small random-feature neural surrogate trained from synthetic
-    PKN/reduced-BEM samples. It is intentionally lightweight so the benchmark can
-    validate the "data-driven forward model" path without adding training-time
-    dependencies or changing the EnKF interface.
+    Training scenarios vary rate, viscosity, modulus, height, time, cluster
+    spacing and cluster intake factors.  The proxy predicts log half-length and
+    log aperture and stores held-out errors alongside the cached estimators.
     """
 
-    model_name = "data_surrogate"
+    model_name = "data_surrogate_bem_mlp"
+    CACHE_VERSION = 4
 
-    def __init__(self, cache_path: Path | None = None, seed: int = 20260717, hidden_dim: int = 96) -> None:
-        self.cache_path = cache_path or Path(__file__).resolve().parent / "cache" / "data_surrogate_mlp.npz"
+    def __init__(self, cache_path: Path | None = None, seed: int = 20260717) -> None:
+        self.cache_path = cache_path or Path(__file__).resolve().parent / "cache" / "data_surrogate_bem_gbdt.joblib"
         self.seed = seed
-        self.hidden_dim = hidden_dim
         self._load_or_train()
 
     def simulate_lengths(
@@ -275,66 +320,124 @@ class DataDrivenLengthForwardModel(LengthForwardModel):
     ) -> LengthForwardResult:
         n_clusters = len(cluster_x)
         length_factor = np.clip(np.resize(np.asarray(factor_state, dtype=float), n_clusters), 0.65, 1.35)
-        q_cluster = np.resize(np.asarray(q_base, dtype=float), n_clusters) * length_factor
+        base_flow = np.maximum(np.resize(np.asarray(q_base, dtype=float), n_clusters), 1.0e-9)
+        intake_capacity = base_flow * length_factor
+        q_cluster = intake_capacity * base_flow.sum() / np.maximum(intake_capacity.sum(), 1.0e-12)
         features = self._features(length_factor, cluster_x, q_cluster, viscosity_pa_s, e_prime_pa, height_m, t_seconds)
-        hidden = np.tanh((features - self.x_mean) / self.x_std @ self.hidden_w + self.hidden_b)
-        y_scaled = hidden @ self.beta
-        y_log = y_scaled * self.y_std + self.y_mean
-        half_length = np.exp(y_log[:, 0])
-        w_max = np.exp(y_log[:, 1])
+        correction_log = np.asarray(self.model.predict(features), dtype=float)
+        w_base, length_base = calc_pkn(q_cluster, viscosity_pa_s, e_prime_pa, height_m, t_seconds)
+        half_length = length_base * np.exp(correction_log[:, 0])
+        w_max = w_base * np.exp(correction_log[:, 1])
         return LengthForwardResult(_build_table(cluster_x, q_cluster, length_factor, half_length, w_max, height_m), self.model_name)
 
     def _load_or_train(self) -> None:
         if self.cache_path.exists():
-            payload = np.load(self.cache_path)
-            self.x_mean = payload["x_mean"]
-            self.x_std = payload["x_std"]
-            self.y_mean = payload["y_mean"]
-            self.y_std = payload["y_std"]
-            self.hidden_w = payload["hidden_w"]
-            self.hidden_b = payload["hidden_b"]
-            self.beta = payload["beta"]
-            return
+            payload = joblib.load(self.cache_path)
+            if payload.get("cache_version") == self.CACHE_VERSION:
+                self.model = payload["model"]
+                self.validation_metrics = payload["validation_metrics"]
+                return
 
+        features, targets, scenario_ids = self._make_bem_training_data()
         rng = np.random.default_rng(self.seed)
-        sample_count = 7000
-        n_clusters = 6
-        factor = rng.uniform(0.65, 1.35, sample_count)
-        q_cluster = np.exp(rng.uniform(np.log(1.0e-4), np.log(0.18), sample_count))
-        viscosity = np.exp(rng.uniform(np.log(0.01), np.log(0.25), sample_count))
-        e_prime = np.exp(rng.uniform(np.log(1.5e10), np.log(4.5e10), sample_count))
-        height = rng.uniform(20.0, 60.0, sample_count)
-        t_seconds = np.exp(rng.uniform(np.log(10.0), np.log(7200.0), sample_count))
-        cluster_x = rng.uniform(0.0, 120.0, sample_count)
-        coupled = np.clip(0.72 * factor + 0.28 * rng.uniform(0.65, 1.35, sample_count), 0.65, 1.35)
-
-        features = self._feature_matrix(factor, coupled, cluster_x / 120.0, q_cluster, viscosity, e_prime, height, t_seconds)
-        w_base, length_base = calc_pkn(q_cluster, viscosity, e_prime, height, t_seconds)
-        half_length = length_base * (0.92 + 0.12 * coupled) * (0.985 + 0.03 * rng.random(sample_count))
-        w_max = w_base * (0.95 + 0.055 * coupled) * (0.99 + 0.02 * rng.random(sample_count))
-        targets = np.log(np.column_stack([np.maximum(half_length, 1.0e-9), np.maximum(w_max, 1.0e-12)]))
-
-        self.x_mean = features.mean(axis=0, keepdims=True)
-        self.x_std = features.std(axis=0, keepdims=True) + 1.0e-6
-        y_scaled, self.y_mean, self.y_std = _standardize(targets)
-        x_scaled = (features - self.x_mean) / self.x_std
-        self.hidden_w = rng.normal(0.0, 0.65, size=(features.shape[1], self.hidden_dim))
-        self.hidden_b = rng.normal(0.0, 0.20, size=(self.hidden_dim,))
-        hidden = np.tanh(x_scaled @ self.hidden_w + self.hidden_b)
-        ridge = 1.0e-4
-        self.beta = np.linalg.solve(hidden.T @ hidden + ridge * np.eye(self.hidden_dim), hidden.T @ y_scaled)
-
-        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-        np.savez(
-            self.cache_path,
-            x_mean=self.x_mean,
-            x_std=self.x_std,
-            y_mean=self.y_mean,
-            y_std=self.y_std,
-            hidden_w=self.hidden_w,
-            hidden_b=self.hidden_b,
-            beta=self.beta,
+        scenario_order = rng.permutation(np.unique(scenario_ids))
+        split = int(0.80 * len(scenario_order))
+        train_scenarios, valid_scenarios = scenario_order[:split], scenario_order[split:]
+        train_idx = np.flatnonzero(np.isin(scenario_ids, train_scenarios))
+        valid_idx = np.flatnonzero(np.isin(scenario_ids, valid_scenarios))
+        self.model = Pipeline(
+            [
+                ("scale", StandardScaler()),
+                (
+                    "mlp",
+                    MLPRegressor(
+                        hidden_layer_sizes=(128, 64, 32),
+                        activation="relu",
+                        solver="adam",
+                        alpha=2.0e-4,
+                        batch_size=128,
+                        learning_rate_init=8.0e-4,
+                        max_iter=500,
+                        early_stopping=True,
+                        validation_fraction=0.12,
+                        n_iter_no_change=30,
+                        random_state=self.seed,
+                    ),
+                ),
+            ]
         )
+        self.model.fit(features[train_idx], targets[train_idx])
+
+        predictions = np.asarray(self.model.predict(features[valid_idx]), dtype=float)
+        base_length = np.exp(features[valid_idx, -2])
+        base_width = np.exp(features[valid_idx, -1])
+        truth = np.column_stack(
+            [base_length * np.exp(targets[valid_idx, 0]), base_width * np.exp(targets[valid_idx, 1])]
+        )
+        predicted = np.column_stack(
+            [base_length * np.exp(predictions[:, 0]), base_width * np.exp(predictions[:, 1])]
+        )
+        relative = np.abs(predicted - truth) / np.maximum(np.abs(truth), 1.0e-9)
+        self.validation_metrics = {
+            "validation_samples": int(len(valid_idx)),
+            "validation_scenarios": int(len(valid_scenarios)),
+            "split_method": "scenario_group_holdout",
+            "half_length_mape": float(np.mean(relative[:, 0])),
+            "half_length_p95_relative_error": float(np.percentile(relative[:, 0], 95)),
+            "aperture_mape": float(np.mean(relative[:, 1])),
+            "aperture_p95_relative_error": float(np.percentile(relative[:, 1], 95)),
+            "teacher": "bem_panel_discrete",
+            "surrogate": "physics_guided_mlp_128_64_32",
+        }
+        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump(
+            {
+                "cache_version": self.CACHE_VERSION,
+                "model": self.model,
+                "validation_metrics": self.validation_metrics,
+            },
+            self.cache_path,
+        )
+        self.cache_path.with_suffix(".metrics.json").write_text(
+            json.dumps(self.validation_metrics, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+    def _make_bem_training_data(
+        self, scenario_count: int = 1100, n_clusters: int = 6
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        rng = np.random.default_rng(self.seed)
+        teacher = BEMReducedLengthForwardModel(n_panels=28, max_iterations=12)
+        feature_rows: list[np.ndarray] = []
+        target_rows: list[np.ndarray] = []
+        scenario_rows: list[np.ndarray] = []
+        for scenario_id in range(scenario_count):
+            spacing = rng.uniform(12.0, 32.0)
+            cluster_x = np.arange(n_clusters, dtype=float) * spacing
+            factor = rng.uniform(0.58, 1.48, n_clusters)
+            total_q = float(np.exp(rng.uniform(np.log(0.015), np.log(0.30))))
+            q_base = np.full(n_clusters, total_q / n_clusters)
+            viscosity = float(np.exp(rng.uniform(np.log(0.008), np.log(0.30))))
+            e_prime = float(np.exp(rng.uniform(np.log(1.2e10), np.log(5.5e10))))
+            height = float(rng.uniform(18.0, 65.0))
+            t_seconds = float(np.exp(rng.uniform(np.log(30.0), np.log(10800.0))))
+            result = teacher.simulate_lengths(factor, cluster_x, q_base, viscosity, e_prime, height, t_seconds).table
+            q_cluster = result["Q_cluster_m3s"].to_numpy(dtype=float)
+            features = self._features(factor, cluster_x, q_cluster, viscosity, e_prime, height, t_seconds)
+            w_base, length_base = calc_pkn(q_cluster, viscosity, e_prime, height, t_seconds)
+            targets = np.log(
+                np.column_stack(
+                    [
+                        np.maximum(result["half_length_m"].to_numpy(dtype=float), 1.0e-9)
+                        / np.maximum(length_base, 1.0e-9),
+                        np.maximum(result["max_aperture_mm"].to_numpy(dtype=float) / 2000.0, 1.0e-12)
+                        / np.maximum(w_base, 1.0e-12),
+                    ]
+                )
+            )
+            feature_rows.append(features)
+            target_rows.append(targets)
+            scenario_rows.append(np.full(n_clusters, scenario_id, dtype=int))
+        return np.vstack(feature_rows), np.vstack(target_rows), np.concatenate(scenario_rows)
 
     def _features(
         self,
@@ -359,15 +462,20 @@ class DataDrivenLengthForwardModel(LengthForwardModel):
         kernel = np.exp(-distance / (1.75 * spacing))
         kernel = kernel / np.maximum(kernel.sum(axis=1, keepdims=True), 1.0e-9)
         coupled = kernel @ factor
+        neighbor_q = kernel @ q_cluster
+        w_base, length_base = calc_pkn(q_cluster, viscosity_pa_s, e_prime_pa, height_m, t_seconds)
         return self._feature_matrix(
             factor,
             coupled,
             x_norm,
             q_cluster,
+            neighbor_q,
             np.full_like(factor, float(viscosity_pa_s)),
             np.full_like(factor, float(e_prime_pa)),
             np.full_like(factor, float(height_m)),
             np.full_like(factor, float(t_seconds)),
+            length_base,
+            w_base,
         )
 
     @staticmethod
@@ -376,10 +484,13 @@ class DataDrivenLengthForwardModel(LengthForwardModel):
         coupled: np.ndarray,
         x_norm: np.ndarray,
         q_cluster: np.ndarray,
+        neighbor_q: np.ndarray,
         viscosity: np.ndarray,
         e_prime: np.ndarray,
         height: np.ndarray,
         t_seconds: np.ndarray,
+        length_base: np.ndarray,
+        w_base: np.ndarray,
     ) -> np.ndarray:
         return np.column_stack(
             [
@@ -387,10 +498,14 @@ class DataDrivenLengthForwardModel(LengthForwardModel):
                 coupled,
                 x_norm,
                 np.log(np.maximum(q_cluster, 1.0e-12)),
+                np.log(np.maximum(neighbor_q, 1.0e-12)),
+                q_cluster / np.maximum(neighbor_q, 1.0e-12),
                 np.log(np.maximum(viscosity, 1.0e-12)),
                 np.log(np.maximum(e_prime, 1.0)),
                 np.log(np.maximum(height, 1.0e-9)),
                 np.log(np.maximum(t_seconds, 1.0e-9)),
+                np.log(np.maximum(length_base, 1.0e-9)),
+                np.log(np.maximum(w_base, 1.0e-12)),
             ]
         )
 
@@ -461,3 +576,12 @@ def _standardize(values: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray
     mean = values.mean(axis=0, keepdims=True)
     std = values.std(axis=0, keepdims=True) + 1.0e-6
     return (values - mean) / std, mean, std
+
+
+def _median_spacing(cluster_x: np.ndarray, height_m: float) -> float:
+    x = np.sort(np.asarray(cluster_x, dtype=float))
+    if len(x) < 2:
+        return max(float(height_m), 1.0)
+    positive = np.diff(x)
+    positive = positive[positive > 1.0e-9]
+    return max(float(np.median(positive)) if len(positive) else float(height_m), 1.0)

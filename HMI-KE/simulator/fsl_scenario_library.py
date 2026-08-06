@@ -6,6 +6,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from condition_taxonomy import has_abnormal_label, split_labels
+
 
 NORMAL_LABEL = "正常"
 REAL_SCENARIOS = (
@@ -23,13 +25,13 @@ SCENARIO_CLASSES = tuple(name for name in REAL_SCENARIOS if name != "baseline")
 def _labels(value: object) -> set[str]:
     if value is None or pd.isna(value):
         return {NORMAL_LABEL}
-    parts = {part.strip() for part in str(value).split("|") if part.strip()}
+    parts = split_labels(value)
     return parts or {NORMAL_LABEL}
 
 
 def classify_label_set(labels: set[str]) -> str:
     text = "|".join(labels)
-    abnormal = {label for label in labels if label != NORMAL_LABEL}
+    abnormal = {label for label in labels if has_abnormal_label([label])}
     if not abnormal:
         return "normal_growth"
     if "砂堵" in text:
@@ -38,8 +40,6 @@ def classify_label_set(labels: set[str]) -> str:
         return "diversion_stage"
     if "缝内暂堵" in text:
         return "cluster_imbalance"
-    if "主缝延伸" in text:
-        return "normal_growth"
     return "other_abnormal"
 
 
@@ -83,7 +83,9 @@ def select_real_scenario(
 
     selected_meta = annotated.iloc[indices].reset_index(drop=True)
     selected_context = context.iloc[indices].reset_index(drop=True).copy()
-    abnormal = selected_meta["real_scenario_class"].ne("normal_growth").astype(float).to_numpy()
+    abnormal = selected_meta["real_scenario_class"].isin(
+        {"sand_plug_risk", "diversion_stage", "cluster_imbalance", "pressure_limit", "other_abnormal"}
+    ).astype(float).to_numpy()
     sand_plug = selected_meta["real_scenario_class"].eq("sand_plug_risk").astype(float).to_numpy()
     selected_context["abnormal_probability"] = abnormal
     selected_context["sand_plug_probability"] = sand_plug

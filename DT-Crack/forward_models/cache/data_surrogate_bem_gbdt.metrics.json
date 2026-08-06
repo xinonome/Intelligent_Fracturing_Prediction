@@ -1,0 +1,11 @@
+{
+  "validation_samples": 1320,
+  "validation_scenarios": 220,
+  "split_method": "scenario_group_holdout",
+  "half_length_mape": 0.004166308819439647,
+  "half_length_p95_relative_error": 0.010030768278184273,
+  "aperture_mape": 0.0018143265916769763,
+  "aperture_p95_relative_error": 0.004387139425430621,
+  "teacher": "bem_panel_discrete",
+  "surrogate": "physics_guided_mlp_128_64_32"
+}

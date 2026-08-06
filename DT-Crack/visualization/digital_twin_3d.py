@@ -372,7 +372,8 @@ def write_plotly_html(table: pd.DataFrame, history: pd.DataFrame, args: argparse
             )
         ],
     )
-    fig.write_html(path, include_plotlyjs="cdn", auto_open=False)
+    # Embed Plotly so the acceptance demo remains usable on an isolated field laptop.
+    fig.write_html(path, include_plotlyjs=True, auto_open=False)
     return path
 
 
@@ -549,13 +550,19 @@ def write_plotly_html_v2(
         )
 
     payload_json = json.dumps({"frames": frames, "aperture_max": aperture_max, "max_x": max_x}, ensure_ascii=False)
+    try:
+        from plotly.offline import get_plotlyjs
+
+        plotly_script = f"<script>{get_plotlyjs()}</script>"
+    except Exception as exc:
+        raise RuntimeError("无法生成离线3D页面：Plotly本地资源不可用。") from exc
     html = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>3Dfrac PKN + EnKF 连续播放演示</title>
-  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  {plotly_script}
   <style>
     :root {{ --bg:#eef2f7; --panel:#fff; --ink:#0f172a; --muted:#64748b; --line:#dbe3ef; --green:#16a34a; }}
     * {{ box-sizing:border-box; }}

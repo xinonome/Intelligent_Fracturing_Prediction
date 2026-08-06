@@ -71,6 +71,7 @@ def main() -> None:
     result.to_csv(out / "predictions.csv", index=False, encoding="utf-8-sig")
     summary = {
         "model": ActionResponseSurrogate.version,
+        "risk_label_policy": ActionResponseSurrogate.risk_label_policy,
         "purpose": f"Predict future {args.action_seconds:g}s pressure and condition risk under candidate flow/sand action",
         "physics_boundary": "Fracture geometry and physical parameters are still computed by PKN-EnKF",
         "sample_interval_seconds": interval,

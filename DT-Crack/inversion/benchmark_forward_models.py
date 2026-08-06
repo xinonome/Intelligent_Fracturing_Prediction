@@ -194,9 +194,10 @@ def run_one_model(model_name: str, args: argparse.Namespace) -> tuple[dict, pd.D
     single = benchmark_single_forward(model_name, table, demo_args, args.repeats)
     step = benchmark_enkf_step(model_name, table, demo_args, args.repeats)
     metrics = result["metrics"]
+    instantiated_model = build_length_forward_model(model_name)
     row = {
         "model": model_name,
-        "model_name": build_length_forward_model(model_name).model_name,
+        "model_name": instantiated_model.model_name,
         **single,
         **step,
         "timeline_total_seconds": float(timeline_total_seconds),
@@ -206,6 +207,15 @@ def run_one_model(model_name: str, args: argparse.Namespace) -> tuple[dict, pd.D
         "final_posterior_error": float(metrics["final_posterior_error"]),
         "final_within_15_percent": bool(metrics["final_within_15_percent"]),
     }
+    if hasattr(instantiated_model, "n_panels"):
+        row["bem_panels_per_fracture"] = int(instantiated_model.n_panels)
+        row["bem_max_iterations"] = int(instantiated_model.max_iterations)
+    if hasattr(instantiated_model, "validation_metrics"):
+        validation = instantiated_model.validation_metrics
+        row["surrogate_validation_scenarios"] = int(validation["validation_scenarios"])
+        row["surrogate_half_length_mape"] = float(validation["half_length_mape"])
+        row["surrogate_half_length_p95_relative_error"] = float(validation["half_length_p95_relative_error"])
+        row["surrogate_aperture_mape"] = float(validation["aperture_mape"])
     row["single_forward_pass_15s"] = bool(row["single_forward_p95_ms"] < 15000.0)
     row["enkf_step_pass_15s"] = bool(row["enkf_step_p95_ms"] < 15000.0)
     row["pass_15s"] = bool(row["single_forward_pass_15s"] and row["enkf_step_pass_15s"])

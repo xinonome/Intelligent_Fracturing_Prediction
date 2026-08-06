@@ -8,9 +8,9 @@ scenarios:
     sand_multiplier: 1.0
     posterior_error_base: 0.10
     posterior_error_trend: 0.00
-    abnormal_probability_base: 0.04
+    abnormal_probability_base: 0.0
     abnormal_probability_trend: 0.00
-    sand_plug_probability_base: 0.02
+    sand_plug_probability_base: 0.0
     sand_plug_probability_trend: 0.00
     length_growth_multiplier: 1.00
     balance_imbalance: 0.08
@@ -24,10 +24,10 @@ scenarios:
     sand_multiplier: 1.0
     posterior_error_base: 0.08
     posterior_error_trend: -0.02
-    abnormal_probability_base: 0.03
-    abnormal_probability_trend: 0.01
-    sand_plug_probability_base: 0.01
-    sand_plug_probability_trend: 0.01
+    abnormal_probability_base: 0.0
+    abnormal_probability_trend: 0.0
+    sand_plug_probability_base: 0.0
+    sand_plug_probability_trend: 0.0
     length_growth_multiplier: 1.15
     balance_imbalance: 0.05
 

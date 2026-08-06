@@ -14,6 +14,10 @@
 6. 运行日志：显示算法子进程输出，支持停止任务。
 7. 验收与边界：区分已验证能力、阶段性结果和待补现场数据。
 
+第三部分页面的风险卡片采用“异常风险、压力安全、分簇不均衡、模型不确定性”分栏口径。
+正常/正常工况/主缝延伸只作为正常基线，不进入异常风险正类；空白或`??`不作为异常正类，
+但应在后续数据治理中补充标注。详细阈值见`App/HMI风险判定说明.md`。
+
 ## 启动
 
 推荐使用：
@@ -45,6 +49,20 @@ python App\run_app.py --no-gui
 - PySide界面：`C:\Users\xinonome\anaconda3\envs\frac_app\python.exe`
 - 算法子进程：默认使用base Python，可通过`FRACTURING_ALGORITHM_PYTHON`覆盖。
 - 不再静默切换Tkinter备用界面。Qt失败时会明确报错。
+
+## 产物注册与联调口径
+
+APP 读取 `App/config/demo_registry.json`，不再根据历史目录猜测模型结果。每次启动会在
+`outputs/app/runs/<timestamp>/` 保存 `app_run.json`、`preflight.json`、三部分快照、
+`dt_to_hmi.json`、`hmi_decision.json` 和任务日志。
+
+产物状态只有四种：`validated`（注册文件完整且通过当前验证）、`development_only`
+（可运行但质量门禁或现场条件未满足）、`not_available`（缺少文件）和 `invalid`（文件损坏）。
+当前 HMI 结果即使训练步数已经达到 100000，只要 `quality_gate.passed=false` 或
+`scientific_status=demo_only`，页面仍显示为 `development_only`。
+
+DT 到 HMI 的桥接只传递可追溯的后验状态和来源；当前 DT 没有异常概率时，字段明确记为
+`null` 并列入 `unavailable_fields`，不会用数字填充制造“已接入”假象。
 
 ## 验收现场原则
 

@@ -2,6 +2,7 @@
 
 from .physics import (
     PhysicalEnKFConfig,
+    denkf_update,
     clip_state,
     enkf_update,
     physical_values,
@@ -11,6 +12,7 @@ from .physics import (
 
 __all__ = [
     "PhysicalEnKFConfig",
+    "denkf_update",
     "clip_state",
     "enkf_update",
     "physical_values",

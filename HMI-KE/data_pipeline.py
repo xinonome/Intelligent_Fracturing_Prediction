@@ -7,6 +7,8 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
+from condition_taxonomy import has_abnormal_label, has_sand_plug_label, split_labels
+
 
 SUPPORTED_SUFFIXES = {".xlsx", ".xls", ".csv", ".parquet", ".json"}
 
@@ -163,13 +165,11 @@ def _labels(values: np.ndarray) -> str:
 
 
 def _label_flags(values: np.ndarray) -> tuple[int, int]:
-    labels = _labels(values)
-    if not labels:
-        return 0, 0
-    normalized = labels.replace("正常工况", "正常")
-    items = [item.strip() for item in normalized.split("|") if item.strip()]
-    abnormal = int(any(item != "正常" for item in items))
-    sand_plug = int(any("砂堵" in item for item in items))
+    items: set[str] = set()
+    for value in values:
+        items.update(split_labels(value))
+    abnormal = int(has_abnormal_label(items))
+    sand_plug = int(has_sand_plug_label(items))
     return abnormal, sand_plug
 
 
