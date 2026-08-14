@@ -1,0 +1,16 @@
+{
+  "component": "PyFrac",
+  "repository": "https://github.com/GeoEnergyLab-EPFL/PyFrac",
+  "version": "1.1.1",
+  "commit": "f3e0a812ce006223a3a8b5293235dc805021a6f4",
+  "license": "GNU General Public License v3.0",
+  "license_files": ["GPL.txt", "LICENSE.TXT"],
+  "usage_in_this_project": "Offline high-fidelity teacher/reference model; not called by the online EnKF default.",
+  "source_modified": false,
+  "adapter": "DT-Crack/forward_models/pyfrac_adapter.py",
+  "notes": [
+    "The project adapter applies process-local NumPy compatibility shims for the legacy PyFrac code.",
+    "Snapshot mode initializes a PyFrac Cartesian mesh from a PKN state; native mode is an explicit time-marching experiment.",
+    "PyFrac does not provide native proppant transport for this integration; sand remains an external observation/constraint."
+  ]
+}

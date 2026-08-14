@@ -1,0 +1,72 @@
+project:
+  name: well_x_demo
+  output_root: outputs/well_x
+
+inputs:
+  # This checked-in dataset is synthetic and exists only to exercise the workflow.
+  # Replace both paths with field data before making a scientific claim.
+  logs_csv: data/raw/well_x_logs.csv
+  trajectory_csv: data/raw/well_x_trajectory.csv
+
+stages:
+  - id: stage_1
+    md_start_m: 5250.0
+    md_end_m: 5297.0
+  - id: stage_2
+    md_start_m: 5224.0
+    md_end_m: 5245.5
+  - id: stage_3
+    md_start_m: 5174.0
+    md_end_m: 5219.5
+
+injection:
+  rate_m3_s: 0.001
+  duration_s: 30.0
+
+fluid:
+  viscosity_pa_s: 0.1
+  compressibility_pa_inv: 0.0
+  density_kg_m3: 1000.0
+
+material:
+  e_prime_warning_relative_spread: 0.2
+  toughness:
+    mode: log
+    constant_pa_sqrt_m: null
+  leakoff:
+    mode: log
+    constant_m_sqrt_s: null
+
+mesh:
+  x_half_extent_m: 20.0
+  y_half_extent_m: 8.0
+  nx: 81
+  ny: 41
+
+simulation:
+  final_time_s: 30.0
+  front_advancing: predictor-corrector
+  mode: snapshot
+  fracture_height_m: 12.0
+  save_every_s: 10.0
+
+mapping:
+  plane_mode: transverse_vertical
+  fracture_azimuth_deg: null
+
+diagnostics:
+  barrier_detection:
+    mode: stage_boundary
+    tolerance_m: 0.5
+  handover:
+    min_consecutive_snapshots: 2
+    vertical_growth_epsilon_m_s: 0.01
+    lateral_growth_min_m_s: 0.001
+
+validation:
+  max_mass_balance_relative_error: 0.1
+
+runtime:
+  max_memory_gb: 4.0
+  resume: true
+  max_workers: 1

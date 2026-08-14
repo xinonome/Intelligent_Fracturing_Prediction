@@ -27,6 +27,13 @@ from inversion import (
     pkn_with_carter_leakoff,
     state_record,
 )
+from inversion.knowledge_guided_enkf import (
+    KnowledgeGuidedPriorConfig,
+    apply_knowledge_guided_observation_std,
+    build_knowledge_guided_prior,
+    project_knowledge_guided_update,
+)
+from forward_models.pyfrac_surrogate import PyFracResidualSurrogate
 
 
 def configure_font() -> None:
@@ -186,12 +193,87 @@ def adaptive_covariance_inflation(
     return float(np.clip(args.covariance_inflation * (1.0 + 0.012 * excess), 1.0, 1.06))
 
 
+def apply_residual_surrogate(
+    forward: dict,
+    state: np.ndarray,
+    cfg: PhysicalEnKFConfig,
+    n_clusters: int,
+    t_seconds: float,
+    cluster_spacing_m: float,
+    surrogate: PyFracResidualSurrogate,
+) -> dict:
+    """Apply a PyFrac-minus-PKN residual after the PKN parameter update.
+
+    The surrogate is deliberately downstream of ``pkn_with_carter_leakoff``:
+    EnKF changes physical parameters, PKN is recomputed, and only then is the
+    learned offline correction added.  No fracture length is treated as a
+    filter state or copied from an observation.
+    """
+
+    values = physical_values(state, cfg, n_clusters)
+    q_effective = np.asarray(forward["q_effective_m3_s"], dtype=float)
+    allocation = normalize_positive(np.asarray(forward["cluster_allocation"], dtype=float))
+    features = pd.DataFrame(
+        {
+            "e_prime_gpa": np.full(n_clusters, float(values["eprime_pa"]) / 1.0e9),
+            "leakoff_m_sqrt_s": np.full(n_clusters, float(values["leakoff_m_sqrt_s"])),
+            "viscosity_pa_s": np.full(n_clusters, float(values["viscosity_pa_s"])),
+            "min_stress_mpa": np.full(n_clusters, float(values["min_horizontal_stress_mpa"])),
+            "fracture_toughness_pa_sqrt_m": np.full(
+                n_clusters, float(values["fracture_toughness_pa_sqrt_m"])
+            ),
+            "height_m": np.full(n_clusters, float(cfg.height_m)),
+            "q_m3_s": q_effective,
+            "time_s": np.full(n_clusters, float(t_seconds)),
+            "cluster_spacing_m": np.full(n_clusters, float(cluster_spacing_m)),
+            "allocation_weight": allocation,
+            "cluster_id": np.arange(1, n_clusters + 1, dtype=float),
+            "q_total_m3_s": np.full(n_clusters, float(q_effective.sum())),
+            "cumulative_injection_m3": np.full(
+                n_clusters, float(q_effective.sum()) * max(float(t_seconds), 1.0)
+            ),
+            "q_ramp_m3_s2": np.zeros(n_clusters, dtype=float),
+            "leakoff_volume_fraction": np.full(
+                n_clusters,
+                min(
+                    0.95,
+                    float(values["leakoff_m_sqrt_s"])
+                    * np.sqrt(max(float(t_seconds), 1.0))
+                    * 12.0
+                    / max(float(q_effective.sum()), 1.0e-6),
+                ),
+            ),
+            "scenario_type_code": np.zeros(n_clusters, dtype=float),
+        }
+    )
+    # The six-cluster liquid allocation is observed input to the forward
+    # model. Expose the whole allocation vector to the residual surrogate so
+    # it can learn cluster competition without introducing a free EnKF factor.
+    for index in range(n_clusters):
+        features[f"allocation_w{index + 1}"] = np.full(n_clusters, allocation[index], dtype=float)
+    corrected = surrogate.predict_online_state(
+        features,
+        np.asarray(forward["half_length_m"], dtype=float),
+        np.asarray(forward["max_aperture_mm"], dtype=float),
+        np.full(n_clusters, float(forward["net_pressure_mpa"])),
+    )
+    result = dict(forward)
+    result["half_length_m"] = corrected["half_length_m"].to_numpy(dtype=float)
+    result["max_aperture_mm"] = corrected["max_aperture_mm"].to_numpy(dtype=float)
+    result["net_pressure_mpa"] = float(corrected["net_pressure_mpa"].mean())
+    result["bottomhole_pressure_mpa"] = float(values["min_horizontal_stress_mpa"]) + float(
+        result["net_pressure_mpa"]
+    )
+    result["pyfrac_residual_surrogate_applied"] = True
+    return result
+
+
 def clip_augmented_state(
     state: np.ndarray,
     n_clusters: int,
     log_cluster_factor_state: bool = False,
 ) -> np.ndarray:
-    """Clip the four physical EnKF parameters.
+    """Clip the five physical EnKF parameters.
 
     The legacy arguments remain in the signature so old command lines do not
     fail, but no per-cluster factor is clipped or updated in the new state.
@@ -201,6 +283,8 @@ def clip_augmented_state(
     out[..., 1] = np.clip(out[..., 1], np.log(0.1), np.log(8.0))
     out[..., 2] = np.clip(out[..., 2], np.log(0.2), np.log(5.0))
     out[..., 3] = np.clip(out[..., 3], 35.0, 90.0)
+    if out.shape[-1] >= 5:
+        out[..., 4] = np.clip(out[..., 4], np.log(0.25), np.log(4.0))
     return out
 
 
@@ -211,7 +295,7 @@ def total_variation(predicted: np.ndarray, observed: np.ndarray) -> float:
 def build_physical_localization(n_clusters: int) -> np.ndarray:
     """Map each observation primarily to parameters with a physical pathway."""
 
-    state_size = 4
+    state_size = 5
     obs_size = 2 * (n_clusters - 1) + 1
     pressure_col = obs_size - 1
     weights = np.zeros((state_size, obs_size), dtype=float)
@@ -219,7 +303,7 @@ def build_physical_localization(n_clusters: int) -> np.ndarray:
     # residuals are retained for validation, but they must not update a second
     # hidden allocation state.  Only the pressure channel updates global PKN
     # parameters in the reduced EnKF state.
-    weights[:4, pressure_col] = [0.75, 0.25, 0.65, 1.00]
+    weights[:5, pressure_col] = [0.75, 0.25, 0.65, 1.00, 0.35]
     return weights
 
 
@@ -240,7 +324,7 @@ def batch_calibrate_state(
     observations, then EnKF continues to track time-varying cluster factors.
     A small Gaussian prior penalty keeps the inverse problem from selecting a
     numerically convenient but physically implausible equivalent solution.  The
-    inverse state is limited to the four global PKN parameters; fiber liquid
+    inverse state is limited to five global PKN parameters; fiber liquid
     allocation is supplied directly to the forward operator.
     """
 
@@ -292,6 +376,7 @@ def batch_calibrate_state(
             state[1] / 0.70,
             state[2] / 0.45,
             (state[3] - args.base_min_stress_mpa) / 8.0,
+            state[4] / 0.35,
         ]
         residuals.extend((0.12 * regularization).tolist())
         return np.asarray(residuals, dtype=float)
@@ -299,7 +384,7 @@ def batch_calibrate_state(
     lower = np.full_like(prior_mean, -np.inf, dtype=float)
     upper = np.full_like(prior_mean, np.inf, dtype=float)
     lower[:4] = [np.log(0.45), np.log(0.1), np.log(0.2), 35.0]
-    upper[:4] = [np.log(2.2), np.log(8.0), np.log(5.0), 90.0]
+    upper[:5] = [np.log(2.2), np.log(8.0), np.log(5.0), 90.0, np.log(4.0)]
     start = time.perf_counter()
     initial_cost = float(0.5 * np.sum(residual(prior_mean) ** 2))
     result = least_squares(
@@ -398,6 +483,49 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--log-cluster-factor-state", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--batch-calibrate", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--batch-max-nfev", type=int, default=80)
+    parser.add_argument(
+        "--knowledge-guided-prior",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Backward-compatible alias for --knowledge-guided-mode uncertainty_only.",
+    )
+    parser.add_argument(
+        "--knowledge-guided-mode",
+        choices=["off", "uncertainty_only", "soft_prior", "soft_correlated"],
+        default="off",
+        help=(
+            "Knowledge-graph bridge mode. soft_prior adds a small signed prior hypothesis; "
+            "soft_correlated additionally uses covariance, observation confidence and update bounds."
+        ),
+    )
+    parser.add_argument(
+        "--knowledge-graph-rules",
+        default=None,
+        help="Optional fused knowledge-graph rule JSON. Defaults to FSL-Expert/rule_fusion/rule_fusion/fused_sand_plug_rules.json.",
+    )
+    parser.add_argument(
+        "--knowledge-guided-strength",
+        type=float,
+        default=0.35,
+        help="0..1 strength of the KG prior bridge.",
+    )
+    parser.add_argument("--knowledge-guided-mean-shift-scale", type=float, default=1.0)
+    parser.add_argument("--knowledge-guided-covariance-scale", type=float, default=1.0)
+    parser.add_argument("--knowledge-guided-observation-noise-scale", type=float, default=0.25)
+    parser.add_argument("--knowledge-guided-max-update-scale", type=float, default=2.0)
+    parser.add_argument(
+        "--surrogate-path",
+        default=None,
+        help="Optional PyFrac-minus-PKN residual surrogate; it is used only when its held-out quality gate passes.",
+    )
+    parser.add_argument(
+        "--allow-unapproved-surrogate",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Explicitly allow a surrogate that failed the online quality gate for development experiments.",
+    )
+    parser.add_argument("--surrogate-min-test-r2", type=float, default=0.80)
+    parser.add_argument("--cluster-spacing-m", type=float, default=25.0)
     parser.add_argument("--run-dir", default=str(DT_ROOT.parent / "outputs" / "dt" / "direct_observation_enkf"))
     return parser
 
@@ -435,6 +563,7 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         base_leakoff_m_sqrt_s=args.base_leakoff_m_sqrt_s,
         base_viscosity_pa_s=args.base_viscosity_pa_s,
         base_min_stress_mpa=args.base_min_stress_mpa,
+        base_fracture_toughness_pa_sqrt_m=5.0e5,
         height_m=args.height_m,
         pressure_proxy_scale=args.pressure_proxy_scale,
         max_leakoff_fraction=args.max_leakoff_fraction,
@@ -445,23 +574,43 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         pressure_leakoff_reference_mpa=args.pressure_leakoff_reference_mpa,
         log_cluster_factor_state=args.log_cluster_factor_state,
     )
+    surrogate = None
+    surrogate_gate: dict[str, object] = {
+        "requested": bool(args.surrogate_path),
+        "path": str(Path(args.surrogate_path).resolve()) if args.surrogate_path else None,
+        "online_enabled": False,
+    }
+    if args.surrogate_path:
+        surrogate = PyFracResidualSurrogate.load(args.surrogate_path)
+        surrogate_gate.update(surrogate.online_readiness(min_test_r2=args.surrogate_min_test_r2))
+        if not surrogate_gate.get("ready", False) and not args.allow_unapproved_surrogate:
+            surrogate = None
+            surrogate_gate["reason"] = (
+                str(surrogate_gate.get("reason", "quality gate failed"))
+                + "; fallback to PKN because --allow-unapproved-surrogate was not set"
+            )
+        else:
+            surrogate_gate["online_enabled"] = True
     prior_mean = np.r_[
         0.0,
         0.0,
         0.0,
         args.base_min_stress_mpa,
+        0.0,
     ]
     spread = np.r_[
         0.18,
         0.45,
         0.30,
         5.0,
+        0.25,
     ]
     process = np.r_[
         0.012,
         0.020,
         0.015,
         0.20,
+        0.012,
     ]
     calibration_center, batch_calibration = batch_calibrate_state(
         args,
@@ -474,8 +623,42 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         prior_mean,
     )
     initial_spread = spread * (0.45 if batch_calibration.get("enabled") else 1.0)
+    kg_mode = str(args.knowledge_guided_mode)
+    if kg_mode == "off" and bool(args.knowledge_guided_prior):
+        # Preserve the command line used by the original uncertainty-only
+        # experiment while allowing the new modes to be selected explicitly.
+        kg_mode = "uncertainty_only"
+    kg_distribution = build_knowledge_guided_prior(
+        controls,
+        pressure,
+        source_steps[:calibration_count],
+        calibration_center,
+        initial_spread,
+        process,
+        KnowledgeGuidedPriorConfig(
+            enabled=kg_mode != "off",
+            strength=float(args.knowledge_guided_strength),
+            rules_path=args.knowledge_graph_rules,
+            mode=kg_mode,
+            mean_shift_scale=float(args.knowledge_guided_mean_shift_scale),
+            covariance_scale=float(args.knowledge_guided_covariance_scale),
+            observation_noise_scale=float(args.knowledge_guided_observation_noise_scale),
+            max_update_scale=float(args.knowledge_guided_max_update_scale),
+        ),
+    )
+    kg_spread = np.asarray(kg_distribution["spread"], dtype=float)
+    kg_process_covariance = np.asarray(kg_distribution["process_covariance"], dtype=float)
+    kg_prior = dict(kg_distribution["meta"])
+    kg_prior_mean = np.asarray(kg_distribution["mean"], dtype=float)
+    kg_prior_covariance = np.asarray(kg_distribution["covariance"], dtype=float)
+    ensemble = rng.multivariate_normal(
+        kg_prior_mean,
+        kg_prior_covariance,
+        size=args.ensemble_size,
+        check_valid="ignore",
+    )
     ensemble = clip_augmented_state(
-        calibration_center + rng.normal(0.0, initial_spread, size=(args.ensemble_size, len(prior_mean))),
+        ensemble,
         n_clusters,
         args.log_cluster_factor_state,
     )
@@ -513,13 +696,20 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
 
         should_update = phase == "calibration" or args.validation_mode == "online"
         if should_update:
+            process_noise = rng.multivariate_normal(
+                np.zeros(len(prior_mean), dtype=float),
+                kg_process_covariance,
+                size=ensemble.shape[0],
+                check_valid="ignore",
+            )
             ensemble = clip_augmented_state(
-                ensemble + rng.normal(0.0, process, size=ensemble.shape),
+                ensemble + process_noise,
                 n_clusters,
                 args.log_cluster_factor_state,
             )
         observed_obs = np.r_[observed_liquid[: n_clusters - 1], observed_sand[: n_clusters - 1], observed_bhp]
         obs_std = adaptive_observation_std(args, observed_liquid, observed_sand, observed_bhp)
+        obs_std = apply_knowledge_guided_observation_std(obs_std, kg_prior, n_clusters)
 
         def evaluate_ensemble(
             current_ensemble: np.ndarray,
@@ -539,6 +729,16 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
                     cluster_allocation=q_base_allocation,
                     cluster_current_allocation=fiber_allocation,
                 )
+                if surrogate is not None:
+                    item = apply_residual_surrogate(
+                        item,
+                        member,
+                        cfg,
+                        n_clusters,
+                        t_seconds,
+                        args.cluster_spacing_m,
+                        surrogate,
+                    )
                 sand_factors = np.ones(n_clusters, dtype=float)
                 liquid_memory, sand_memory = propagate_cumulative_memory(
                     item,
@@ -574,6 +774,16 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
             cluster_allocation=q_base_allocation,
             cluster_current_allocation=fiber_allocation,
         )
+        if surrogate is not None:
+            prior = apply_residual_surrogate(
+                prior,
+                prior_state,
+                cfg,
+                n_clusters,
+                t_seconds,
+                args.cluster_spacing_m,
+                surrogate,
+            )
         if args.observation_memory_mode == "cumulative":
             prior_shares = np.r_[
                 normalize_positive(forecast_liquid.mean(axis=0)),
@@ -592,6 +802,7 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         gain_mean = 0.0
         inflation_values = []
         if should_update:
+            assimilation_reference = ensemble.copy()
             gain_values = []
             iteration_count = max(int(args.assimilation_iterations), 1)
             for iteration in range(iteration_count):
@@ -632,6 +843,12 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
                         rng,
                         localization=localization if args.use_localization else None,
                     )
+                ensemble = project_knowledge_guided_update(
+                    ensemble,
+                    assimilation_reference,
+                    kg_spread,
+                    kg_prior,
+                )
                 ensemble = clip_augmented_state(ensemble, n_clusters, args.log_cluster_factor_state)
                 gain_values.append(float(np.mean(np.abs(gain))))
                 inflation_values.append(inflation)
@@ -646,6 +863,16 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
             cluster_allocation=q_base_allocation,
             cluster_current_allocation=fiber_allocation,
         )
+        if surrogate is not None:
+            posterior = apply_residual_surrogate(
+                posterior,
+                posterior_state,
+                cfg,
+                n_clusters,
+                t_seconds,
+                args.cluster_spacing_m,
+                surrogate,
+            )
         _, posterior_liquid_memory, posterior_sand_memory = evaluate_ensemble(
             ensemble, cumulative_liquid_memory, cumulative_sand_memory
         )
@@ -778,8 +1005,10 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         "adaptive_inflation": bool(args.adaptive_inflation),
         "ensemble_size": int(args.ensemble_size),
         "batch_calibrate": bool(args.batch_calibrate),
-        "state_dimension": 4,
-        "state_vector": ["E_prime", "C_L", "mu", "sigma_min"],
+        "knowledge_guided_prior": kg_prior,
+        "state_dimension": 5,
+        "state_vector": ["E_prime", "C_L", "mu", "sigma_min", "K_IC"],
+        "pyfrac_residual_surrogate": surrogate_gate,
         "fiber_allocation_source": "incremental_liquid_volume_from_fiber",
         "fiber_allocation_smoothing_previous_weight": float(args.fiber_allocation_smoothing),
         "max_fiber_allocation_step_change": float(max(allocation_step_changes, default=0.0)),
@@ -806,6 +1035,7 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         "pressure_meta": pressure_meta,
         "batch_calibration": batch_calibration,
         "calibration_center": calibration_center.tolist(),
+        "knowledge_guided_prior": kg_prior,
     }
 
 
@@ -847,6 +1077,7 @@ def main() -> None:
             "C_L",
             "mu",
             "sigma_min",
+            "K_IC",
         ],
         "observations": ["cumulative liquid share by cluster", "cumulative sand share by cluster", "bottom-hole pressure"],
         "anti_circularity_design": (
@@ -868,7 +1099,7 @@ def main() -> None:
             "The sand transport observation operator is a cumulative, mean-preserving sublinear q_effective*aperture capacity proxy; it is not a full particle-transport solver.",
             "Pressure friction defaults require client calibration before field interpretation.",
             "The 50% cumulative leakoff cap is an engineering prior and must be recalibrated when formation leakoff measurements are available.",
-            "The EnKF state is intentionally limited to E', C_L, mu and sigma_min; cluster allocation is measured input, not a free state.",
+            "The EnKF state is intentionally limited to E', C_L, mu, sigma_min and K_IC; cluster allocation is measured input, not a free state.",
         ],
         "outputs": {"history": str(output / "direct_observation_history.csv"), "clusters": str(output / "cluster_share_history.csv"), "figure": str(output / "direct_observation_validation.png")},
     }

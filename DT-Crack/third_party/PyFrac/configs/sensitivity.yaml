@@ -1,0 +1,9 @@
+viscosity_cases:
+  low:
+    viscosity_pa_s: 0.01
+  high:
+    viscosity_pa_s: 1.0
+
+# Deliberately empty: toughness sensitivity must not invent KIC values.
+# Add explicit low/high kic_pa_sqrt_m values only when field/material data supports them.
+toughness_cases: {}

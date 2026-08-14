@@ -1,0 +1,9 @@
+{
+  "mode": "frozen_replay",
+  "training_in_app": false,
+  "light_validation_output": "outputs/app/runs",
+  "protected_roots": ["Data", "artifacts"],
+  "qt_webengine_required_for_3d": true,
+  "missing_numeric_policy": "invalid_with_provenance",
+  "missing_categorical_policy": "forward_fill_or_nearest"
+}

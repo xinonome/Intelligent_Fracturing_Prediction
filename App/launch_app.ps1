@@ -4,7 +4,11 @@ $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
 
 $root = Split-Path -Parent $PSScriptRoot
-$python = 'C:\Users\xinonome\anaconda3\envs\frac_app\python.exe'
+$python = if ($env:FRACTURING_QT_PYTHON) {
+    $env:FRACTURING_QT_PYTHON
+} else {
+    (Get-Command python -ErrorAction Stop).Source
+}
 $appScript = Join-Path -Path $root -ChildPath 'App\run_app.py'
 
 if (-not (Test-Path -LiteralPath $python)) {

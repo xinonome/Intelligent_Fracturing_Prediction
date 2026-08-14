@@ -1,12 +1,52 @@
-Data/
-outputs/
+# Python environments and caches
+.venv/
+.venv*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime outputs and local artifacts
+/outputs/
+/artifacts/
+/Reports/
+/Data/
+/deliverables/
+**/runs/
+**/cache/
+*.log
+
+# Raw data, trained models and archives
+*.csv
+*.tsv
 *.xlsx
 *.xls
 *.pkl
+*.joblib
 *.pt
 *.pth
+*.npz
 *.zip
-__pycache__/
-.pytest_cache/
-.env
-*.log
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.pdf
+*.pptx
+*.docx
+
+# Generated web/report files
+*.html
+*.ipynb_checkpoints/
+
+# Platform/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

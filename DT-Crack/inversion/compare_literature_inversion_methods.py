@@ -118,8 +118,6 @@ def select_context(args: argparse.Namespace) -> dict:
         0.0,
         0.0,
         validation_args.base_min_stress_mpa,
-        np.ones(n_clusters),
-        np.ones(n_clusters),
         0.0,
     ]
     validation_args.batch_calibrate = True
@@ -153,12 +151,7 @@ def evaluate_state(state: np.ndarray, source_step: int, context: dict) -> dict:
     observed_liquid, observed_sand = observed_cluster_shares(step_controls)
     observed_bhp = float(pressure_for_step(pressure, int(source_step))["bottomhole_pressure_mpa"])
     forward = pkn_with_carter_leakoff(state, q_base, t_seconds, cfg, q_current)
-    predicted, _ = predicted_observation(
-        forward,
-        n_clusters,
-        state[4 + n_clusters : 4 + 2 * n_clusters],
-        state[4 + 2 * n_clusters],
-    )
+    predicted, _ = predicted_observation(forward, n_clusters)
     predicted_liquid = predicted[: n_clusters - 1]
     predicted_sand = predicted[n_clusters - 1 : 2 * (n_clusters - 1)]
     predicted_bhp = float(predicted[-1])

@@ -1,0 +1,45 @@
+{
+  "window": {
+    "title": "智能压裂预测 · 联合动态联调平台",
+    "width": 1680,
+    "height": 980,
+    "minimum_width": 1280,
+    "minimum_height": 720
+  },
+  "font_family": "Microsoft YaHei UI",
+  "default_page": "integrated",
+  "timeline": {
+    "speeds": [
+      0.25,
+      0.5,
+      1.0,
+      2.0,
+      4.0
+    ],
+    "default_speed": 1.0
+  },
+  "three_d": {
+    "resource": "outputs/app/dt_realtime_3d.html",
+    "embedded_only": true,
+    "camera": {
+      "up": {
+        "x": 0,
+        "y": 0,
+        "z": 1
+      },
+      "center": {
+        "x": 0.025246549438119482,
+        "y": 0.46403059789758905,
+        "z": -0.5281940065926714
+      },
+      "eye": {
+        "x": 0.217387733075004,
+        "y": 1.3446190602655244,
+        "z": -0.04109919706395598
+      },
+      "projection": {
+        "type": "perspective"
+      }
+    }
+  }
+}

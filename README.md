@@ -1,44 +1,43 @@
-# 智能压裂预测项目
+# Intelligent Fracturing Prediction
 
-本目录是合同三部分主线的精简交付版：
+This repository is a sanitized public code snapshot of the intelligent fracturing prediction project.
 
-1. `FSL-Expert`：知识图谱、小样本工况识别、迁移学习和状态转移预测。
-2. `DT-Crack`：真实DAS/压力/井轨迹接入，PKN/BEM正演，EnKF物理参数反演和3D展示。
-3. `HMI-KE`：知识约束决策、Gymnasium环境、PPO/SAC、多工况训练和180秒验证。
+The snapshot contains the reusable Python code, model interfaces, EnKF implementation, application skeleton, tests, and configuration templates. Original well data, customer data, trained model artifacts, runtime outputs, reports, screenshots, delivery archives, and extracted knowledge-graph data are intentionally excluded.
 
-真实数据只存放在 `Data`，代表性结果存放在 `artifacts`，新运行结果统一写入 `outputs`。
+## Main modules
 
-## 安装
+- `DT-Crack/`: data adapters, PKN forward model, EnKF inversion, PyFrac adapter, and visualization code.
+- `FSL-Expert/`: expert-rule and GNN experiment code. The extracted graph data is not included.
+- `HMI-KE/`: decision-engine and simulation environment code.
+- `App/`: desktop application skeleton and service layer.
+- `tools/`: data and delivery utilities.
 
-```powershell
-pip install -r requirements-core.txt
-pip install -r requirements-kg.txt
-pip install -r requirements-rl.txt
-pip install -r requirements-ui.txt
-```
+## Setup
 
-## 统一入口
+Use a fresh Python environment and install only the dependencies needed for the module being used:
 
 ```powershell
-python run_project.py fsl knowledge-graph
-python run_project.py fsl train
-python run_project.py dt validate
-python run_project.py dt benchmark
-python run_project.py dt visualize --open
-python run_project.py hmi train --total-timesteps 5000
-python run_project.py hmi scenarios --total-timesteps 1000
-python run_project.py app
-python run_project.py test
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-core.txt
 ```
 
-无图形界面检查：
+Optional dependency groups are listed in `requirements-kg.txt`, `requirements-rl.txt`, and `requirements-ui.txt`. The PyFrac multistage component has a separate manifest at `DT-Crack/third_party/PyFrac/requirements-multistage.txt`.
+
+The included registry is intentionally empty of historical runs and points to no customer files. Add an authorized data/artifact package separately and update `App/config/demo_registry.json` for a local replay.
+
+## Important limitation
+
+This public snapshot does not contain the original input data or generated outputs, so the end-to-end replay and application demo require a separately supplied, authorized data package. Do not add customer data, raw well data, trained models, API keys, or local machine paths to a public repository.
+
+The application launcher accepts portable environment overrides:
 
 ```powershell
-python App\run_app.py --no-gui
+$env:FRACTURING_DATA_ROOT = "C:\path\to\authorized\data"
+$env:FRACTURING_ALGORITHM_PYTHON = (Get-Command python).Source
+$env:FRACTURING_QT_PYTHON = (Get-Command python).Source
 ```
 
-## 科学口径
+## License
 
-当前数字孪生正式验证使用分簇液量、砂量分布和井底压力直接观测空间。现有数据没有独立真实缝长标签，因此不得把观测空间误差表述为真实裂缝几何精度。
-
-详细交接见 `docs/项目交接说明.md`。
+The PyFrac third-party component retains its upstream license in `DT-Crack/LICENSE`. Review third-party licensing before publishing a fork or redistributing modified components.

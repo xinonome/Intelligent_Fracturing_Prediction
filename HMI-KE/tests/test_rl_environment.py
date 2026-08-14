@@ -12,7 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from decision_engine.integrated_reward import IntegratedRewardConfig
-from decision_engine.pump_schedule_constraints import get_schedule_constraint
+from decision_engine.pump_schedule_constraints import constrain_actions, get_schedule_constraint
 from rl.fracturing_env import (
     FracturingControlEnv,
     FracturingEnvConfig,
@@ -86,6 +86,35 @@ def test_engineering_action_round_trip_stays_within_bounds() -> None:
     _, _, _, _, info = env.step(encoded)
     assert 0.0 <= info["flow_m3_min"] <= env.schedule.max_flow_m3_min
     assert 0.0 <= info["sand_ratio_percent"] <= env.schedule.max_sand_ratio_percent
+
+
+def test_conservative_sand_projection_does_not_cross_high_sand_limit() -> None:
+    schedule = get_schedule_constraint("continuous")
+    flow, sand, diagnostics = constrain_actions(
+        np.array([18.0]),
+        np.array([14.0]),
+        np.array([10.0]),
+        np.array([13.7]),
+        schedule,
+        reference_sand_ratio=np.array([13.7]),
+    )
+    assert flow[0] <= 14.0
+    assert sand[0] == 13.7
+    assert diagnostics["sand_upper_bound"][0] == 13.7
+    assert not diagnostics["sand_at_absolute_limit"][0]
+
+
+def test_repeated_advisory_actions_stay_anchored_to_observed_sand() -> None:
+    env = build_env()
+    env.reset()
+    _, _, _, _, first = env.step(np.array([1.0, 1.0], dtype=np.float32))
+    _, _, _, _, second = env.step(np.array([1.0, 1.0], dtype=np.float32))
+    assert first["pre_action_sand_ratio_percent"] == 4.0
+    assert second["pre_action_sand_ratio_percent"] == 4.0
+    assert first["sand_ratio_percent"] <= 4.5
+    assert second["sand_ratio_percent"] <= 4.5
+    assert second["sand_delta_from_reference_percent"] <= 0.5
+    assert second["sand_control_mode"] == "observed_reference_micro_adjustment"
 
 
 def test_hierarchical_environment_exposes_option_and_safe_low_level_action() -> None:

@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-DATA = ROOT / "Data"
+DATA = Path(os.environ.get("FRACTURING_DATA_ROOT", str(ROOT / "data")))
 OUTPUTS = ROOT / "outputs"
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -55,23 +55,23 @@ def fsl_command(action: str, extra: list[str]) -> int:
 def dt_command(action: str, extra: list[str]) -> int:
     module = ROOT / "DT-Crack"
     common = [
-        "--frac-monitor-text", str(DATA / "3Dfrac" / "光纤本井监测08.txt"),
-        "--construction-pressure-xls", str(DATA / "3Dfrac" / "JY84-Z1-stage08-f1.xls"),
+        "--frac-monitor-text", str(DATA / "frac_monitor.txt"),
+        "--construction-pressure-xls", str(DATA / "construction_pressure.xls"),
     ]
     if action == "validate":
         return run(module / "inversion" / "validate_direct_observations.py", [*common, *extra])
     if action == "benchmark":
         benchmark_args = [
-            "--frac-monitor-text", str(DATA / "3Dfrac" / "光纤本井监测08.txt"),
-            "--well-trajectory-csv", str(DATA / "3Dfrac" / "JY84-Z1HF-1011.csv"),
-            "--construction-pressure-xls", str(DATA / "3Dfrac" / "JY84-Z1-stage08-f1.xls"),
+            "--frac-monitor-text", str(DATA / "frac_monitor.txt"),
+            "--well-trajectory-csv", str(DATA / "well_trajectory.csv"),
+            "--construction-pressure-xls", str(DATA / "construction_pressure.xls"),
         ]
         return run(module / "inversion" / "benchmark_forward_models.py", [*benchmark_args, *extra])
     visualization_args = [
         "--backend", "plotly-html",
-        "--frac-monitor-text", str(DATA / "3Dfrac" / "光纤本井监测08.txt"),
-        "--well-trajectory-csv", str(DATA / "3Dfrac" / "JY84-Z1HF-1011.csv"),
-        "--construction-pressure-xls", str(DATA / "3Dfrac" / "JY84-Z1-stage08-f1.xls"),
+        "--frac-monitor-text", str(DATA / "frac_monitor.txt"),
+        "--well-trajectory-csv", str(DATA / "well_trajectory.csv"),
+        "--construction-pressure-xls", str(DATA / "construction_pressure.xls"),
         "--html", str(OUTPUTS / "dt" / "digital_twin_3d.html"),
     ]
     return run(module / "visualization" / "digital_twin_3d.py", [*visualization_args, *extra])

@@ -1,6 +1,8 @@
 """Fast PKN forward operator and parameter-space EnKF utilities.
 
-The EnKF state contains physical and per-cluster intake parameters. Fracture
+The EnKF state contains physical parameters.  The historical optional
+``4 + n_clusters`` layout is still accepted for old experiments, but the new
+default layout is ``[log E', log C_L, log mu, sigma_min, log K_IC]``.  Fracture
 length is always recomputed by the forward operator after each update; it is
 not directly overwritten by the filter.
 """
@@ -18,6 +20,7 @@ class PhysicalEnKFConfig:
     base_leakoff_m_sqrt_s: float = 1.0e-5
     base_viscosity_pa_s: float = 0.1
     base_min_stress_mpa: float = 60.0
+    base_fracture_toughness_pa_sqrt_m: float = 5.0e5
     height_m: float = 30.0
     pressure_proxy_scale: float = 30.0
     min_effective_rate_fraction: float = 0.05
@@ -34,6 +37,11 @@ class PhysicalEnKFConfig:
     pressure_leakoff_exponent: float = 0.0
     pressure_leakoff_reference_mpa: float = 15.0
     log_cluster_factor_state: bool = False
+    # Mild engineering closure for fracture toughness.  The full toughness
+    # response is supplied by a higher-fidelity teacher/solver later; this
+    # bounded exponent makes the new K_IC state observable in the PKN baseline.
+    fracture_toughness_length_exponent: float = 0.08
+    fracture_toughness_aperture_exponent: float = 0.05
 
 
 STATE_GLOBAL_NAMES = [
@@ -51,11 +59,15 @@ def physical_values(
     cluster_factors: np.ndarray | None = None,
 ) -> dict[str, np.ndarray | float]:
     state = np.asarray(state, dtype=float)
+    # A 4+n state is the historical layout used by the existing tests and
+    # archived runs.  It must remain readable even when the compatibility flag
+    # is false.  The new five-state layout reserves index 4 for log K_IC.
+    legacy_cluster_layout = bool(state.shape[-1] == 4 + n_clusters)
     if cluster_factors is None:
         # Four-state runs intentionally do not expose a free per-cluster growth
         # factor.  Keep the legacy state format readable, but default missing
         # cluster state to a neutral multiplier.
-        if state.shape[-1] >= 4 + n_clusters:
+        if legacy_cluster_layout:
             cluster_state = state[4 : 4 + n_clusters]
             cluster_factors = np.exp(cluster_state) if cfg.log_cluster_factor_state else cluster_state
         else:
@@ -66,6 +78,11 @@ def physical_values(
         "leakoff_m_sqrt_s": cfg.base_leakoff_m_sqrt_s * np.exp(state[1]),
         "viscosity_pa_s": cfg.base_viscosity_pa_s * np.exp(state[2]),
         "min_horizontal_stress_mpa": state[3],
+        "fracture_toughness_pa_sqrt_m": (
+            cfg.base_fracture_toughness_pa_sqrt_m * np.exp(state[4])
+            if state.shape[-1] >= 5 and not legacy_cluster_layout
+            else cfg.base_fracture_toughness_pa_sqrt_m
+        ),
         "cluster_factors": cluster_factors,
     }
 
@@ -76,7 +93,13 @@ def clip_state(state: np.ndarray, n_clusters: int) -> np.ndarray:
     out[..., 1] = np.clip(out[..., 1], np.log(0.1), np.log(8.0))
     out[..., 2] = np.clip(out[..., 2], np.log(0.2), np.log(5.0))
     out[..., 3] = np.clip(out[..., 3], 35.0, 90.0)
-    out[..., 4 : 4 + n_clusters] = np.clip(out[..., 4 : 4 + n_clusters], 0.65, 1.35)
+    legacy_cluster_layout = out.shape[-1] == 4 + n_clusters
+    if legacy_cluster_layout:
+        out[..., 4 : 4 + n_clusters] = np.clip(out[..., 4 : 4 + n_clusters], 0.65, 1.35)
+    elif out.shape[-1] >= 5:
+        out[..., 4] = np.clip(out[..., 4], np.log(0.25), np.log(4.0))
+        if out.shape[-1] >= 5 + n_clusters:
+            out[..., 5 : 5 + n_clusters] = np.clip(out[..., 5 : 5 + n_clusters], 0.65, 1.35)
     return out
 
 
@@ -116,6 +139,15 @@ def pkn_with_carter_leakoff(
     viscosity = float(values["viscosity_pa_s"])
     stress = float(values["min_horizontal_stress_mpa"])
     factors = np.asarray(values["cluster_factors"], dtype=float)
+    toughness_ratio = float(
+        np.clip(
+            values["fracture_toughness_pa_sqrt_m"] / max(cfg.base_fracture_toughness_pa_sqrt_m, 1.0),
+            0.25,
+            4.0,
+        )
+    )
+    toughness_length_factor = toughness_ratio ** (-max(cfg.fracture_toughness_length_exponent, 0.0))
+    toughness_aperture_factor = toughness_ratio ** (-max(cfg.fracture_toughness_aperture_exponent, 0.0))
     t = max(float(t_seconds), 1.0)
     q_base = np.maximum(np.asarray(q_base_m3_s, dtype=float), 0.0)
     q_current = q_base if q_current_m3_s is None else np.maximum(np.asarray(q_current_m3_s, dtype=float), 0.0)
@@ -152,6 +184,10 @@ def pkn_with_carter_leakoff(
     length = np.zeros(n_clusters, dtype=float)
     for _ in range(max(int(cfg.leakoff_iterations), 1)):
         length = 0.68 * ((q_effective**3 * eprime) / (viscosity * cfg.height_m**4)) ** 0.2 * t**0.8
+        # Keep the leakoff fixed-point iteration tied to hydraulic geometry.
+        # Apply the bounded toughness penalty after the mass-balance solve so a
+        # K_IC update cannot indirectly create a larger rate merely by
+        # changing the leakoff area in an intermediate iteration.
         length *= 0.95 + 0.10 * factors
         fracture_area = 4.0 * length * cfg.height_m
         # Carter leakoff is weakly pressure dependent in the enhanced profile.
@@ -206,8 +242,10 @@ def pkn_with_carter_leakoff(
     final_shadow_factor = shadow_factor_from_rate(q_effective)
     if cfg.stress_shadow_strength > 0.0:
         length *= final_shadow_factor
+    length *= toughness_length_factor
 
     aperture_m = 2.5 * ((q_current_effective**3 * viscosity) / (eprime * cfg.height_m**3)) ** 0.2 * t**0.2
+    aperture_m *= toughness_aperture_factor
     net_pressure_mpa = cfg.pressure_proxy_scale * eprime * float(np.mean(aperture_m / 2.0)) / cfg.height_m / 1.0e6
     return {
         "half_length_m": length,
@@ -227,6 +265,9 @@ def pkn_with_carter_leakoff(
         "bottomhole_pressure_mpa": stress + net_pressure_mpa,
         "stress_shadow_factor": final_shadow_factor,
         "pressure_leakoff_multiplier": float(pressure_multiplier),
+        "toughness_ratio": toughness_ratio,
+        "toughness_length_factor": toughness_length_factor,
+        "toughness_aperture_factor": toughness_aperture_factor,
         **values,
     }
 
@@ -307,6 +348,7 @@ def state_record(prefix: str, state: np.ndarray, cfg: PhysicalEnKFConfig, n_clus
         f"{prefix}_leakoff_m_sqrt_s": float(values["leakoff_m_sqrt_s"]),
         f"{prefix}_viscosity_pa_s": float(values["viscosity_pa_s"]),
         f"{prefix}_min_stress_mpa": float(values["min_horizontal_stress_mpa"]),
+        f"{prefix}_fracture_toughness_pa_sqrt_m": float(values["fracture_toughness_pa_sqrt_m"]),
     }
     for index, value in enumerate(np.asarray(values["cluster_factors"]), start=1):
         record[f"{prefix}_factor_c{index}"] = float(value)

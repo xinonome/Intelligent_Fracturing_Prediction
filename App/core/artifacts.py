@@ -66,6 +66,8 @@ def _summary_value(summary: dict[str, Any], *keys: str, default: Any = None) -> 
 
 def infer_status(module: str, summary: dict[str, Any], required_paths: list[Path]) -> tuple[str, str]:
     if not summary or "_error" in summary:
+        if not required_paths:
+            return "not_available", "no registered artifacts in this public snapshot"
         return "invalid", "summary.json cannot be read"
     if not all(path.exists() for path in required_paths):
         missing = [relative_path(path) or str(path) for path in required_paths if not path.exists()]
@@ -115,11 +117,33 @@ class ArtifactRegistry:
                 if path is not None:
                     registered_files.append(path)
         html_path = resolve_project_path(entry.get("html"))
-        if html_path is not None and entry.get("html_required", False):
+        if html_path is not None and (entry.get("html_required", False) or name == "dt"):
             registered_files.append(html_path)
 
         status, reason = infer_status(name, summary, registered_files)
         result = dict(entry)
+        frame_source = resolve_project_path(entry.get("frame_source"))
+        html_embedded = False
+        if html_path is not None and html_path.exists():
+            try:
+                html_text = html_path.read_text(encoding="utf-8", errors="ignore")
+                html_embedded = "window.setTimeIndex" in html_text and "<script src=" not in html_text
+            except OSError:
+                html_embedded = False
+        frame_count = entry.get("frame_count")
+        timeline = entry.get("timeline")
+        if frame_source is not None and frame_source.suffix.lower() == ".json" and frame_source.exists():
+            try:
+                frame_payload = read_json(frame_source)
+                frame_count = frame_count or len(frame_payload.get("timeline_s", []))
+                timeline = timeline or {
+                    "start_s": (frame_payload.get("timeline_s") or [None])[0],
+                    "end_s": (frame_payload.get("timeline_s") or [None])[-1],
+                    "step_s": 1,
+                    "alignment": frame_payload.get("alignment", {}).get("method", "unknown"),
+                }
+            except Exception:
+                pass
         result.update(
             {
                 "module": name,
@@ -127,6 +151,11 @@ class ArtifactRegistry:
                 "summary": summary,
                 "status": status,
                 "status_reason": reason,
+                "frame_source_path": relative_path(frame_source),
+                "frame_source_exists": bool(frame_source and frame_source.exists()),
+                "frame_count": frame_count,
+                "timeline": timeline,
+                "html_embedded": html_embedded if html_path is not None else bool(entry.get("html_embedded", False)),
                 "files": {
                     "figures": [
                         {
@@ -183,14 +212,15 @@ def _command_output(command: list[str]) -> dict[str, Any]:
 def build_preflight() -> dict[str, Any]:
     """Collect environment checks without importing Qt in the base process."""
 
-    qt_python = Path(os.environ.get("FRACTURING_QT_PYTHON", r"C:\Users\xinonome\anaconda3\envs\frac_app\python.exe"))
-    algorithm_python = Path(
-        os.environ.get("FRACTURING_ALGORITHM_PYTHON", r"C:\Users\xinonome\anaconda3\python.exe")
-    )
+    # Public-copy defaults are portable.  Production deployments can override
+    # these with FRACTURING_QT_PYTHON/FRACTURING_ALGORITHM_PYTHON.
+    qt_python = Path(os.environ.get("FRACTURING_QT_PYTHON", sys.executable))
+    algorithm_python = Path(os.environ.get("FRACTURING_ALGORITHM_PYTHON", sys.executable))
+    data_root = Path(os.environ.get("FRACTURING_DATA_ROOT", str(PROJECT_ROOT / "data")))
     data_paths = [
-        PROJECT_ROOT / "Data" / "3Dfrac" / "光纤本井监测08.txt",
-        PROJECT_ROOT / "Data" / "3Dfrac" / "JY84-Z1-stage08-f1.xls",
-        PROJECT_ROOT / "Data" / "3Dfrac" / "JY84-Z1HF-1011.csv",
+        data_root / "fiber_monitor.txt",
+        data_root / "construction_pressure.xls",
+        data_root / "well_trajectory.csv",
     ]
     qt_probe = _command_output([str(qt_python), "-c", "from PySide6.QtCore import qVersion; print(qVersion())"])
     current_qt_probe = _command_output([sys.executable, "-c", "from PySide6.QtCore import qVersion; print(qVersion())"])

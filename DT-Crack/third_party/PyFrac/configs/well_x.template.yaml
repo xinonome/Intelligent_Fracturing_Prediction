@@ -1,0 +1,70 @@
+project:
+  name: well_x
+  output_root: outputs/well_x
+
+inputs:
+  logs_csv: data/raw/well_x_logs.csv
+  trajectory_csv: data/raw/well_x_trajectory.csv
+
+stages:
+  - id: stage_1
+    md_start_m: 5250.0
+    md_end_m: 5297.0
+  - id: stage_2
+    md_start_m: 5224.0
+    md_end_m: 5245.5
+  - id: stage_3
+    md_start_m: 5174.0
+    md_end_m: 5219.5
+
+injection:
+  rate_m3_s: REQUIRED
+  duration_s: REQUIRED
+
+fluid:
+  viscosity_pa_s: REQUIRED
+  compressibility_pa_inv: 0.0
+  density_kg_m3: REQUIRED
+
+material:
+  e_prime_warning_relative_spread: 0.2
+  toughness:
+    mode: REQUIRED
+    constant_pa_sqrt_m: null
+  leakoff:
+    mode: REQUIRED
+    constant_m_sqrt_s: null
+
+mesh:
+  x_half_extent_m: REQUIRED
+  y_half_extent_m: REQUIRED
+  nx: REQUIRED
+  ny: REQUIRED
+
+simulation:
+  final_time_s: REQUIRED
+  front_advancing: predictor-corrector
+  mode: snapshot
+  fracture_height_m: REQUIRED
+  save_every_s: REQUIRED
+
+mapping:
+  plane_mode: transverse_vertical
+  fracture_azimuth_deg: null
+
+diagnostics:
+  barrier_detection:
+    mode: stage_boundary
+    tolerance_m: REQUIRED
+  handover:
+    min_consecutive_snapshots: REQUIRED
+    vertical_growth_epsilon_m_s: REQUIRED
+    lateral_growth_min_m_s: REQUIRED
+
+validation:
+  max_mass_balance_relative_error: REQUIRED
+
+runtime:
+  max_memory_gb: REQUIRED
+  resume: true
+  max_workers: 1

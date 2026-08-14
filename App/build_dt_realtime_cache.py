@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -16,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
+DATA_ROOT = Path(os.environ.get("FRACTURING_DATA_ROOT", str(ROOT / "data")))
 sys.path.insert(0, str(ROOT / "DT-Crack"))
 
 from data_fusion.frac_monitor_text_adapter import load_frac_monitor_text
@@ -178,9 +180,9 @@ def _build_deep_display_geometry(
 
 
 def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
-    fiber_path = ROOT / "Data" / "3Dfrac" / "光纤本井监测08.txt"
-    pressure_path = ROOT / "Data" / "3Dfrac" / "JY84-Z1-stage08-f1.xls"
-    trajectory_path = ROOT / "Data" / "3Dfrac" / "JY84-Z1HF-1011.csv"
+    fiber_path = DATA_ROOT / "frac_monitor.txt"
+    pressure_path = DATA_ROOT / "construction_pressure.xls"
+    trajectory_path = DATA_ROOT / "well_trajectory.csv"
     history_path, cluster_path, summary_path = _latest_dt_run(dt_run)
 
     fiber = load_frac_monitor_text(fiber_path)

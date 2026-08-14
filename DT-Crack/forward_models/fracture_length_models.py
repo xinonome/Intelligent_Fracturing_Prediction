@@ -569,6 +569,10 @@ def build_length_forward_model(name: str) -> LengthForwardModel:
         return PhysicsHybridLengthForwardModel()
     if normalized in {"data_surrogate", "surrogate", "mlp", "data_driven", "data-driven"}:
         return DataDrivenLengthForwardModel()
+    if normalized in {"pyfrac", "pyfrac_snapshot", "pyfrac_reference"}:
+        from .pyfrac_adapter import PyFracLengthForwardModel
+
+        return PyFracLengthForwardModel(mode="snapshot")
     raise ValueError(f"Unsupported length forward model: {name}")
 
 

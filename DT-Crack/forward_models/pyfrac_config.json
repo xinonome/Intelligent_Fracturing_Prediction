@@ -1,0 +1,21 @@
+{
+  "pyfrac_root": "",
+  "young_modulus_pa": 32000000000.0,
+  "poisson_ratio": 0.25,
+  "fracture_toughness_pa_sqrt_m": 500000.0,
+  "leakoff_coefficient_m_sqrt_s": 1e-6,
+  "viscosity_pa_s": 0.1,
+  "min_horizontal_stress_pa": 60000000.0,
+  "height_m": 30.0,
+  "initial_time_s": 1.0,
+  "mesh_half_length_m": 80.0,
+  "mesh_half_height_m": 25.0,
+  "mesh_nx": 61,
+  "mesh_ny": 41,
+  "max_time_steps": 30,
+  "dynamic_step_limit_s": 30.0,
+  "allow_dynamic_fallback_to_snapshot": false,
+  "third_party_commit": "f3e0a812ce006223a3a8b5293235dc805021a6f4",
+  "third_party_license": "GPL-3.0-only",
+  "default_mode": "snapshot"
+}

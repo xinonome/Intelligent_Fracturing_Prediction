@@ -92,6 +92,7 @@ class FracturingControlEnv(gym.Env):
         self._current_pressure = 0.0
         self._previous_length = 1.0
         self._episode_end = len(self.features)
+        self._last_action_diagnostics: dict[str, object] = {}
         self._pressure_reference = float(np.nanmedian(self.meta["current_pressure"]))
         self._pressure_scale = max(float(np.nanstd(self.meta["current_pressure"])), 1.0)
 
@@ -153,6 +154,29 @@ class FracturingControlEnv(gym.Env):
             or float(response.get("sand_plug_probability", 0.0)) > self.config.sand_plug_probability_max
         )
 
+    def _sync_observed_control_state(self) -> None:
+        """Anchor each recommendation to the measured state at this cursor.
+
+        Carrying the previous recommendation forward as the next current value
+        lets repeated small increases accumulate into an unsupported high-sand
+        plateau. HMI advisory actions must use the current observation as their
+        reference at every decision point.
+        """
+        row = self.meta.iloc[self._cursor]
+        for attribute, column, upper in (
+            ("_current_flow", "current_flow", self.schedule.max_flow_m3_min),
+            ("_current_sand", "current_sand_ratio", self.schedule.max_sand_ratio_percent),
+        ):
+            value = pd.to_numeric(row.get(column), errors="coerce")
+            if pd.notna(value):
+                setattr(self, attribute, float(np.clip(float(value), 0.0, upper)))
+
+    def _observed_sand_reference(self) -> float:
+        value = pd.to_numeric(self.meta.iloc[self._cursor].get("current_sand_ratio"), errors="coerce")
+        if pd.notna(value):
+            return float(np.clip(float(value), 0.0, self.schedule.max_sand_ratio_percent))
+        return float(np.clip(self._current_sand, 0.0, self.schedule.max_sand_ratio_percent))
+
     def _resolve_start(self, requested: int) -> int:
         requested = int(np.clip(requested, 0, len(self.features) - 1))
         return int(self._valid_starts[np.argmin(np.abs(self._valid_starts - requested))])
@@ -190,13 +214,14 @@ class FracturingControlEnv(gym.Env):
         flow_high = min(self.schedule.max_flow_m3_min, self._current_flow + self.schedule.max_flow_step_m3_min)
         proposed_flow = flow_low + (raw[0] + 1.0) * 0.5 * (flow_high - flow_low)
         emergency = self._emergency_active()
+        sand_reference = self._observed_sand_reference()
         if self.schedule.allow_sand_pause or emergency:
-            sand_low = max(0.0, self._current_sand - self.schedule.max_sand_increase_percent)
+            sand_low = max(0.0, sand_reference - self.schedule.max_sand_decrease_percent)
         else:
             sand_low = self._current_sand
         sand_high = min(
             self.schedule.max_sand_ratio_percent,
-            self._current_sand + self.schedule.max_sand_increase_percent,
+            sand_reference + self.schedule.max_sand_increase_percent,
         )
         proposed_sand = sand_low + (raw[1] + 1.0) * 0.5 * (sand_high - sand_low)
         safe_flow, safe_sand, diagnostics = constrain_actions(
@@ -205,10 +230,15 @@ class FracturingControlEnv(gym.Env):
             np.array([self._current_flow]),
             np.array([self._current_sand]),
             self.schedule,
+            reference_sand_ratio=np.array([sand_reference]),
         )
         if emergency:
             # Safety intervention takes precedence over a normal continuous-sanding schedule.
             safe_sand[0] = np.clip(proposed_sand, 0.0, self._current_sand)
+        self._last_action_diagnostics = {
+            key: value[0] if isinstance(value, np.ndarray) else value
+            for key, value in diagnostics.items()
+        }
         clipped = bool(diagnostics["flow_was_clipped"][0] or diagnostics["sand_was_clipped"][0])
         return float(safe_flow[0]), float(safe_sand[0]), clipped
 
@@ -217,8 +247,9 @@ class FracturingControlEnv(gym.Env):
         flow_low = max(0.0, self._current_flow - self.schedule.max_flow_step_m3_min)
         flow_high = min(self.schedule.max_flow_m3_min, self._current_flow + self.schedule.max_flow_step_m3_min)
         flow_action = 2.0 * (float(flow) - flow_low) / max(flow_high - flow_low, 1e-6) - 1.0
-        sand_low = max(0.0, self._current_sand - self.schedule.max_sand_increase_percent) if self.schedule.allow_sand_pause else self._current_sand
-        sand_high = min(self.schedule.max_sand_ratio_percent, self._current_sand + self.schedule.max_sand_increase_percent)
+        sand_reference = self._observed_sand_reference()
+        sand_low = max(0.0, sand_reference - self.schedule.max_sand_decrease_percent) if self.schedule.allow_sand_pause else self._current_sand
+        sand_high = min(self.schedule.max_sand_ratio_percent, sand_reference + self.schedule.max_sand_increase_percent)
         sand_action = 2.0 * (float(sand) - sand_low) / max(sand_high - sand_low, 1e-6) - 1.0
         return np.clip(np.array([flow_action, sand_action], dtype=np.float32), -1.0, 1.0)
 
@@ -294,8 +325,10 @@ class FracturingControlEnv(gym.Env):
         self._steps = 0
         row = self.meta.iloc[self._cursor]
         self._current_pressure = float(row["current_pressure"])
-        self._current_flow = float(np.clip(row["current_flow"], 0.0, self.schedule.max_flow_m3_min))
-        self._current_sand = float(np.clip(row["current_sand_ratio"], 0.0, self.schedule.max_sand_ratio_percent))
+        self._current_flow = 0.0
+        self._current_sand = 0.0
+        self._sync_observed_control_state()
+        self._last_action_diagnostics = {}
         base_length = self._base_context(self._cursor).get("posterior_total_half_length_m", 1.0)
         self._previous_length = float(base_length) if np.isfinite(base_length) else 1.0
         base = self._base_context(self._cursor)
@@ -309,6 +342,7 @@ class FracturingControlEnv(gym.Env):
         return self._observation(), {"start_index": self._cursor}
 
     def step(self, action: np.ndarray):
+        self._sync_observed_control_state()
         pre_action_context = self._base_context(self._cursor)
         # Preserve the measured/current control state before decoding the
         # proposed action.  The action is a future 60-second mean setting and
@@ -399,6 +433,19 @@ class FracturingControlEnv(gym.Env):
             "pre_action_sand_ratio_percent": pre_action_sand,
             "flow_m3_min": flow,
             "sand_ratio_percent": sand,
+            "sand_reference_ratio_percent": float(
+                self._last_action_diagnostics.get("sand_reference_ratio", pre_action_sand)
+            ),
+            "sand_delta_from_reference_percent": float(
+                sand - float(self._last_action_diagnostics.get("sand_reference_ratio", pre_action_sand))
+            ),
+            "sand_ratio_limit_reached": bool(
+                self._last_action_diagnostics.get("sand_at_absolute_limit", False)
+            ),
+            "sand_ratio_requires_confirmation": bool(
+                self._last_action_diagnostics.get("sand_at_absolute_limit", False)
+            ),
+            "sand_control_mode": "observed_reference_micro_adjustment",
             "action_clipped": action_clipped,
             "simulated_pressure_mpa": response["pressure"],
             "simulated_half_length_m": response["length"],
@@ -513,35 +560,37 @@ class HierarchicalFracturingControlEnv(FracturingControlEnv):
         option = self.OPTIONS[self._current_option]
         flow_step = self.schedule.max_flow_step_m3_min
         sand_step = self.schedule.max_sand_increase_percent
+        sand_decrease_step = self.schedule.max_sand_decrease_percent
+        sand_reference = self._observed_sand_reference()
 
         if option == "grow":
             flow_low = self._current_flow
             flow_high = min(self.schedule.max_flow_m3_min, self._current_flow + flow_step)
-            sand_low = self._current_sand
-            sand_high = min(self.schedule.max_sand_ratio_percent, self._current_sand + sand_step)
+            sand_low = sand_reference
+            sand_high = min(self.schedule.max_sand_ratio_percent, sand_reference + sand_step)
         elif option == "safe":
             flow_low = max(0.0, self._current_flow - flow_step)
             flow_high = max(
                 flow_low,
                 self._current_flow - self.hierarchical_config.safe_min_flow_reduction_ratio * flow_step,
             )
-            sand_low = max(0.0, self._current_sand - sand_step)
+            sand_low = max(0.0, sand_reference - sand_decrease_step)
             sand_high = max(
                 sand_low,
-                self._current_sand - self.hierarchical_config.safe_min_sand_reduction_ratio * sand_step,
+                sand_reference - self.hierarchical_config.safe_min_sand_reduction_ratio * sand_decrease_step,
             )
         elif option == "divert":
             flow_low = max(0.0, self._current_flow - 0.5 * flow_step)
             flow_high = min(self.schedule.max_flow_m3_min, self._current_flow + 0.5 * flow_step)
             # Diverting a medium-risk state may redistribute flow, but must not
             # add proppant while an abnormal trend is already developing.
-            sand_low = max(0.0, self._current_sand - 0.5 * sand_step)
-            sand_high = self._current_sand
+            sand_low = max(0.0, sand_reference - 0.5 * sand_decrease_step)
+            sand_high = sand_reference
         else:
             flow_low = max(0.0, self._current_flow - 0.25 * flow_step)
             flow_high = min(self.schedule.max_flow_m3_min, self._current_flow + 0.25 * flow_step)
-            sand_low = self._current_sand
-            sand_high = min(self.schedule.max_sand_ratio_percent, self._current_sand + 0.25 * sand_step)
+            sand_low = sand_reference
+            sand_high = min(self.schedule.max_sand_ratio_percent, sand_reference + 0.25 * sand_step)
 
         proposed_flow = flow_low + (raw[0] + 1.0) * 0.5 * max(flow_high - flow_low, 0.0)
         proposed_sand = sand_low + (raw[1] + 1.0) * 0.5 * max(sand_high - sand_low, 0.0)
@@ -551,9 +600,14 @@ class HierarchicalFracturingControlEnv(FracturingControlEnv):
             np.array([self._current_flow]),
             np.array([self._current_sand]),
             self.schedule,
+            reference_sand_ratio=np.array([sand_reference]),
         )
         if option == "safe":
             safe_sand[0] = np.clip(proposed_sand, 0.0, self._current_sand)
+        self._last_action_diagnostics = {
+            key: value[0] if isinstance(value, np.ndarray) else value
+            for key, value in diagnostics.items()
+        }
         clipped = bool(diagnostics["flow_was_clipped"][0] or diagnostics["sand_was_clipped"][0])
         return float(safe_flow[0]), float(safe_sand[0]), clipped
 

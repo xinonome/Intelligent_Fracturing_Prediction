@@ -274,7 +274,7 @@ def build_dt_realtime_panel(html_path: Path | None = None):
             elif path and path.exists():
                 message = "无界面测试模式不启动 WebEngine；桌面启动后显示真实三维模型。"
             else:
-                message = "三维模型页面尚未生成，请点击“打开实时3D模型”。"
+                message = "三维模型页面尚未生成，请检查 outputs/app/dt_realtime_3d.html。"
             label = QLabel(message + "\n东向与垂深使用井轨迹坐标；北向为垂深3000 m后的展示坐标（77–1650 m），原始北向保留在缓存中；簇面由PKN后验半缝长生成。")
             label.setObjectName("notice")
             label.setWordWrap(True)

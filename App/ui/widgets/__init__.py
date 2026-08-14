@@ -1,0 +1,1 @@
+"""Reusable industrial-console widgets."""

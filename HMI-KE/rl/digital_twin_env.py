@@ -126,15 +126,20 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
 
     def _initialize_twin(self) -> None:
         n = self.dt_config.n_clusters
-        mean = np.r_[0.0, 0.0, 0.0, 60.0, np.ones(n)]
-        spread = np.r_[0.12, 0.30, 0.20, 4.0, np.full(n, 0.06)]
+        # New physical state: [log E', log C_L, log mu, sigma_min, log K_IC].
+        # Fiber liquid allocation is an observed boundary condition, so there
+        # is no free per-cluster growth factor in the EnKF state.
+        mean = np.asarray([0.0, 0.0, 0.0, 60.0, 0.0], dtype=float)
+        spread = np.asarray([0.12, 0.30, 0.20, 4.0, 0.15], dtype=float)
         self._ensemble = clip_state(
             mean + self.np_random.normal(0.0, spread, size=(self.dt_config.ensemble_size, len(mean))), n
         )
-        imbalance = float(self.context.iloc[self._cursor].get("scenario_balance_imbalance", 0.08))
-        pattern = np.linspace(-1.0, 1.0, n)
-        truth_factors = np.clip(1.0 + imbalance * pattern, 0.70, 1.30)
-        self._truth_state = clip_state(np.r_[0.08, -0.12, 0.10, 64.0, truth_factors], n)
+        # The synthetic truth differs in physical parameters only.  Any
+        # cluster imbalance must enter through observed liquid allocation in a
+        # field-connected environment, not through hidden EnKF factors.
+        self._truth_state = clip_state(
+            np.asarray([0.08, -0.12, 0.10, 64.0, np.log(1.10)], dtype=float), n
+        )
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
         observation, info = super().reset(seed=seed, options=options)
@@ -215,7 +220,10 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
         q_current = np.full(n, q_current_total / n, dtype=float)
         sand_delta = sand - self._current_sand
         flow_delta = flow - self._current_flow
-        process = np.r_[0.008, 0.015, 0.010, 0.15, np.full(n, 0.008)]
+        # The EnKF state is now five global physical parameters.  Cluster
+        # allocation is supplied by observations, so no legacy per-cluster
+        # process-noise terms belong in this vector.
+        process = np.asarray([0.008, 0.015, 0.010, 0.15, 0.008], dtype=float)
         self._ensemble = clip_state(
             self._ensemble + self.np_random.normal(0.0, process, size=self._ensemble.shape), n
         )
@@ -258,12 +266,18 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
         base = self._base_context(self._cursor)
         base_abnormal = float(np.nan_to_num(base.get("abnormal_probability", 0.04), nan=0.04))
         base_sand_plug = float(np.nan_to_num(base.get("sand_plug_probability", 0.02), nan=0.02))
-        factors = np.asarray(physical_values(posterior_state, self.physics_config, n)["cluster_factors"])
+        # Use the posterior geometry spread as a diagnostic for cluster
+        # imbalance.  This is not a free state update; it is derived from the
+        # re-run PKN output after the physical-parameter EnKF update.
+        posterior_lengths_array = np.asarray(posterior["half_length_m"], dtype=float)
+        cluster_spread = float(
+            np.ptp(posterior_lengths_array) / max(float(np.mean(posterior_lengths_array)), 1.0e-9)
+        )
         abnormal, sand_plug = ConditionRiskAdapter.predict(
             base_abnormal, base_sand_plug, float(posterior["bottomhole_pressure_mpa"]),
             self.reward_config.bottomhole_pressure_max_mpa, posterior_error,
             flow_delta, self.schedule.max_flow_step_m3_min, sand_delta,
-            self.schedule.max_sand_increase_percent, float(np.ptp(factors)),
+            self.schedule.max_sand_increase_percent, cluster_spread,
         )
         surrogate_result = None
         posterior_bhp = float(posterior["bottomhole_pressure_mpa"])
@@ -304,6 +318,10 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
             "posterior_leakoff_m_sqrt_s": float(physical_values(posterior_state, self.physics_config, n)["leakoff_m_sqrt_s"]),
             "posterior_viscosity_pa_s": float(physical_values(posterior_state, self.physics_config, n)["viscosity_pa_s"]),
             "posterior_min_stress_mpa": float(physical_values(posterior_state, self.physics_config, n)["min_horizontal_stress_mpa"]),
+            "posterior_fracture_toughness_pa_sqrt_m": float(
+                physical_values(posterior_state, self.physics_config, n)["fracture_toughness_pa_sqrt_m"]
+            ),
+            "cluster_geometry_spread": cluster_spread,
             "cumulative_injected_volume_m3": float(self._cumulative_injected_volume_m3),
             "current_total_rate_m3_s": float(q_current_total),
             "pkn_update_skipped": False,

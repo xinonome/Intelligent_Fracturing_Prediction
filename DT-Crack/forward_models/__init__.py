@@ -11,6 +11,8 @@ from .fracture_length_models import (
     build_length_forward_model,
 )
 from .pkn_model import PKNForwardModel, PKNParameters
+from .pyfrac_adapter import PyFracAdapter, PyFracLengthForwardModel, PyFracRunResult
+from .pyfrac_config import PyFracConfig
 
 __all__ = [
     "BEMLengthForwardModelStub",
@@ -22,5 +24,9 @@ __all__ = [
     "PhysicsHybridLengthForwardModel",
     "PKNForwardModel",
     "PKNParameters",
+    "PyFracAdapter",
+    "PyFracConfig",
+    "PyFracLengthForwardModel",
+    "PyFracRunResult",
     "build_length_forward_model",
 ]
