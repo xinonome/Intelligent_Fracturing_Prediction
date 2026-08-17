@@ -96,6 +96,13 @@ class StageSnapshot:
     fracture_volume_m3: float
     efficiency: float
     injected_volume_m3: float
+    leakoff_volume_m3: float = float("nan")
+    mass_balance_residual_m3: float = float("nan")
+    mass_balance_relative_error: float = float("nan")
+    target_reached: bool = False
+    successful_time_steps: int = 0
+    failed_time_steps: int = 0
+    time_step_limit_s: float = float("nan")
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

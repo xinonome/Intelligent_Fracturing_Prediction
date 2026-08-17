@@ -8,8 +8,8 @@ sources into one relative-second timeline for the presentation layer.
 from __future__ import annotations
 
 import csv
+import copy
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -17,12 +17,14 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA_ROOT = Path(os.environ.get("FRACTURING_DATA_ROOT", str(ROOT / "data")))
 sys.path.insert(0, str(ROOT / "DT-Crack"))
 
 from data_fusion.frac_monitor_text_adapter import load_frac_monitor_text
-from data_fusion.pressure_schedule_adapter import PressureModelConfig, load_stage_pressure_schedule
+from data_fusion.pressure_schedule_adapter import load_pressure_model_config, load_stage_pressure_schedule
 from data_fusion.well_trajectory_adapter import load_well_trajectory
+from data_fusion.scenario import load_cluster_geometry
+from data_fusion.observation_quality import validate_cluster_controls
+from inversion.pressure_only_enkf import PressureOnlyConfig, run_pressure_only_correction
 
 
 def _read_csv(path: Path) -> pd.DataFrame:
@@ -91,102 +93,61 @@ def _interp(values: pd.Series | np.ndarray, source_t: np.ndarray, target_t: np.n
 def _build_deep_display_geometry(
     trajectory: pd.DataFrame,
     n_clusters: int,
+    cluster_geometry: pd.DataFrame | None = None,
     *,
     vertical_start_m: float = 3000.0,
     north_start_m: float = 77.0,
     north_end_m: float = 1650.0,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    """Build a stable deep-section display geometry without changing raw data.
+    """Use measured/configured cluster positions; never fabricate equal splits."""
 
-    The supplied trajectory uses a local northing coordinate and does not reach
-    north=1650 in the TVD>=3000 section.  For the presentation only, the deep
-    section is mapped linearly to the requested northing interval.  Raw northing
-    is retained as ``source_north_m`` for auditability.  Six clusters are placed
-    at the six internal boundaries of seven equal display segments.
-    """
-
-    if trajectory.empty or n_clusters <= 0:
+    if trajectory.empty or n_clusters <= 0 or cluster_geometry is None or cluster_geometry.empty:
         return trajectory.copy(), pd.DataFrame(), {"mode": "empty"}
-
     result = trajectory.copy().reset_index(drop=True)
-    raw_north = result["north_m"].to_numpy(dtype=float)
-    tvd = result["vertical_depth_m"].to_numpy(dtype=float)
-    depth_order = np.argsort(tvd)
-    sorted_tvd = tvd[depth_order]
-    sorted_north = raw_north[depth_order]
-    source_start_north = float(np.interp(vertical_start_m, sorted_tvd, sorted_north))
-    source_end_north = float(raw_north[-1])
-
-    denominator = source_start_north - source_end_north
-    if abs(denominator) < 1.0e-9:
-        # Defensive fallback for a trajectory whose northing is nearly flat.
-        path = np.zeros(len(result), dtype=float)
-        if len(result) > 1:
-            points = result[["east_m", "north_m", "vertical_depth_m"]].to_numpy(dtype=float)
-            path[1:] = np.cumsum(np.linalg.norm(np.diff(points, axis=0), axis=1))
-        path_end = max(float(path[-1]), 1.0)
-        display_north = north_start_m + (path / path_end) * (north_end_m - north_start_m)
-        transform_mode = "deep_path_normalized_fallback"
-    else:
-        # The sign is intentional: this trajectory's raw northing decreases
-        # along the deep interval while the requested display northing grows.
-        display_north = north_start_m + (source_start_north - raw_north) / denominator * (north_end_m - north_start_m)
-        transform_mode = "deep_raw_north_affine"
-
-    result["source_north_m"] = raw_north
-    result["display_north_m"] = display_north
-    result["north_m"] = display_north
-
-    deep_mask = tvd >= vertical_start_m
-    deep = result.loc[deep_mask].copy()
-    if len(deep) < 2:
-        deep = result.tail(min(max(n_clusters + 1, 2), len(result))).copy()
-    deep = deep.sort_values("display_north_m")
-    deep_north = deep["display_north_m"].to_numpy(dtype=float)
-
-    # Six internal boundaries divide [77, 1650] into seven equal intervals.
-    split_north = np.linspace(north_start_m, north_end_m, n_clusters + 2)[1:-1]
+    result["source_north_m"] = result["north_m"]
+    result["display_north_m"] = result["north_m"]
+    result["geometry_provenance"] = "trajectory_source"
+    ordered = result.sort_values("measured_depth_m")
+    md = ordered["measured_depth_m"].to_numpy(dtype=float)
+    positions_frame = cluster_geometry.sort_values("cluster_id").copy()
     positions = []
-    for cluster_id, target_north in enumerate(split_north, start=1):
+    for _, item in positions_frame.iterrows():
+        cluster_id = int(item["cluster_id"])
+        md_value = float(item["md_m"])
+        def interp(column: str, optional: str) -> float:
+            if optional in item and pd.notna(item[optional]):
+                return float(item[optional])
+            return float(np.interp(md_value, md, ordered[column].to_numpy(dtype=float)))
         row = {
             "cluster_id": cluster_id,
-            "measured_depth_m": float(np.interp(target_north, deep_north, deep["measured_depth_m"])),
-            "vertical_depth_m": float(np.interp(target_north, deep_north, deep["vertical_depth_m"])),
-            "north_m": float(target_north),
-            "east_m": float(np.interp(target_north, deep_north, deep["east_m"])),
-            "source_north_m": float(np.interp(target_north, deep_north, deep["source_north_m"])),
-            "display_north_m": float(target_north),
-            "display_segment_index": cluster_id,
-            "display_segment_count": n_clusters + 1,
-            "display_north_start_m": north_start_m,
-            "display_north_end_m": north_end_m,
-            "vertical_start_m": vertical_start_m,
+            "measured_depth_m": md_value,
+            "vertical_depth_m": interp("vertical_depth_m", "tvd_m"),
+            "north_m": interp("north_m", "north_m"),
+            "east_m": interp("east_m", "east_m"),
+            "source_north_m": interp("north_m", "north_m"),
+            "display_north_m": interp("north_m", "north_m"),
+            "geometry_provenance": "configured" if all(pd.notna(item.get(value)) for value in ("tvd_m", "east_m", "north_m")) else "trajectory_interpolated",
         }
         positions.append(row)
 
     metadata = {
-        "mode": transform_mode,
-        "purpose": "presentation_only_deep_section_coordinate_mapping",
-        "vertical_start_m": vertical_start_m,
-        "north_display_start_m": north_start_m,
-        "north_display_end_m": north_end_m,
-        "cluster_split_count": n_clusters + 1,
-        "cluster_placement": "six internal boundaries of seven equal northing intervals",
-        "source_north_at_vertical_start_m": source_start_north,
-        "source_north_at_trajectory_end_m": source_end_north,
-        "raw_north_preserved_as": "source_north_m",
+        "mode": "configured_cluster_geometry",
+        "cluster_placement": "configured_md_with_optional_trajectory_interpolation",
+        "cluster_geometry_rows": int(len(positions)),
     }
     return result, pd.DataFrame(positions), metadata
 
 
 def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
-    fiber_path = DATA_ROOT / "frac_monitor.txt"
-    pressure_path = DATA_ROOT / "construction_pressure.xls"
-    trajectory_path = DATA_ROOT / "well_trajectory.csv"
+    fiber_path = ROOT / "Data" / "3Dfrac" / "光纤本井监测08.txt"
+    pressure_path = ROOT / "Data" / "3Dfrac" / "JY84-Z1-stage08-f1.xls"
+    trajectory_path = ROOT / "Data" / "3Dfrac" / "JY84-Z1HF-1011.csv"
     history_path, cluster_path, summary_path = _latest_dt_run(dt_run)
 
     fiber = load_frac_monitor_text(fiber_path)
-    stage = fiber.stage_info.copy()
+    checked_controls, fiber_quality = validate_cluster_controls(fiber.controls, expected_clusters=6)
+    valid_keys = checked_controls.loc[checked_controls["qc_valid"], ["step", "cluster_id"]].drop_duplicates()
+    stage = fiber.stage_info.merge(valid_keys, on=["step", "cluster_id"], how="inner")
     fiber_by_step = (
         stage.groupby("step", as_index=False)
         .agg(
@@ -199,11 +160,13 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
     )
 
     trajectory = load_well_trajectory(trajectory_path)
+    cluster_geometry_path = ROOT / "App" / "config" / "cluster_geometry.csv"
+    cluster_geometry, geometry_meta = load_cluster_geometry(cluster_geometry_path, stage_id="08")
     vertical_depth = float(trajectory["vertical_depth_m"].max()) if not trajectory.empty else 3200.0
     measured_depth = float(trajectory["measured_depth_m"].max()) if not trajectory.empty else 5200.0
     pressure, pressure_meta = load_stage_pressure_schedule(
         pressure_path,
-        config=PressureModelConfig(),
+        config=load_pressure_model_config(ROOT / "App" / "config" / "pressure_calibration.json"),
         measured_depth_m=measured_depth,
         vertical_depth_m=vertical_depth,
     )
@@ -233,6 +196,7 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
     arrays: dict[str, list[float]] = {
         "surface_pressure_mpa": p("surface_pressure_mpa"),
         "bottomhole_pressure_mpa": p("bottomhole_pressure_mpa"),
+        "observed_bhp_mpa": p("bottomhole_pressure_mpa"),
         "net_pressure_mpa": p("net_pressure_mpa"),
         "flow_rate_m3_min": p("flow_rate_m3_min"),
         "sand_ratio_percent": p("sand_ratio_percent"),
@@ -304,10 +268,7 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
         cluster_arrays[cluster_id]["estimated_half_length_m"] = estimated_matrix[row_index].astype(float).tolist()
     arrays["posterior_length_error"] = length_error.astype(float).tolist()
 
-    display_trajectory, cluster_positions, display_geometry = _build_deep_display_geometry(
-        trajectory,
-        len(cluster_arrays),
-    )
+    display_trajectory, cluster_positions, display_geometry = _build_deep_display_geometry(trajectory, len(cluster_arrays), cluster_geometry)
     trajectory_records = display_trajectory.to_dict(orient="records")
     cluster_position_records = []
     for record in cluster_positions.to_dict(orient="records"):
@@ -330,7 +291,7 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
             "fiber_end_s": float(fiber_times.max()),
             "pressure_end_s": float(pressure_times.max()),
             "dt_end_s": float(dt_times.max()),
-            "fiber_after_end": "hold last observed value for visual continuity; no new fiber observation is claimed",
+            "fiber_after_end": "not part of DAS validation; UI may show last value with an explicit no-new-observation label",
             "dt_after_end": "hold last PKN/EnKF state for visual continuity; no new inversion step is claimed",
         },
         "sources": {
@@ -350,8 +311,11 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
             "pressure_rows": int(len(pressure)),
             "trajectory_rows": int(len(trajectory)),
             "pressure_layout": pressure_meta.get("layout_assumption", {}),
+            "pressure_calibration_status": pressure_meta.get("calibration_status", "待校准"),
             "dt_metrics": summary.get("metrics", {}),
             "display_geometry": display_geometry,
+            "cluster_geometry": geometry_meta,
+            "observation_quality": fiber_quality.to_dict(),
             "length_estimate": {
                 "method": "total posterior PKN length allocated by normalized cumulative liquid share^0.6",
                 "pkn_length_exponent": 0.6,
@@ -364,6 +328,34 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
         "clusters": cluster_arrays,
         "trajectory": trajectory_records,
         "cluster_positions": cluster_position_records,
+    }
+    # Keep both source-conditioned views in one cache so the APP can switch
+    # scenarios without rebuilding or mixing their observation claims.
+    das_payload = copy.deepcopy(payload)
+    das_end = float(fiber_times.max()) if len(fiber_times) else 0.0
+    das_indices = [i for i, value in enumerate(payload["timeline_s"]) if float(value) <= das_end]
+    for key, values in list(das_payload["arrays"].items()):
+        das_payload["arrays"][key] = [values[i] for i in das_indices if i < len(values)]
+    das_payload["timeline_s"] = [payload["timeline_s"][i] for i in das_indices]
+    das_payload["meta"]["max_time_s"] = das_end
+    das_payload["meta"]["scenario_id"] = "das_cluster_observation"
+    das_payload["meta"]["observation_mode"] = "pressure_plus_cluster"
+    no_das_payload = copy.deepcopy(payload)
+    no_das_payload["meta"]["scenario_id"] = "no_das_pressure_only"
+    no_das_payload["meta"]["observation_mode"] = "pressure_only"
+    no_das_payload["meta"]["cluster_observations"] = "not_available"
+    no_das_payload["meta"]["cluster_geometry"] = {"status": "not_used_without_das"}
+    no_das_payload["clusters"] = {}
+    observed = np.asarray(no_das_payload["arrays"]["bottomhole_pressure_mpa"], dtype=float)
+    prior = np.asarray(no_das_payload["arrays"].get("prior_bhp_mpa", observed), dtype=float)
+    correction = run_pressure_only_correction(prior, observed, PressureOnlyConfig())
+    no_das_payload["arrays"]["prior_bhp_mpa"] = correction["prior_bottomhole_mpa"].tolist()
+    no_das_payload["arrays"]["posterior_bhp_mpa"] = correction["posterior_bottomhole_mpa"].tolist()
+    no_das_payload["arrays"]["pressure_bias_mpa"] = correction["posterior_bias_mpa"].tolist()
+    no_das_payload["alignment"]["scenario_note"] = "Pressure-only conversion and bounded pressure-bias correction; no cluster values inferred."
+    payload["scenarios"] = {
+        "das_cluster_observation": das_payload,
+        "no_das_pressure_only": no_das_payload,
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")

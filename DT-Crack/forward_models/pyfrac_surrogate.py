@@ -249,7 +249,8 @@ class PyFracResidualSurrogate:
         threshold = float(min_test_r2 if min_test_r2 is not None else 0.80)
         r2 = self.metrics.get("test_r2", {})
         values = {column: r2.get(column) for column in GATED_TARGETS}
-        ready = bool(values) and all(
+        non_regression = bool(self.metrics.get("non_regression_gate", False))
+        ready = bool(values) and non_regression and all(
             value is not None and np.isfinite(float(value)) and float(value) >= threshold
             for value in values.values()
         )
@@ -258,10 +259,11 @@ class PyFracResidualSurrogate:
             "min_required_test_r2": threshold,
             "required_targets": GATED_TARGETS,
             "test_r2": r2,
+            "non_regression_gate": non_regression,
             "reason": (
-                "length and pressure residual held-out R2 gates passed"
+                "length/pressure R2 and PKN non-regression gates passed"
                 if ready
-                else "length or pressure residual held-out R2 gate not met"
+                else "length/pressure R2 or PKN non-regression gate not met"
             ),
         }
 

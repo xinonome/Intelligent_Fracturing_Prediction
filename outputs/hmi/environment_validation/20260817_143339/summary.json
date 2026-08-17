@@ -1,0 +1,86 @@
+{
+  "run_dir": "C:\\Workspace\\FSL_Expert_GitHub_Release\\outputs\\hmi\\environment_validation\\20260817_143339",
+  "scenario_count": 6,
+  "passed_count": 6,
+  "all_passed": true,
+  "results": [
+    {
+      "scenario_name": "baseline",
+      "finite_outputs": true,
+      "length_nondecreasing": true,
+      "conservative_mean_risk": 0.05901233769679646,
+      "aggressive_mean_risk": 0.22675,
+      "risk_direction_ok": true,
+      "conservative_unsafe_rate": 0.0,
+      "aggressive_unsafe_rate": 0.0,
+      "conservative_uncertain_rate": 0.0,
+      "aggressive_uncertain_rate": 0.0,
+      "passed": true
+    },
+    {
+      "scenario_name": "cluster_imbalance",
+      "finite_outputs": true,
+      "length_nondecreasing": true,
+      "conservative_mean_risk": 0.07580807640870534,
+      "aggressive_mean_risk": 0.25293181818181815,
+      "risk_direction_ok": true,
+      "conservative_unsafe_rate": 0.0,
+      "aggressive_unsafe_rate": 0.0,
+      "conservative_uncertain_rate": 0.0,
+      "aggressive_uncertain_rate": 0.0,
+      "passed": true
+    },
+    {
+      "scenario_name": "diversion_stage",
+      "finite_outputs": true,
+      "length_nondecreasing": true,
+      "conservative_mean_risk": 0.08284002841436154,
+      "aggressive_mean_risk": 0.24659090909090908,
+      "risk_direction_ok": true,
+      "conservative_unsafe_rate": 0.0,
+      "aggressive_unsafe_rate": 0.0,
+      "conservative_uncertain_rate": 0.0,
+      "aggressive_uncertain_rate": 0.0,
+      "passed": true
+    },
+    {
+      "scenario_name": "normal_growth",
+      "finite_outputs": true,
+      "length_nondecreasing": true,
+      "conservative_mean_risk": 0.05900384566062502,
+      "aggressive_mean_risk": 0.22675,
+      "risk_direction_ok": true,
+      "conservative_unsafe_rate": 0.0,
+      "aggressive_unsafe_rate": 0.0,
+      "conservative_uncertain_rate": 0.0,
+      "aggressive_uncertain_rate": 0.0,
+      "passed": true
+    },
+    {
+      "scenario_name": "pressure_limit",
+      "finite_outputs": true,
+      "length_nondecreasing": true,
+      "conservative_mean_risk": 0.06937104659916249,
+      "aggressive_mean_risk": 0.24536363636363637,
+      "risk_direction_ok": true,
+      "conservative_unsafe_rate": 0.0,
+      "aggressive_unsafe_rate": 0.0,
+      "conservative_uncertain_rate": 0.0,
+      "aggressive_uncertain_rate": 0.0,
+      "passed": true
+    },
+    {
+      "scenario_name": "sand_plug_risk",
+      "finite_outputs": true,
+      "length_nondecreasing": true,
+      "conservative_mean_risk": 0.08882672100590415,
+      "aggressive_mean_risk": 0.28351136363636364,
+      "risk_direction_ok": true,
+      "conservative_unsafe_rate": 0.0,
+      "aggressive_unsafe_rate": 0.0,
+      "conservative_uncertain_rate": 0.0,
+      "aggressive_uncertain_rate": 0.0,
+      "passed": true
+    }
+  ]
+}

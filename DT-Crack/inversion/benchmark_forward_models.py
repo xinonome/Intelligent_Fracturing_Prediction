@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import time
@@ -16,7 +15,6 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = ROOT.parent
-DATA_ROOT = Path(os.environ.get("FRACTURING_DATA_ROOT", str(PROJECT_ROOT / "data")))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 if str(Path(__file__).resolve().parent) not in sys.path:
@@ -49,8 +47,8 @@ configure_matplotlib_chinese_font()
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Benchmark PKN/BEM/data-driven forward models under the same EnKF loop.")
     parser.add_argument("--models", nargs="+", default=["pkn4", "bem_reduced", "physics_hybrid", "data_surrogate"])
-    parser.add_argument("--frac-monitor-text", default=str(DATA_ROOT / "frac_monitor.txt"))
-    parser.add_argument("--well-trajectory-csv", default=str(DATA_ROOT / "well_trajectory.csv"))
+    parser.add_argument("--frac-monitor-text", default=str(PROJECT_ROOT / "Data" / "3Dfrac" / "光纤本井监测08.txt"))
+    parser.add_argument("--well-trajectory-csv", default=str(PROJECT_ROOT / "Data" / "3Dfrac" / "JY84-Z1HF-1011.csv"))
     parser.add_argument("--construction-pressure-xls", default=None)
     parser.add_argument("--max-playback-steps", type=int, default=8)
     parser.add_argument("--repeats", type=int, default=20)

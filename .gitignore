@@ -1,4 +1,4 @@
-# Python environments and caches
+# Local environments and generated caches
 .venv/
 .venv*/
 __pycache__/
@@ -6,47 +6,26 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-
-# Local configuration and secrets
+.tmp/
 .env
 .env.*
 !.env.example
 
-# Runtime outputs and local artifacts
-/outputs/
-/artifacts/
-/Reports/
-/Data/
-/deliverables/
+# Historical experiment folders are not part of the frozen handoff.
 **/runs/
-**/cache/
+HMI-KE/outputs/
+
+# Local logs and editor files
 *.log
-
-# Raw data, trained models and archives
-*.csv
-*.tsv
-*.xlsx
-*.xls
-*.pkl
-*.joblib
-*.pt
-*.pth
-*.npz
-*.zip
-*.png
-*.jpg
-*.jpeg
-*.webp
-*.pdf
-*.pptx
-*.docx
-
-# Generated web/report files
-*.html
-*.ipynb_checkpoints/
-
-# Platform/editor files
-.DS_Store
-Thumbs.db
 .idea/
 .vscode/
+.DS_Store
+Thumbs.db
+
+# The following paths are intentionally versioned in this release:
+#   Data/raw_frac, Data/3Dfrac
+#   artifacts/
+#   outputs/app, outputs/dt, outputs/hmi
+#   trained model files (*.zip, *.joblib, *.pt)
+# Do not add a global *.zip/*.csv/*.pt rule here: it would silently hide
+# the frozen models and validation outputs required by the runnable handoff.

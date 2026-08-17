@@ -54,6 +54,13 @@ class PyFracRunResult:
     successful_time_steps: int = 0
     failed_time_steps: int = 0
     target_reached: bool = False
+    injected_volume_m3: float = float("nan")
+    fracture_volume_m3: float = float("nan")
+    leakoff_volume_m3: float = float("nan")
+    mass_balance_residual_m3: float = float("nan")
+    mass_balance_relative_error: float = float("nan")
+    efficiency: float = float("nan")
+    time_step_limit_s: float = float("nan")
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -204,6 +211,7 @@ class PyFracAdapter:
         sim = modules["SimulationProperties"]()
         sim.finalTime = t
         sim.maxTimeSteps = int(self.config.max_time_steps)
+        sim.timeStepLimit = float(self.config.dynamic_step_limit_s) if self.config.dynamic_step_limit_s > 0 else None
         sim.plotFigure = False
         sim.saveToDisk = False
         sim.log2file = False
@@ -262,6 +270,15 @@ class PyFracAdapter:
         aperture = float(np.nanmax(np.asarray(final.w)[crack])) * 1000.0
         area = float(crack.size * mesh.EltArea)
         volume = float(getattr(final, "FractureVolume", np.nansum(final.w[crack]) * mesh.EltArea))
+        injected = _scalar_volume(getattr(final, "injectedVol", np.nan))
+        if not np.isfinite(injected):
+            if isinstance(q, np.ndarray) and q.ndim == 2 and q.shape[0] >= 2:
+                injected = float(np.trapz(q[1], q[0]))
+            else:
+                injected = float(q) * t
+        leakoff_volume = _scalar_volume(getattr(final, "LkOffTotal", 0.0))
+        residual = float(injected - volume - leakoff_volume)
+        relative_error = abs(residual) / max(abs(injected), 1.0e-12)
         net = float(np.nanmean(np.asarray(final.pNet)[crack])) / 1.0e6
         return PyFracRunResult(
             half_length_m=length,
@@ -279,6 +296,13 @@ class PyFracAdapter:
             successful_time_steps=successful_time_steps,
             failed_time_steps=failed_time_steps,
             target_reached=target_reached,
+            injected_volume_m3=injected,
+            fracture_volume_m3=volume,
+            leakoff_volume_m3=leakoff_volume,
+            mass_balance_residual_m3=residual,
+            mass_balance_relative_error=relative_error,
+            efficiency=float(volume / injected) if injected > 0 else float("nan"),
+            time_step_limit_s=float(self.config.dynamic_step_limit_s),
         )
 
     def _failed(self, started: float, mode: str, error: str) -> PyFracRunResult:
@@ -377,6 +401,16 @@ def _git_commit(path: Path) -> str | None:
         ).strip()
     except Exception:
         return None
+
+
+def _scalar_volume(value: Any) -> float:
+    try:
+        array = np.asarray(value, dtype=float)
+        if array.size == 0:
+            return 0.0
+        return float(np.nansum(array))
+    except (TypeError, ValueError):
+        return float("nan")
 
 
 def _scalar_eikonal_residual(Tij: Any, *args: Any) -> float:

@@ -3,12 +3,12 @@ project:
   root: .
 
 data:
-  root: data
-  raw_frac: data/raw_frac
-  knowledge_graph: data/knowledge_graph
-  multimodal: data/multimodal
-  processed: data/processed
-  manifest: data/manifests/data_manifest.json
+  root: Data
+  raw_frac: Data/raw_frac
+  knowledge_graph: Data/knowledge_graph
+  multimodal: Data/multimodal
+  processed: Data/processed
+  manifest: Data/manifests/data_manifest.json
 
 modules:
   fsl_expert: FSL-Expert

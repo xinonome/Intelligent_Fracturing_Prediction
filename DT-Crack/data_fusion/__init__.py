@@ -11,7 +11,9 @@ from .fiber_api_adapter import (
 from .fiber_constraints import FiberConstraintResult, allocate_controls_from_fiber, make_synthetic_fiber_monitoring
 from .fiber_observation_operator import FiberObservationConfig, build_fiber_length_observation
 from .frac_monitor_text_adapter import FracMonitorTextTables, frac_monitor_to_fiber_api_tables, load_frac_monitor_text, parse_frac_monitor_text
-from .pressure_schedule_adapter import PressureModelConfig, load_stage_pressure_schedule, pressure_for_step
+from .pressure_schedule_adapter import PressureModelConfig, load_pressure_model_config, load_stage_pressure_schedule, pressure_for_step
+from .observation_quality import ObservationQualityReport, validate_cluster_controls
+from .scenario import DigitalTwinScenario, load_cluster_geometry, load_scenarios
 from .well_trajectory_adapter import interpolate_trajectory_at_md, load_well_trajectory, make_cluster_trajectory_positions
 
 __all__ = [
@@ -20,6 +22,9 @@ __all__ = [
     "FiberConstraintResult",
     "FracMonitorTextTables",
     "PressureModelConfig",
+    "load_pressure_model_config",
+    "ObservationQualityReport",
+    "DigitalTwinScenario",
     "allocate_controls_from_fiber",
     "build_fiber_length_observation",
     "controls_for_step",
@@ -35,5 +40,8 @@ __all__ = [
     "parse_frac_monitor_text",
     "parse_fiber_api_payload",
     "pressure_for_step",
+    "validate_cluster_controls",
+    "load_cluster_geometry",
+    "load_scenarios",
     "stage_info_to_controls",
 ]

@@ -18,7 +18,7 @@ if str(DT_ROOT) not in sys.path:
     sys.path.insert(0, str(DT_ROOT))
 
 from data_fusion import controls_for_step, load_frac_monitor_text, load_stage_pressure_schedule, pressure_for_step
-from data_fusion.pressure_schedule_adapter import PressureModelConfig
+from data_fusion.pressure_schedule_adapter import load_pressure_model_config
 from inversion import (
     PhysicalEnKFConfig,
     denkf_update,
@@ -34,6 +34,8 @@ from inversion.knowledge_guided_enkf import (
     project_knowledge_guided_update,
 )
 from forward_models.pyfrac_surrogate import PyFracResidualSurrogate
+from inversion.pressure_only_enkf import PressureOnlyConfig, run_pressure_only_correction
+from data_fusion.observation_quality import validate_cluster_controls
 
 
 def configure_font() -> None:
@@ -414,8 +416,10 @@ def batch_calibrate_state(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Direct-observation PKN-EnKF calibration and held-out validation.")
-    parser.add_argument("--frac-monitor-text", required=True)
+    parser.add_argument("--frac-monitor-text", required=False)
     parser.add_argument("--construction-pressure-xls", required=True)
+    parser.add_argument("--pressure-calibration-config", default=None)
+    parser.add_argument("--observation-mode", choices=["pressure_only", "pressure_plus_cluster"], default="pressure_plus_cluster")
     parser.add_argument("--max-steps", type=int, default=60)
     parser.add_argument("--calibration-ratio", type=float, default=0.70)
     # 300 members materially reduce seed sensitivity while remaining far below
@@ -545,19 +549,56 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         args.pressure_leakoff_exponent = max(float(args.pressure_leakoff_exponent), 0.12)
 
     rng = np.random.default_rng(args.seed)
-    monitor = load_frac_monitor_text(args.frac_monitor_text, default_step_seconds=1.0)
-    controls = monitor.controls
-    n_clusters = int(controls["cluster_id"].nunique())
+    pressure_cfg = load_pressure_model_config(args.pressure_calibration_config)
+    if args.pressure_calibration_config is None:
+        pressure_cfg = type(pressure_cfg)(**{**asdict(pressure_cfg), "min_horizontal_stress_mpa": args.base_min_stress_mpa})
+    pressure, pressure_meta = load_stage_pressure_schedule(
+        args.construction_pressure_xls, pressure_cfg, args.measured_depth_m, args.vertical_depth_m
+    )
+    quality_meta: dict[str, object] = {}
+    if args.observation_mode == "pressure_only":
+        # A single synthetic boundary row represents the total stream only;
+        # it is never reported as a measured six-cluster observation.
+        increments = pressure["cumulative_liquid_m3"].diff().fillna(pressure["cumulative_liquid_m3"].iloc[0]).clip(lower=0.0)
+        controls = pd.DataFrame({
+            "step": pressure["step"].astype(int),
+            "time": pd.to_datetime(pressure["time_s"], unit="s"),
+            "fracture_id": 1,
+            "cluster_id": 1,
+            "allocation_weight": 1.0,
+            "flow_rate_m3_min": pressure["flow_rate_m3_min"],
+            "liquid_volume_m3": increments,
+            "sand_mass_t": increments * pressure["sand_ratio_percent"] / 100.0,
+            "cumulative_liquid_volume_m3": pressure["cumulative_liquid_m3"],
+            "cumulative_sand_mass_t": pressure["cumulative_liquid_m3"] * pressure["sand_ratio_percent"] / 100.0,
+            "balance_degree": np.nan,
+            "cumulative_balance_degree": np.nan,
+        })
+        monitor_meta = {"source": None, "cluster_count": 0, "time_steps": int(len(controls)), "observation_mode": "pressure_only"}
+        n_clusters = 1
+        quality_meta = {"status": "not_available", "reason": "DAS not connected; cluster observations are not inferred"}
+    else:
+        if not args.frac_monitor_text:
+            raise ValueError("--frac-monitor-text is required for pressure_plus_cluster mode")
+        monitor = load_frac_monitor_text(args.frac_monitor_text, default_step_seconds=1.0)
+        controls, quality = validate_cluster_controls(
+            monitor.controls,
+            expected_clusters=6,
+            pressure_times=pressure["step"].to_numpy(dtype=float),
+        )
+        quality_meta = quality.to_dict()
+        controls = controls[controls["qc_valid"]].drop(columns=["qc_valid", "qc_reason"])
+        monitor_meta = dict(monitor.meta)
+        monitor_meta["observation_quality"] = quality_meta
+        n_clusters = int(controls["cluster_id"].nunique())
+        if n_clusters != 6 or controls.empty:
+            raise ValueError("DAS/FracMonitor data has no valid six-cluster observation steps")
     available_steps = np.asarray(sorted(controls["step"].unique()), dtype=int)
     count = min(max(args.max_steps, 2), len(available_steps))
     indices = np.linspace(0, len(available_steps) - 1, count).round().astype(int)
     source_steps = np.unique(available_steps[indices])
     calibration_count = max(1, min(len(source_steps) - 1, int(round(len(source_steps) * args.calibration_ratio))))
 
-    pressure_cfg = PressureModelConfig(min_horizontal_stress_mpa=args.base_min_stress_mpa)
-    pressure, pressure_meta = load_stage_pressure_schedule(
-        args.construction_pressure_xls, pressure_cfg, args.measured_depth_m, args.vertical_depth_m
-    )
     cfg = PhysicalEnKFConfig(
         base_eprime_pa=args.base_eprime_pa,
         base_leakoff_m_sqrt_s=args.base_leakoff_m_sqrt_s,
@@ -954,6 +995,37 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
 
     history = pd.DataFrame(rows)
     clusters = pd.DataFrame(cluster_rows)
+    pressure_bias_meta: dict[str, object] = {"enabled": False, "observation_mode": args.observation_mode}
+    if args.observation_mode == "pressure_only" and not history.empty:
+        correction = run_pressure_only_correction(
+            history["prior_pkn_bottomhole_pressure_mpa"].to_numpy(dtype=float),
+            history["observed_bottomhole_pressure_mpa"].to_numpy(dtype=float),
+            PressureOnlyConfig(
+                process_std_mpa=float(args.pressure_bias_process_std),
+                observation_std_mpa=float(args.bottomhole_pressure_noise_mpa),
+                ensemble_size=max(40, min(int(args.ensemble_size), 400)),
+                seed=int(args.seed),
+            ),
+        )
+        history["prior_near_wellbore_pressure_bias_mpa"] = correction["prior_bias_mpa"]
+        history["posterior_near_wellbore_pressure_bias_mpa"] = correction["posterior_bias_mpa"]
+        history["prior_bottomhole_pressure_mpa"] = history["prior_pkn_bottomhole_pressure_mpa"] + history["prior_near_wellbore_pressure_bias_mpa"]
+        history["posterior_bottomhole_pressure_mpa"] = correction["posterior_bottomhole_mpa"]
+        history["prior_bhp_relative_error"] = (
+            np.abs(history["prior_bottomhole_pressure_mpa"] - history["observed_bottomhole_pressure_mpa"])
+            / np.maximum(np.abs(history["observed_bottomhole_pressure_mpa"]), 1.0)
+        )
+        history["posterior_bhp_relative_error"] = (
+            np.abs(history["posterior_bottomhole_pressure_mpa"] - history["observed_bottomhole_pressure_mpa"])
+            / np.maximum(np.abs(history["observed_bottomhole_pressure_mpa"]), 1.0)
+        )
+        history["posterior_all_observations_within_15_percent"] = (
+            (history["posterior_bhp_relative_error"] <= 0.15)
+            & (history["posterior_liquid_tvd"] <= 0.15)
+            & (history["posterior_sand_tvd"] <= 0.15)
+        )
+        pressure_bias_meta = dict(correction["metadata"])
+        pressure_bias_meta["enabled"] = True
     validation = history[history["phase"].eq("validation")]
     length_change_records = []
     for cluster_id, group in clusters.groupby("cluster_id"):
@@ -993,7 +1065,7 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         "filter_method": args.filter_method,
         "assimilation_iterations": int(args.assimilation_iterations),
         "covariance_inflation": float(args.covariance_inflation),
-        "dynamic_pressure_bias": False,
+        "dynamic_pressure_bias": bool(args.observation_mode == "pressure_only"),
         "dynamic_pressure_bias_requested": bool(args.dynamic_pressure_bias),
         "free_cluster_growth_factors": False,
         "use_localization": bool(args.use_localization),
@@ -1008,6 +1080,10 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         "knowledge_guided_prior": kg_prior,
         "state_dimension": 5,
         "state_vector": ["E_prime", "C_L", "mu", "sigma_min", "K_IC"],
+        "observation_mode": args.observation_mode,
+        "observation_vector": (["bottomhole_pressure_mpa"] if args.observation_mode == "pressure_only" else ["cumulative_liquid_share_by_cluster", "cumulative_sand_share_by_cluster", "bottomhole_pressure_mpa"]),
+        "pressure_bias_update": pressure_bias_meta,
+        "observation_quality": quality_meta,
         "pyfrac_residual_surrogate": surrogate_gate,
         "fiber_allocation_source": "incremental_liquid_volume_from_fiber",
         "fiber_allocation_smoothing_previous_weight": float(args.fiber_allocation_smoothing),
@@ -1031,7 +1107,7 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     return history, clusters, {
         "metrics": metrics,
         "config": cfg,
-        "monitor_meta": monitor.meta,
+        "monitor_meta": monitor_meta,
         "pressure_meta": pressure_meta,
         "batch_calibration": batch_calibration,
         "calibration_center": calibration_center.tolist(),
@@ -1072,6 +1148,7 @@ def main() -> None:
     summary = {
         "demo": "direct_observable_space_pkn_enkf_heldout_validation",
         "scientific_status": "engineering validation prototype",
+        "observation_mode": args.observation_mode,
         "state_vector": [
             "E'",
             "C_L",
@@ -1079,7 +1156,7 @@ def main() -> None:
             "sigma_min",
             "K_IC",
         ],
-        "observations": ["cumulative liquid share by cluster", "cumulative sand share by cluster", "bottom-hole pressure"],
+        "observations": (["bottom-hole pressure converted from wellhead pressure"] if args.observation_mode == "pressure_only" else ["cumulative liquid share by cluster", "cumulative sand share by cluster", "bottom-hole pressure"]),
         "anti_circularity_design": (
             "Fiber cumulative liquid shares drive historical PKN cluster rates and smoothed incremental fiber liquid "
             "allocation drives current-rate/aperture inputs; EnKF does not contain a free cluster growth/intake factor."
@@ -1095,7 +1172,7 @@ def main() -> None:
         "calibration_center_state": result["calibration_center"],
         "config": asdict(result["config"]),
         "limitations": [
-            "Cluster liquid/sand shares constrain intake allocation, not independently measured fracture geometry.",
+            "Cluster liquid/sand shares constrain intake allocation, not independently measured fracture geometry." if args.observation_mode != "pressure_only" else "DAS is unavailable; cluster liquid/sand shares and cluster geometry are not inferred.",
             "The sand transport observation operator is a cumulative, mean-preserving sublinear q_effective*aperture capacity proxy; it is not a full particle-transport solver.",
             "Pressure friction defaults require client calibration before field interpretation.",
             "The 50% cumulative leakoff cap is an engineering prior and must be recalibrated when formation leakoff measurements are available.",

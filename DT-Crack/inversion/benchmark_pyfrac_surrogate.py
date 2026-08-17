@@ -26,6 +26,7 @@ from forward_models.pyfrac_surrogate import (
     PyFracResidualSurrogate,
     generate_teacher_dataset,
 )
+from forward_models.pyfrac_surrogate import _group_values, _prepare_feature_frame, _strict_group_split
 
 
 def main() -> None:
@@ -46,6 +47,9 @@ def main() -> None:
         )
     teacher = pd.read_csv(teacher_csv)
     surrogate = PyFracResidualSurrogate.train(teacher)
+    non_regression = _evaluate_pkn_non_regression(surrogate, teacher)
+    surrogate.metrics["non_regression_gate"] = bool(non_regression["pass"])
+    surrogate.metrics["non_regression"] = non_regression
     surrogate_path = output_dir / "pyfrac_residual_surrogate.joblib"
     surrogate.save(surrogate_path)
 
@@ -141,6 +145,7 @@ def main() -> None:
         },
         "online_quality_gate": quality_gate,
         "online_gate_targets": ["delta_length_m", "delta_pressure_mpa"],
+        "pkn_non_regression": non_regression,
         "online_gate_reason": (
             "approved for online EnKF candidate integration"
             if online_ready
@@ -176,6 +181,19 @@ def write_plot(output_dir: Path, frame: pd.DataFrame) -> None:
 def _quantile(values: pd.Series, q: float) -> float | None:
     values = pd.to_numeric(values, errors="coerce").dropna()
     return float(values.quantile(q)) if not values.empty else None
+
+
+def _evaluate_pkn_non_regression(surrogate: PyFracResidualSurrogate, teacher: pd.DataFrame) -> dict[str, object]:
+    frame = _prepare_feature_frame(teacher).dropna(subset=FEATURE_COLUMNS + ["delta_length_m", "delta_pressure_mpa"]).reset_index(drop=True)
+    groups = _group_values(frame)
+    _, _, test_mask, split = _strict_group_split(groups, random_state=20260810)
+    actual = frame[["delta_length_m", "delta_pressure_mpa"]].to_numpy(dtype=float)[test_mask]
+    predicted = surrogate.predict_delta(frame.loc[test_mask]).loc[:, ["delta_length_m", "delta_pressure_mpa"]].to_numpy(dtype=float)
+    pkn_mae = np.mean(np.abs(actual), axis=0)
+    surrogate_mae = np.mean(np.abs(actual - predicted), axis=0)
+    names = ["delta_length_m", "delta_pressure_mpa"]
+    values = {name: {"pkn_mae": float(pkn_mae[i]), "surrogate_mae": float(surrogate_mae[i]), "non_worse": bool(surrogate_mae[i] <= pkn_mae[i] + 1.0e-9)} for i, name in enumerate(names)}
+    return {"pass": bool(all(item["non_worse"] for item in values.values())), "test_groups": split["test"], "targets": values, "criterion": "surrogate residual MAE <= PKN zero-residual baseline"}
 
 
 def parse_args() -> argparse.Namespace:

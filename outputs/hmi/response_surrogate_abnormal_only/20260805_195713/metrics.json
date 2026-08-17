@@ -1,0 +1,50 @@
+{
+  "model": "action_response_surrogate_v2_abnormal_only",
+  "risk_label_policy": "explicit_abnormal_labels_only",
+  "purpose": "Predict future 60s pressure and condition risk under candidate flow/sand action",
+  "physics_boundary": "Fracture geometry and physical parameters are still computed by PKN-EnKF",
+  "sample_interval_seconds": 10.0,
+  "history_seconds": 300.0,
+  "response_seconds": 60.0,
+  "segments": 53,
+  "train_samples": 36769,
+  "test_samples": 5701,
+  "action_bounds": {
+    "PL": {
+      "p01": 0.0,
+      "p99": 24.08,
+      "min": 0.0,
+      "max": 24.18166666666667
+    },
+    "SB": {
+      "p01": 0.0,
+      "p99": 17.0,
+      "min": 0.0,
+      "max": 24.299999999999997
+    }
+  },
+  "metrics": {
+    "pressure_mean": {
+      "mae": 0.6026246943727793,
+      "rmse": 4.2411407967697965,
+      "r2": 0.9455460785186991
+    },
+    "pressure_max": {
+      "mae": 0.47544698834441856,
+      "rmse": 4.067920352427714,
+      "r2": 0.9492239416822644
+    },
+    "abnormal_probability": {
+      "positive_rate": 0.05104367654797404,
+      "roc_auc": 0.968289599888205
+    },
+    "sand_plug_probability": {
+      "positive_rate": 0.0,
+      "roc_auc": null
+    }
+  },
+  "outputs": {
+    "model": "outputs\\hmi\\response_surrogate_abnormal_only\\20260805_195713\\response_surrogate.joblib",
+    "predictions": "outputs\\hmi\\response_surrogate_abnormal_only\\20260805_195713\\predictions.csv"
+  }
+}

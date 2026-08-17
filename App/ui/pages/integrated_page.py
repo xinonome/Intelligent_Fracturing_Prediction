@@ -17,7 +17,7 @@ from ..widgets.timeline_control import create_timeline_control
 
 def build_integrated_page(controller, registry, html_path: Path | None):
     from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QGridLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
+    from PySide6.QtWidgets import QComboBox, QGridLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
 
     page = QWidget()
     page_root = QVBoxLayout(page)
@@ -35,6 +35,18 @@ def build_integrated_page(controller, registry, html_path: Path | None):
     title = QLabel("联合动态演示")
     title.setObjectName("pageTitle")
     root.addWidget(title)
+    scenario_row = QVBoxLayout()
+    scenario_box = QComboBox()
+    scenario_box.addItem("无 DAS：压力在线校正", "no_das_pressure_only")
+    scenario_box.addItem("有 DAS：压力 + 分簇观测校验", "das_cluster_observation")
+    selected = getattr(registry, "scenario_id", "das_cluster_observation")
+    scenario_box.setCurrentIndex(max(0, scenario_box.findData(selected)))
+    source_label = QLabel()
+    source_label.setObjectName("muted")
+    source_label.setWordWrap(True)
+    scenario_row.addWidget(scenario_box)
+    scenario_row.addWidget(source_label)
+    root.addLayout(scenario_row)
 
     content = QGridLayout()
     content.setContentsMargins(0, 0, 0, 0)
@@ -91,17 +103,35 @@ def build_integrated_page(controller, registry, html_path: Path | None):
     events.setWordWrap(True)
     root.addWidget(events)
 
-    chart_values, chart_end_s = _chart_series(registry, controller.frames)
-    pressure_chart.set_series(chart_values)
-    if chart_end_s is not None:
-        pressure_chart.set_time_range(1.0, chart_end_s)
-    sample_count = len(chart_values[0][1]) if chart_values else len(controller.frames)
-    control_values = _control_series(registry, chart_end_s or float(max(len(controller.frames), 1)), sample_count)
-    flow_chart.set_series(control_values[:2])
-    sand_chart.set_series(control_values[2:])
-    for control in (flow_chart, sand_chart):
+    def refresh_scenario_view():
+        chart_values, chart_end_s = _chart_series(registry, controller.frames)
+        pressure_chart.set_series(chart_values)
         if chart_end_s is not None:
-            control.set_time_range(1.0, chart_end_s)
+            pressure_chart.set_time_range(1.0, chart_end_s)
+        sample_count = len(chart_values[0][1]) if chart_values else len(controller.frames)
+        control_values = _control_series(registry, chart_end_s or float(max(len(controller.frames), 1)), sample_count)
+        flow_chart.set_series(control_values[:2])
+        sand_chart.set_series(control_values[2:])
+        for control in (flow_chart, sand_chart):
+            if chart_end_s is not None:
+                control.set_time_range(1.0, chart_end_s)
+        scenario = registry.scenario()
+        source_label.setText(
+            f"{scenario.get('display_name', '')}  · 观测路径："
+            + ("施工曲线 → 井口—井底压力换算；簇级观测：未接入；状态：待校准" if scenario.get("observation_mode") == "pressure_only" else "施工曲线 + DAS/FracMonitor 分簇观测；覆盖：1–4435 s；状态：待校准")
+        )
+
+    refresh_scenario_view()
+
+    def change_scenario(index):
+        scenario_id = scenario_box.itemData(index)
+        if not scenario_id or scenario_id == getattr(registry, "scenario_id", None):
+            return
+        if hasattr(controller, "set_scenario"):
+            controller.set_scenario(str(scenario_id))
+            refresh_scenario_view()
+
+    scenario_box.currentIndexChanged.connect(change_scenario)
 
     def update(frame):
         frame = frame or {}
@@ -143,7 +173,7 @@ def _series(frames):
 
 
 def _chart_series(registry, frames):
-    """Use the one-second DT cache for a smooth 1..4435 s pressure plot."""
+    """Use the selected scenario cache without extending observation coverage."""
 
     loader = DTLoader(registry)
     cache = loader.cache
@@ -151,14 +181,15 @@ def _chart_series(registry, frames):
     arrays = cache.get("arrays", {}) if isinstance(cache, dict) else {}
     if not timeline or not arrays:
         return _series(frames), None
-    end_s = min(4435.0, timeline[-1])
+    end_s = timeline[-1]
     indices = [index for index, value in enumerate(timeline) if value <= end_s]
     if not indices:
         return _series(frames), None
     times = [timeline[index] for index in indices]
     prior = [_number_at(arrays.get("prior_bhp_mpa", []), index) for index in indices]
     posterior = [_number_at(arrays.get("posterior_bhp_mpa", []), index) for index in indices]
-    observed = _resample_history(loader.history, times, "observed_bottomhole_pressure_mpa")
+    observed_source = arrays.get("observed_bhp_mpa") or arrays.get("bottomhole_pressure_mpa", [])
+    observed = [_number_at(observed_source, index) for index in indices]
     return [
         ("PKN先验", prior, PALETTE["orange"]),
         ("观测压力", observed, PALETTE["blue"]),

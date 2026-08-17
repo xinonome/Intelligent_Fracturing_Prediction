@@ -497,10 +497,7 @@ def read_and_plot_excel_data(file_path, segment_num):
 
 
 if __name__ == "__main__":
-    base_file_path = os.environ.get(
-        "FSL_EXPERT_DATA_PATTERN",
-        os.path.join("data", "segment_{segment}.xlsx"),
-    )
+    base_file_path = r"D:\wangxinyu\李老师打工合集\中石化压裂施工智能精准调控\雷页1-2HF\雷页1-2HF井第{segment}段压裂施工秒点.xlsx"
     for segment in range(1, 12):
         read_and_plot_excel_data(base_file_path.format(segment=segment), segment)
     print("\n===== 所有11段处理完成！=====")

@@ -13,7 +13,6 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_ROOT = Path(os.environ.get("FRACTURING_DATA_ROOT", str(PROJECT_ROOT / "data")))
 
 
 def resolve(value: str | Path | None, root: Path = PROJECT_ROOT) -> Path | None:
@@ -63,7 +62,7 @@ class ProjectPaths:
 
     @property
     def data(self) -> Path:
-        return DATA_ROOT
+        return self.root / "Data"
 
     @property
     def registry(self) -> Path:

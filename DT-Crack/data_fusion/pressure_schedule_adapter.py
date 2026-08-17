@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 from pathlib import Path
+import json
 
 import numpy as np
 import pandas as pd
@@ -28,6 +29,17 @@ class PressureModelConfig:
     min_horizontal_stress_mpa: float = 60.0
     rolling_window_seconds: int = 30
     step_seconds: float = 1.0
+    pressure_bias_mpa: float = 0.0
+    calibration_status: str = "engineering_default"
+    calibration_id: str | None = None
+
+
+def load_pressure_model_config(path: str | Path | None = None) -> PressureModelConfig:
+    if path is None or not Path(path).exists():
+        return PressureModelConfig()
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    fields = {key: value for key, value in payload.items() if key in PressureModelConfig.__dataclass_fields__}
+    return PressureModelConfig(**fields)
 
 
 def load_stage_pressure_schedule(
@@ -48,22 +60,28 @@ def load_stage_pressure_schedule(
     if raw.shape[1] < 13:
         raise ValueError(f"Pressure schedule requires at least 13 columns, got {raw.shape[1]}")
 
+    columns = _resolve_columns(raw)
+
     out = pd.DataFrame()
-    out["source_second"] = pd.to_numeric(raw.iloc[:, 0], errors="coerce").ffill().fillna(1).astype(int)
+    out["source_second"] = pd.to_numeric(raw[columns["source_second"]], errors="coerce").ffill().fillna(1).astype(int)
     out["step"] = (out["source_second"] - 1).clip(lower=0)
     out["time_s"] = out["step"] * float(config.step_seconds)
-    out["surface_pressure_mpa"] = pd.to_numeric(raw.iloc[:, 9], errors="coerce").interpolate().ffill().bfill()
-    out["cumulative_liquid_m3"] = pd.to_numeric(raw.iloc[:, 10], errors="coerce").interpolate().ffill().bfill()
-    out["sand_ratio_percent"] = pd.to_numeric(raw.iloc[:, 11], errors="coerce").interpolate().ffill().bfill()
-    out["aux_displacement"] = pd.to_numeric(raw.iloc[:, 12], errors="coerce").fillna(0.0)
+    out["surface_pressure_mpa"] = pd.to_numeric(raw[columns["surface_pressure_mpa"]], errors="coerce").interpolate().ffill().bfill()
+    out["cumulative_liquid_m3"] = pd.to_numeric(raw[columns["cumulative_liquid_m3"]], errors="coerce").interpolate().ffill().bfill()
+    out["sand_ratio_percent"] = pd.to_numeric(raw[columns["sand_ratio_percent"]], errors="coerce").interpolate().ffill().bfill()
+    out["aux_displacement"] = pd.to_numeric(raw[columns["aux_displacement"]], errors="coerce").fillna(0.0)
     out["liquid_split_sum"] = raw.iloc[:, 1:5].apply(pd.to_numeric, errors="coerce").fillna(0.0).sum(axis=1)
     out["sand_split_sum"] = raw.iloc[:, 5:9].apply(pd.to_numeric, errors="coerce").fillna(0.0).sum(axis=1)
 
-    delta_liquid = out["cumulative_liquid_m3"].diff()
-    positive_delta = delta_liquid.where(delta_liquid > 0)
-    fallback_delta = float(positive_delta.median()) if positive_delta.notna().any() else 0.0
-    delta_liquid = delta_liquid.fillna(fallback_delta).clip(lower=0.0)
-    out["flow_rate_m3_min"] = delta_liquid / max(float(config.step_seconds), 1e-9) * 60.0
+    if columns.get("flow_rate_m3_min") is not None:
+        measured_flow = pd.to_numeric(raw[columns["flow_rate_m3_min"]], errors="coerce")
+        if measured_flow.notna().sum() >= max(3, len(raw) // 20):
+            out["flow_rate_m3_min"] = measured_flow.interpolate().ffill().bfill().clip(lower=0.0)
+            flow_source = "measured_flow_rate_column"
+        else:
+            out["flow_rate_m3_min"], flow_source = _derive_flow(out, config)
+    else:
+        out["flow_rate_m3_min"], flow_source = _derive_flow(out, config)
     out["flow_rate_m3_s"] = out["flow_rate_m3_min"] / 60.0
 
     pressure_terms = compute_pressure_terms(
@@ -78,18 +96,15 @@ def load_stage_pressure_schedule(
         "source": str(path),
         "rows": int(len(out)),
         "layout_assumption": {
-            "0": "second index",
-            "1_4": "liquid split values",
-            "5_8": "sand split values",
-            "9": "surface pressure MPa",
-            "10": "cumulative liquid m3",
-            "11": "sand ratio percent",
-            "12": "auxiliary stage/displacement value",
+            "source_columns": columns,
+            "flow_source": flow_source,
         },
         "measured_depth_m": float(measured_depth_m),
         "vertical_depth_m": float(vertical_depth_m),
         "config": asdict(config),
-        "warning": "Friction parameters are runnable defaults and should be calibrated with client-confirmed values.",
+        "calibration_status": config.calibration_status,
+        "calibration_id": config.calibration_id,
+        "warning": "Friction, depth and stress parameters are engineering defaults until client calibration is supplied.",
     }
     return out, meta
 
@@ -121,7 +136,7 @@ def compute_pressure_terms(
     perf_friction_mpa, perforation_diameter_m, perforation_flow_coeff = _perforation_friction(schedule, config)
 
     surface = schedule["surface_pressure_mpa"].to_numpy(dtype=float)
-    bottomhole = surface + hydrostatic_mpa - pipe_friction_mpa - perf_friction_mpa
+    bottomhole = surface + hydrostatic_mpa - pipe_friction_mpa - perf_friction_mpa + float(config.pressure_bias_mpa)
     net_raw = bottomhole - config.min_horizontal_stress_mpa
 
     return pd.DataFrame(
@@ -137,6 +152,36 @@ def compute_pressure_terms(
             "perforation_flow_coeff": perforation_flow_coeff,
         }
     )
+
+
+def _derive_flow(schedule: pd.DataFrame, config: PressureModelConfig) -> tuple[pd.Series, str]:
+    delta_liquid = schedule["cumulative_liquid_m3"].diff()
+    positive_delta = delta_liquid.where(delta_liquid > 0)
+    fallback_delta = float(positive_delta.median()) if positive_delta.notna().any() else 0.0
+    delta_liquid = delta_liquid.fillna(fallback_delta).clip(lower=0.0)
+    return delta_liquid / max(float(config.step_seconds), 1e-9) * 60.0, "derived_from_cumulative_liquid"
+
+
+def _resolve_columns(raw: pd.DataFrame) -> dict[str, object]:
+    aliases = {
+        "source_second": ["序号", "second", "time_s", "time", "秒"],
+        "surface_pressure_mpa": ["泵压(MPa)", "泵压", "井口压力", "surface_pressure_mpa", "pressure_mpa"],
+        "cumulative_liquid_m3": ["总液量", "累计液量", "cumulative_liquid_m3", "total_liquid"],
+        "sand_ratio_percent": ["砂比", "砂比(%)", "sand_ratio_percent", "sand_ratio"],
+        "flow_rate_m3_min": ["排出排量", "排量", "flow_rate_m3_min", "flow_rate"],
+        "aux_displacement": ["辅助", "位移", "排量辅助", "aux_displacement"],
+    }
+    names = {str(name).strip(): name for name in raw.columns}
+    result: dict[str, object] = {}
+    positional = {"source_second": 0, "surface_pressure_mpa": 9, "cumulative_liquid_m3": 10, "sand_ratio_percent": 11, "aux_displacement": 12}
+    for key, options in aliases.items():
+        result[key] = next((names[name] for name in options if name in names), None)
+        if result[key] is None and key in positional:
+            result[key] = raw.columns[positional[key]]
+    for key in ("source_second", "surface_pressure_mpa", "cumulative_liquid_m3", "sand_ratio_percent", "aux_displacement"):
+        if result.get(key) is None:
+            raise ValueError(f"pressure schedule is missing required field: {key}")
+    return result
 
 
 def pressure_for_step(schedule: pd.DataFrame, step: int | float) -> pd.Series:

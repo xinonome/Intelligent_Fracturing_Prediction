@@ -1,0 +1,18 @@
+{
+  "fcd": 1e-10,
+  "dwell_m": 0.1,
+  "proppant_density_kg_m3": 2650.0,
+  "base_fluid_density_kg_m3": 1000.0,
+  "jzl": 0.5,
+  "perforation_count": 48,
+  "perforation_diameter_m": 0.01,
+  "perforation_erosion_coeff": 0.0,
+  "perforation_flow_coeff": 0.85,
+  "perforation_flow_decay_coeff": 0.0,
+  "min_horizontal_stress_mpa": 60.0,
+  "rolling_window_seconds": 30,
+  "step_seconds": 1.0,
+  "pressure_bias_mpa": 0.0,
+  "calibration_status": "engineering_default",
+  "calibration_id": null
+}

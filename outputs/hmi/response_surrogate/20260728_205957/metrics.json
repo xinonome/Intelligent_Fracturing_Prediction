@@ -1,0 +1,49 @@
+{
+  "model": "action_response_surrogate_v1",
+  "purpose": "Predict future 60s pressure and condition risk under candidate flow/sand action",
+  "physics_boundary": "Fracture geometry and physical parameters are still computed by PKN-EnKF",
+  "sample_interval_seconds": 10.0,
+  "history_seconds": 300.0,
+  "response_seconds": 60.0,
+  "segments": 53,
+  "train_samples": 36769,
+  "test_samples": 5701,
+  "action_bounds": {
+    "PL": {
+      "p01": 0.0,
+      "p99": 24.08,
+      "min": 0.0,
+      "max": 24.18166666666667
+    },
+    "SB": {
+      "p01": 0.0,
+      "p99": 17.0,
+      "min": 0.0,
+      "max": 24.299999999999997
+    }
+  },
+  "metrics": {
+    "pressure_mean": {
+      "mae": 0.6026246943727793,
+      "rmse": 4.2411407967697965,
+      "r2": 0.9455460785186991
+    },
+    "pressure_max": {
+      "mae": 0.47544698834441856,
+      "rmse": 4.067920352427714,
+      "r2": 0.9492239416822644
+    },
+    "abnormal_probability": {
+      "positive_rate": 0.08524820206981232,
+      "roc_auc": 0.9623981550528904
+    },
+    "sand_plug_probability": {
+      "positive_rate": 0.0,
+      "roc_auc": null
+    }
+  },
+  "outputs": {
+    "model": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\response_surrogate\\20260728_205957\\response_surrogate.joblib",
+    "predictions": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\response_surrogate\\20260728_205957\\predictions.csv"
+  }
+}

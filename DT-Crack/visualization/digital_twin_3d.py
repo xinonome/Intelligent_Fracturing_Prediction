@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import webbrowser
 from pathlib import Path
@@ -21,7 +20,6 @@ if pv is not None:
     pv.global_theme.font.family = "arial"
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA_ROOT = Path(os.environ.get("FRACTURING_DATA_ROOT", str(ROOT / "data")))
 DT_ROOT = ROOT / "DT-Crack"
 if str(DT_ROOT) not in sys.path:
     sys.path.insert(0, str(DT_ROOT))
@@ -31,9 +29,9 @@ from inversion.playback import run_demo
 
 def build_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Interactive PyVista demo for real 3Dfrac PKN + EnKF closed loop.")
-    parser.add_argument("--frac-monitor-text", default=str(DATA_ROOT / "frac_monitor.txt"))
-    parser.add_argument("--well-trajectory-csv", default=str(DATA_ROOT / "well_trajectory.csv"))
-    parser.add_argument("--construction-pressure-xls", default=str(DATA_ROOT / "construction_pressure.xls"))
+    parser.add_argument("--frac-monitor-text", default=str(ROOT / "Data" / "3Dfrac" / "光纤本井监测08.txt"))
+    parser.add_argument("--well-trajectory-csv", default=str(ROOT / "Data" / "3Dfrac" / "JY84-Z1HF-1011.csv"))
+    parser.add_argument("--construction-pressure-xls", default=str(ROOT / "Data" / "3Dfrac" / "JY84-Z1-stage08-f1.xls"))
     parser.add_argument("--forward-model", choices=["pkn4", "bem_reduced", "physics_hybrid", "data_surrogate"], default="pkn4")
     parser.add_argument("--max-playback-steps", type=int, default=14)
     parser.add_argument("--visual-aperture-gain", type=float, default=120.0)

@@ -66,9 +66,28 @@ def run_stage(stage: StageDefinition, context: ProjectContext, overrides: dict[s
         "stage_top_v_m": stage_top_v,
         "stage_bottom_v_m": stage_bottom_v,
         "handover_time_s": handover,
-        "mass_balance": {
-            "status": "NOT_COMPUTED",
-            "reason": "The current project PyFrac adapter does not expose an independent leak-off volume field; no balance error is fabricated.",
-        },
+        "mass_balance": _mass_balance_summary(result.snapshots),
     })
+    if not result.metadata["mass_balance"].get("pass", False):
+        raise RuntimeError(f"PyFrac stage {stage.stage_id} failed mass-balance acceptance: {result.metadata['mass_balance']}")
+    if not last.target_reached or last.failed_time_steps:
+        raise RuntimeError(
+            f"PyFrac stage {stage.stage_id} did not reach target: target_reached={last.target_reached}, failed_steps={last.failed_time_steps}"
+        )
     return result
+
+
+def _mass_balance_summary(snapshots) -> dict[str, Any]:
+    if not snapshots:
+        return {"status": "NOT_COMPUTED", "reason": "no snapshots"}
+    final = snapshots[-1]
+    value = float(final.mass_balance_relative_error)
+    return {
+        "status": "COMPUTED" if value == value else "NOT_COMPUTED",
+        "injected_volume_m3": float(final.injected_volume_m3),
+        "fracture_volume_m3": float(final.fracture_volume_m3),
+        "leakoff_volume_m3": float(final.leakoff_volume_m3),
+        "residual_m3": float(final.mass_balance_residual_m3),
+        "relative_error": value,
+        "pass": bool(value == value and value <= 0.10),
+    }

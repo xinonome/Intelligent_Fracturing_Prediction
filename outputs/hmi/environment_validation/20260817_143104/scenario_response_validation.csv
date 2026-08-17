@@ -1,0 +1,7 @@
+﻿scenario_name,finite_outputs,length_nondecreasing,conservative_mean_risk,aggressive_mean_risk,risk_direction_ok,conservative_unsafe_rate,aggressive_unsafe_rate,conservative_uncertain_rate,aggressive_uncertain_rate,passed
+baseline,False,True,0.05901233769679646,0.22675,True,0.0,0.0,0.0,0.0,False
+cluster_imbalance,False,True,0.07580807640870534,0.25293181818181815,True,0.0,0.0,0.0,0.0,False
+diversion_stage,False,True,0.08284002841436154,0.24659090909090908,True,0.0,0.0,0.0,0.0,False
+normal_growth,False,True,0.05900384566062502,0.22675,True,0.0,0.0,0.0,0.0,False
+pressure_limit,False,True,0.06937104659916249,0.24536363636363637,True,0.0,0.0,0.0,0.0,False
+sand_plug_risk,False,True,0.08882672100590415,0.28351136363636364,True,0.0,0.0,0.0,0.0,False

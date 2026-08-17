@@ -56,7 +56,7 @@ def create_main_window(controller, registry: RegistryLoader, *, html_path: Path 
             title = QLabel("INTELLIGENT FRACTURING  /  联合动态联调平台")
             title.setStyleSheet(f"font-size:20px;font-weight:800;color:{PALETTE['cyan']};")
             header_layout.addWidget(title)
-            header_layout.addWidget(_header_label("井段  <authorized-well> · <authorized-stage>"))
+            header_layout.addWidget(_header_label("井段  JY84-Z1 · Stage 08"))
             header_layout.addStretch(1)
             self.clock_label = _header_label("--")
             header_layout.addWidget(self.clock_label)

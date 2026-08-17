@@ -1,0 +1,250 @@
+{
+  "demo": "direct_observable_space_pkn_enkf_heldout_validation",
+  "scientific_status": "engineering validation prototype",
+  "observation_mode": "pressure_plus_cluster",
+  "state_vector": [
+    "E'",
+    "C_L",
+    "mu",
+    "sigma_min",
+    "K_IC"
+  ],
+  "observations": [
+    "cumulative liquid share by cluster",
+    "cumulative sand share by cluster",
+    "bottom-hole pressure"
+  ],
+  "anti_circularity_design": "Fiber cumulative liquid shares drive historical PKN cluster rates and smoothed incremental fiber liquid allocation drives current-rate/aperture inputs; EnKF does not contain a free cluster growth/intake factor.",
+  "allocation_method": "fiber incremental liquid allocation with light EMA smoothing and nonnegative conservation normalization",
+  "validation_design": "First 70% calibrates the state. Online validation scores each held-out step before update, then assimilates the arriving observation and scores the posterior; frozen mode does not update held-out steps.",
+  "validation_mode": "online",
+  "metrics": {
+    "calibration_steps": 42,
+    "validation_steps": 18,
+    "validation_liquid_tvd_mean": 0.0,
+    "validation_sand_tvd_mean": 0.1317371037412992,
+    "validation_bhp_relative_error_mean": 0.059153374469879755,
+    "validation_prior_liquid_tvd_mean": 0.0,
+    "validation_prior_sand_tvd_mean": 0.13167954149358724,
+    "validation_prior_bhp_relative_error_mean": 0.06144108548857811,
+    "all_steps_compute_p50_ms": 490.84605000098236,
+    "all_steps_compute_p95_ms": 575.9669799987023,
+    "all_steps_under_15_seconds_rate": 1.0,
+    "max_rate_conservation_error": 3.242338713980129e-16,
+    "mean_posterior_leakoff_fraction": 0.5,
+    "validation_all_observations_within_15_percent_rate": 0.5,
+    "validation_pass": true,
+    "filter_method": "stochastic",
+    "assimilation_iterations": 1,
+    "covariance_inflation": 1.012,
+    "dynamic_pressure_bias": false,
+    "dynamic_pressure_bias_requested": true,
+    "free_cluster_growth_factors": false,
+    "use_localization": true,
+    "physics_profile": "legacy",
+    "observation_memory_mode": "instantaneous",
+    "sand_observation_memory_mode": "cumulative",
+    "sand_transport_exponent": 0.75,
+    "adaptive_observation_noise": false,
+    "adaptive_inflation": false,
+    "ensemble_size": 400,
+    "batch_calibrate": false,
+    "knowledge_guided_prior": {
+      "enabled": false,
+      "mode": "off",
+      "state_parameter_names": [
+        "log_eprime_scale",
+        "log_leakoff_scale",
+        "log_viscosity_scale",
+        "min_horizontal_stress_mpa",
+        "log_fracture_toughness_scale"
+      ],
+      "prior_mean_shift": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "prior_mean": [
+        0.0,
+        0.0,
+        0.0,
+        60.0,
+        0.0
+      ],
+      "correlation_matrix": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "initial_spread": [
+        0.18,
+        0.45,
+        0.3,
+        5.0,
+        0.25
+      ],
+      "process_noise": [
+        0.012,
+        0.02,
+        0.015,
+        0.2,
+        0.012
+      ],
+      "observation_noise_multiplier": {
+        "share": 1.0,
+        "pressure": 1.0
+      },
+      "max_update_scale": null,
+      "rule_source": {
+        "path": "C:\\Workspace\\FSL_Expert_GitHub_Release\\FSL-Expert\\rule_fusion\\rule_fusion\\fused_sand_plug_rules.json",
+        "loaded": true,
+        "rule_count": 10,
+        "candidate_count": 54
+      },
+      "signals": {
+        "sample_count": 42,
+        "calibration_start_step": 0,
+        "calibration_end_step": 3082,
+        "pressure_rise_mpa": 35.38311572385942,
+        "max_pressure_slope_mpa_min": 9.528088675160188,
+        "max_sand_ratio_percent": 18.05,
+        "flow_falling_fraction": 0.04878048780487805,
+        "pressure_rise_score": 0.9127705241286473,
+        "pressure_slope_score": 1.0,
+        "high_sand_score": 1.0,
+        "flow_down_score": 0.0975609756097561,
+        "risk_score": 0.8748643072124345,
+        "rule_matches": [
+          "SP-R02",
+          "SP-R09",
+          "SP-R06_exclusion"
+        ],
+        "rule_match_count": 3
+      }
+    },
+    "state_dimension": 5,
+    "state_vector": [
+      "E_prime",
+      "C_L",
+      "mu",
+      "sigma_min",
+      "K_IC"
+    ],
+    "observation_mode": "pressure_plus_cluster",
+    "observation_vector": [
+      "cumulative_liquid_share_by_cluster",
+      "cumulative_sand_share_by_cluster",
+      "bottomhole_pressure_mpa"
+    ],
+    "pressure_bias_update": {
+      "enabled": false,
+      "observation_mode": "pressure_plus_cluster"
+    },
+    "observation_quality": {
+      "expected_clusters": 6,
+      "observed_clusters": 6,
+      "total_steps": 4436,
+      "valid_steps": 4436,
+      "invalid_steps": 0,
+      "duplicate_rows": 0,
+      "missing_cluster_steps": 0,
+      "non_monotonic_cumulative_rows": 0,
+      "negative_value_rows": 0,
+      "max_gap_s": 1.0,
+      "overlap_start_s": 0.0,
+      "overlap_end_s": 4435.0,
+      "valid_ratio": 1.0,
+      "reasons": []
+    },
+    "pyfrac_residual_surrogate": {
+      "requested": false,
+      "path": null,
+      "online_enabled": false
+    },
+    "fiber_allocation_source": "incremental_liquid_volume_from_fiber",
+    "fiber_allocation_smoothing_previous_weight": 0.2,
+    "max_fiber_allocation_step_change": 0.6251024375490566,
+    "length_shrink_gt_5_percent_count": 0,
+    "length_transition_count": 354,
+    "length_shrink_gt_5_percent_rate": 0.0,
+    "clusters_with_length_shrink_gt_5_percent": 0
+  },
+  "batch_calibration": {
+    "enabled": false
+  },
+  "calibration_center_state": [
+    0.0,
+    0.0,
+    0.0,
+    60.0,
+    0.0
+  ],
+  "config": {
+    "base_eprime_pa": 32000000000.0,
+    "base_leakoff_m_sqrt_s": 1e-05,
+    "base_viscosity_pa_s": 0.1,
+    "base_min_stress_mpa": 60.0,
+    "base_fracture_toughness_pa_sqrt_m": 500000.0,
+    "height_m": 30.0,
+    "pressure_proxy_scale": 30.0,
+    "min_effective_rate_fraction": 0.05,
+    "max_leakoff_fraction": 0.5,
+    "stress_shadow_strength": 0.06,
+    "leakoff_iterations": 6,
+    "hydraulic_coupling_mode": "coupled",
+    "conductance_exponent": 0.45,
+    "shadow_decay_clusters": 1.25,
+    "stress_shadow_feedback": 0.0,
+    "pressure_leakoff_exponent": 0.0,
+    "pressure_leakoff_reference_mpa": 15.0,
+    "log_cluster_factor_state": false,
+    "fracture_toughness_length_exponent": 0.08,
+    "fracture_toughness_aperture_exponent": 0.05
+  },
+  "limitations": [
+    "Cluster liquid/sand shares constrain intake allocation, not independently measured fracture geometry.",
+    "The sand transport observation operator is a cumulative, mean-preserving sublinear q_effective*aperture capacity proxy; it is not a full particle-transport solver.",
+    "Pressure friction defaults require client calibration before field interpretation.",
+    "The 50% cumulative leakoff cap is an engineering prior and must be recalibrated when formation leakoff measurements are available.",
+    "The EnKF state is intentionally limited to E', C_L, mu, sigma_min and K_IC; cluster allocation is measured input, not a free state."
+  ],
+  "outputs": {
+    "history": "C:\\Workspace\\FSL_Expert_GitHub_Release\\outputs\\dt\\release_smoke\\20260817_143436\\direct_observation_history.csv",
+    "clusters": "C:\\Workspace\\FSL_Expert_GitHub_Release\\outputs\\dt\\release_smoke\\20260817_143436\\cluster_share_history.csv",
+    "figure": "C:\\Workspace\\FSL_Expert_GitHub_Release\\outputs\\dt\\release_smoke\\20260817_143436\\direct_observation_validation.png"
+  }
+}

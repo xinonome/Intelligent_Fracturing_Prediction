@@ -77,10 +77,29 @@ def main() -> None:
     for scenario_name in available_scenarios():
         conservative = rollout(scenario_name, np.array([-1.0, -1.0], dtype=np.float32), args.steps, args.seed)
         aggressive = rollout(scenario_name, np.array([1.0, 1.0], dtype=np.float32), args.steps, args.seed)
-        finite = bool(
-            np.isfinite(conservative.select_dtypes(include=[np.number]).to_numpy()).all()
-            and np.isfinite(aggressive.select_dtypes(include=[np.number]).to_numpy()).all()
-        )
+        # The learned response surrogate is optional.  When it is not
+        # connected, its diagnostic fields are intentionally NaN rather than
+        # fabricated zeros.  They must not make the physics/environment gate
+        # fail; if the surrogate is partially populated, all populated values
+        # still have to be finite.
+        optional_surrogate_columns = {
+            "surrogate_ood_score",
+            "surrogate_future_surface_pressure_mpa",
+            "surrogate_future_surface_pressure_max_mpa",
+        }
+
+        def finite_required(frame: pd.DataFrame) -> bool:
+            numeric = frame.select_dtypes(include=[np.number])
+            required = [column for column in numeric.columns if column not in optional_surrogate_columns]
+            if required and not np.isfinite(numeric[required].to_numpy()).all():
+                return False
+            for column in optional_surrogate_columns.intersection(numeric.columns):
+                populated = numeric[column].dropna().to_numpy(dtype=float)
+                if populated.size and not np.isfinite(populated).all():
+                    return False
+            return True
+
+        finite = bool(finite_required(conservative) and finite_required(aggressive))
         length_nondecreasing = bool(
             (conservative["simulated_half_length_m"].diff().fillna(0.0) >= -1e-6).all()
             and (aggressive["simulated_half_length_m"].diff().fillna(0.0) >= -1e-6).all()

@@ -1,7 +1,33 @@
 ﻿{
-    "source":  "C:\\Workspace\\Intelligent_Fracturing_Prediction",
-    "release":  "C:\\Workspace\\FSL_Expert_GitHub_Release",
-    "copied_files":  67,
-    "skipped_files":  3714,
-    "generated_at":  "2026-06-26T15:57:19"
+    "release_version":  "2.0.0",
+    "generated_at":  "2026-08-17T06:59:17.1474162Z",
+    "source_root":  "external-source",
+    "release_root":  ".",
+    "runtime_mode":  "authorized_data_and_frozen_artifacts",
+    "included_authorized_data":  true,
+    "data_roots":  [
+                       "Data/raw_frac",
+                       "Data/3Dfrac"
+                   ],
+    "excluded_data":  [
+                          "Data/multimodal"
+                      ],
+    "required_artifacts":  [
+                               "artifacts/fsl",
+                               "artifacts/dt",
+                               "artifacts/hmi/ppo_policy",
+                               "outputs/dt/fiber_allocation_parameter_enkf/20260806_082250",
+                               "outputs/hmi/bugfix_validation/ppo_20260812_184048",
+                               "outputs/hmi/response_surrogate/20260728_205957",
+                               "outputs/app/dt_realtime_cache.json",
+                               "outputs/app/dt_realtime_3d.html"
+                           ],
+    "file_count":  913,
+    "total_bytes":  207400798,
+    "entrypoint":  "python run_project.py",
+    "smoke_commands":  [
+                           "python App/run_app.py --no-gui",
+                           "python run_project.py dt validate",
+                           "python run_project.py hmi validate-env --strict"
+                       ]
 }

@@ -1,0 +1,105 @@
+{
+  "demo": "direct_observable_space_pkn_enkf_heldout_validation",
+  "scientific_status": "engineering validation prototype",
+  "state_vector": [
+    "E'",
+    "C_L",
+    "mu",
+    "sigma_min"
+  ],
+  "observations": [
+    "cumulative liquid share by cluster",
+    "cumulative sand share by cluster",
+    "bottom-hole pressure"
+  ],
+  "anti_circularity_design": "Fiber cumulative liquid shares drive historical PKN cluster rates and smoothed incremental fiber liquid allocation drives current-rate/aperture inputs; EnKF does not contain a free cluster growth/intake factor.",
+  "allocation_method": "fiber incremental liquid allocation with light EMA smoothing and nonnegative conservation normalization",
+  "validation_design": "First 70% calibrates the state. Online validation scores each held-out step before update, then assimilates the arriving observation and scores the posterior; frozen mode does not update held-out steps.",
+  "validation_mode": "online",
+  "metrics": {
+    "calibration_steps": 42,
+    "validation_steps": 18,
+    "validation_liquid_tvd_mean": 0.0,
+    "validation_sand_tvd_mean": 0.13669395810910873,
+    "validation_bhp_relative_error_mean": 0.05407783569736079,
+    "validation_prior_liquid_tvd_mean": 0.0,
+    "validation_prior_sand_tvd_mean": 0.13667995364325522,
+    "validation_prior_bhp_relative_error_mean": 0.057707795862398034,
+    "all_steps_compute_p50_ms": 419.4587000019965,
+    "all_steps_compute_p95_ms": 647.1157350028079,
+    "all_steps_under_15_seconds_rate": 1.0,
+    "max_rate_conservation_error": 3.242338713980129e-16,
+    "mean_posterior_leakoff_fraction": 0.5,
+    "validation_all_observations_within_15_percent_rate": 0.5,
+    "validation_pass": true,
+    "filter_method": "stochastic",
+    "assimilation_iterations": 1,
+    "covariance_inflation": 1.012,
+    "dynamic_pressure_bias": false,
+    "dynamic_pressure_bias_requested": true,
+    "free_cluster_growth_factors": false,
+    "use_localization": true,
+    "physics_profile": "legacy",
+    "observation_memory_mode": "instantaneous",
+    "sand_observation_memory_mode": "cumulative",
+    "sand_transport_exponent": 0.75,
+    "adaptive_observation_noise": false,
+    "adaptive_inflation": false,
+    "ensemble_size": 400,
+    "batch_calibrate": false,
+    "state_dimension": 4,
+    "state_vector": [
+      "E_prime",
+      "C_L",
+      "mu",
+      "sigma_min"
+    ],
+    "fiber_allocation_source": "incremental_liquid_volume_from_fiber",
+    "fiber_allocation_smoothing_previous_weight": 0.2,
+    "max_fiber_allocation_step_change": 0.6251024375490566,
+    "length_shrink_gt_5_percent_count": 0,
+    "length_transition_count": 354,
+    "length_shrink_gt_5_percent_rate": 0.0,
+    "clusters_with_length_shrink_gt_5_percent": 0
+  },
+  "batch_calibration": {
+    "enabled": false
+  },
+  "calibration_center_state": [
+    0.0,
+    0.0,
+    0.0,
+    60.0
+  ],
+  "config": {
+    "base_eprime_pa": 32000000000.0,
+    "base_leakoff_m_sqrt_s": 1e-05,
+    "base_viscosity_pa_s": 0.1,
+    "base_min_stress_mpa": 60.0,
+    "height_m": 30.0,
+    "pressure_proxy_scale": 30.0,
+    "min_effective_rate_fraction": 0.05,
+    "max_leakoff_fraction": 0.5,
+    "stress_shadow_strength": 0.06,
+    "leakoff_iterations": 6,
+    "hydraulic_coupling_mode": "coupled",
+    "conductance_exponent": 0.45,
+    "shadow_decay_clusters": 1.25,
+    "stress_shadow_feedback": 0.0,
+    "pressure_leakoff_exponent": 0.0,
+    "pressure_leakoff_reference_mpa": 15.0,
+    "log_cluster_factor_state": false
+  },
+  "limitations": [
+    "Cluster liquid/sand shares constrain intake allocation, not independently measured fracture geometry.",
+    "The sand transport observation operator is a cumulative, mean-preserving sublinear q_effective*aperture capacity proxy; it is not a full particle-transport solver.",
+    "Pressure friction defaults require client calibration before field interpretation.",
+    "The 50% cumulative leakoff cap is an engineering prior and must be recalibrated when formation leakoff measurements are available.",
+    "The EnKF state is intentionally limited to E', C_L, mu and sigma_min; cluster allocation is measured input, not a free state."
+  ],
+  "outputs": {
+    "history": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\dt\\fiber_allocation_parameter_enkf\\20260806_082250\\direct_observation_history.csv",
+    "clusters": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\dt\\fiber_allocation_parameter_enkf\\20260806_082250\\cluster_share_history.csv",
+    "figure": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\dt\\fiber_allocation_parameter_enkf\\20260806_082250\\direct_observation_validation.png"
+  }
+}

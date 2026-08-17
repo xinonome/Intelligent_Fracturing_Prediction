@@ -122,7 +122,7 @@ def main() -> None:
     frame.to_csv(output / "multicluster_predictions.csv", index=False, encoding="utf-8-sig")
     write_figure(frame, output / "multicluster_length_comparison.png")
     summary = {
-        "demo": "six_cluster_pyfrac_external_coupling",
+        "demo": "stage08_six_cluster_pyfrac_external_coupling",
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "elapsed_seconds": time.perf_counter() - started,
         "stage": args.stage,

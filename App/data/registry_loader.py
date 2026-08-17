@@ -10,9 +10,16 @@ from ..core.paths import PATHS, resolve
 
 
 class RegistryLoader:
-    def __init__(self, registry: ArtifactRegistry | None = None) -> None:
+    def __init__(self, registry: ArtifactRegistry | None = None, scenario_id: str | None = None) -> None:
         self.registry = registry or ArtifactRegistry()
         self.snapshot = self.registry.snapshot()
+        self.scenario_id = scenario_id or self.module("dt").get("default_scenario", "das_cluster_observation")
+
+    def set_scenario(self, scenario_id: str) -> None:
+        scenarios = self.module("dt").get("scenarios", {})
+        if scenario_id not in scenarios:
+            raise ValueError(f"unknown DT scenario: {scenario_id}")
+        self.scenario_id = scenario_id
 
     def module(self, name: str) -> dict[str, Any]:
         return self.snapshot.get("modules", {}).get(name, {})
@@ -59,6 +66,10 @@ class RegistryLoader:
         value = self.module("dt").get("frame_source")
         path = resolve(value)
         return path if path and path.exists() else PATHS.dt_cache if PATHS.dt_cache.exists() else None
+
+    def scenario(self, scenario_id: str | None = None) -> dict[str, Any]:
+        selected = scenario_id or self.scenario_id
+        return dict(self.module("dt").get("scenarios", {}).get(selected, {}))
 
     def html(self) -> Path | None:
         value = self.module("dt").get("html")

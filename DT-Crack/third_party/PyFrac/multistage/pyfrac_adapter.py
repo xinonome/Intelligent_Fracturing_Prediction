@@ -72,6 +72,7 @@ def run_pyfrac_stage(stage_input: StageSimulationInput, output_dir: Path) -> Sta
         mesh_ny=stage_input.mesh_config.ny,
         height_m=stage_input.simulation.fracture_height_m,
         max_time_steps=int(stage_input.runtime.get("max_time_steps", 30)),
+        dynamic_step_limit_s=float(stage_input.runtime.get("time_step_limit_s", stage_input.runtime.get("dynamic_step_limit_s", 30.0))),
     )
     adapter = Adapter(config=adapter_config, project_root=_project_root())
     snapshots: list[StageSnapshot] = []
@@ -115,6 +116,13 @@ def run_pyfrac_stage(stage_input: StageSimulationInput, output_dir: Path) -> Sta
             fracture_volume_m3=float(result.volume_m3),
             efficiency=efficiency,
             injected_volume_m3=injected,
+            leakoff_volume_m3=float(result.leakoff_volume_m3),
+            mass_balance_residual_m3=float(result.mass_balance_residual_m3),
+            mass_balance_relative_error=float(result.mass_balance_relative_error),
+            target_reached=bool(result.target_reached),
+            successful_time_steps=int(result.successful_time_steps),
+            failed_time_steps=int(result.failed_time_steps),
+            time_step_limit_s=float(result.time_step_limit_s),
             metadata={"engine_mode": result.engine_mode, "target_reached": result.target_reached, "runtime_seconds": result.runtime_seconds},
         )
         snapshots.append(snapshot)
@@ -138,6 +146,10 @@ def run_pyfrac_stage(stage_input: StageSimulationInput, output_dir: Path) -> Sta
         front_coordinates_local=np.asarray([s.front_coordinates_local for s in snapshots], dtype=object),
         fracture_volume_m3=np.asarray([s.fracture_volume_m3 for s in snapshots]),
         efficiency=np.asarray([s.efficiency for s in snapshots]),
+        injected_volume_m3=np.asarray([s.injected_volume_m3 for s in snapshots]),
+        leakoff_volume_m3=np.asarray([s.leakoff_volume_m3 for s in snapshots]),
+        mass_balance_residual_m3=np.asarray([s.mass_balance_residual_m3 for s in snapshots]),
+        mass_balance_relative_error=np.asarray([s.mass_balance_relative_error for s in snapshots]),
     )
     return StageResult(
         stage_id=stage_input.stage_id,

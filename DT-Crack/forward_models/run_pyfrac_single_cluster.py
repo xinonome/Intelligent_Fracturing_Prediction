@@ -5,9 +5,9 @@ Examples
 PowerShell::
 
     python DT-Crack\\forward_models\\run_pyfrac_single_cluster.py `
-      --fiber-monitor data\\frac_monitor.txt `
-      --pressure-xls data\\construction_pressure.xls `
-      --trajectory-csv data\\well_trajectory.csv `
+      --fiber-monitor Data\\3Dfrac\\光纤本井监测08.txt `
+      --pressure-xls Data\\3Dfrac\\JY84-Z1-stage08-f1.xls `
+      --trajectory-csv Data\\3Dfrac\\JY84-Z1HF-1011.csv `
       --stage 8 --cluster 1 --model pyfrac --max-points 12 `
       --output-dir outputs\\dt\\pyfrac_single_cluster
 
@@ -199,7 +199,7 @@ def main() -> None:
         json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     summary = {
-        "demo": "single_cluster_pkn_pyfrac_comparison" if run_pyfrac else "single_cluster_pkn_baseline",
+        "demo": "stage08_single_cluster_pkn_pyfrac_comparison" if run_pyfrac else "stage08_single_cluster_pkn_baseline",
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "elapsed_seconds": time.perf_counter() - started,
         "inputs": {

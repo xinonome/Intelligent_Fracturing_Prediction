@@ -65,14 +65,16 @@ def _trajectory_arrays(records: list[dict]) -> tuple[np.ndarray, np.ndarray]:
     return points, tangents
 
 
-def build_html(cache_path: Path, output_path: Path, frame_count: int = 120) -> Path:
+def build_html(cache_path: Path, output_path: Path, frame_count: int = 120, scenario_id: str | None = None) -> Path:
     payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    if scenario_id and isinstance(payload.get("scenarios"), dict) and scenario_id in payload["scenarios"]:
+        payload = payload["scenarios"][scenario_id]
     timeline = np.asarray(payload.get("timeline_s", []), dtype=int)
     trajectory = payload.get("trajectory", [])
     positions = payload.get("cluster_positions", [])
     clusters = payload.get("clusters", {})
-    if timeline.size == 0 or not trajectory or not positions:
-        raise ValueError("DT cache lacks timeline, trajectory, or cluster positions")
+    if timeline.size == 0 or not trajectory:
+        raise ValueError("DT cache lacks timeline or trajectory")
 
     well_points, well_tangents = _trajectory_arrays(trajectory)
     cluster_records = sorted(positions, key=lambda row: int(row.get("cluster_id", 0)))
@@ -80,6 +82,8 @@ def build_html(cache_path: Path, output_path: Path, frame_count: int = 120) -> P
         [[float(row.get("east_m", 0.0)), float(row.get("north_m", 0.0)), float(row.get("vertical_depth_m", 0.0))] for row in cluster_records],
         dtype=float,
     )
+    if not cluster_records:
+        cluster_centers = np.empty((0, 3), dtype=float)
     cluster_tangents = []
     for row in cluster_records:
         md = float(row.get("measured_depth_m", 0.0))
@@ -103,7 +107,9 @@ def build_html(cache_path: Path, output_path: Path, frame_count: int = 120) -> P
     # Compute one global scene box from the entire trajectory and the largest
     # fracture extent across all frames.  Keeping these ranges fixed prevents
     # the 3D view from zooming or changing scale as playback advances.
-    extent_points = [well_points, cluster_centers]
+    extent_points = [well_points]
+    if cluster_centers.size:
+        extent_points.append(cluster_centers)
     for center, tangent, cluster_max in zip(cluster_centers, cluster_tangents, max_lengths):
         mesh = _cluster_mesh(center, tangent, cluster_max)
         extent_points.append(np.column_stack([mesh["x"], mesh["y"], mesh["z"]]))
@@ -257,6 +263,7 @@ if __name__ == "__main__":
     parser.add_argument("--cache", default=str(ROOT / "outputs" / "app" / "dt_realtime_cache.json"))
     parser.add_argument("--output", default=str(ROOT / "outputs" / "app" / "dt_realtime_3d.html"))
     parser.add_argument("--frame-count", type=int, default=120)
+    parser.add_argument("--scenario", choices=["das_cluster_observation", "no_das_pressure_only"], default="das_cluster_observation")
     args = parser.parse_args()
-    result = build_html(Path(args.cache), Path(args.output), args.frame_count)
+    result = build_html(Path(args.cache), Path(args.output), args.frame_count, args.scenario)
     print(json.dumps({"html": str(result), "frame_count": args.frame_count}, ensure_ascii=False, indent=2))

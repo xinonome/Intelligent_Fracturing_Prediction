@@ -66,8 +66,6 @@ def _summary_value(summary: dict[str, Any], *keys: str, default: Any = None) -> 
 
 def infer_status(module: str, summary: dict[str, Any], required_paths: list[Path]) -> tuple[str, str]:
     if not summary or "_error" in summary:
-        if not required_paths:
-            return "not_available", "no registered artifacts in this public snapshot"
         return "invalid", "summary.json cannot be read"
     if not all(path.exists() for path in required_paths):
         missing = [relative_path(path) or str(path) for path in required_paths if not path.exists()]
@@ -212,15 +210,14 @@ def _command_output(command: list[str]) -> dict[str, Any]:
 def build_preflight() -> dict[str, Any]:
     """Collect environment checks without importing Qt in the base process."""
 
-    # Public-copy defaults are portable.  Production deployments can override
-    # these with FRACTURING_QT_PYTHON/FRACTURING_ALGORITHM_PYTHON.
-    qt_python = Path(os.environ.get("FRACTURING_QT_PYTHON", sys.executable))
-    algorithm_python = Path(os.environ.get("FRACTURING_ALGORITHM_PYTHON", sys.executable))
-    data_root = Path(os.environ.get("FRACTURING_DATA_ROOT", str(PROJECT_ROOT / "data")))
+    qt_python = Path(os.environ.get("FRACTURING_QT_PYTHON", r"C:\Users\xinonome\anaconda3\envs\frac_app\python.exe"))
+    algorithm_python = Path(
+        os.environ.get("FRACTURING_ALGORITHM_PYTHON", r"C:\Users\xinonome\anaconda3\python.exe")
+    )
     data_paths = [
-        data_root / "fiber_monitor.txt",
-        data_root / "construction_pressure.xls",
-        data_root / "well_trajectory.csv",
+        PROJECT_ROOT / "Data" / "3Dfrac" / "光纤本井监测08.txt",
+        PROJECT_ROOT / "Data" / "3Dfrac" / "JY84-Z1-stage08-f1.xls",
+        PROJECT_ROOT / "Data" / "3Dfrac" / "JY84-Z1HF-1011.csv",
     ]
     qt_probe = _command_output([str(qt_python), "-c", "from PySide6.QtCore import qVersion; print(qVersion())"])
     current_qt_probe = _command_output([sys.executable, "-c", "from PySide6.QtCore import qVersion; print(qVersion())"])

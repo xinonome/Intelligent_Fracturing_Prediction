@@ -35,6 +35,12 @@ def geometry_metrics(snapshots, stage_id: str) -> pd.DataFrame:
             "front_speed_mean_m_s": float(snapshot.front_velocity_m_s),
             "injected_volume_m3": float(snapshot.injected_volume_m3),
             "efficiency": float(snapshot.efficiency),
+            "leakoff_volume_m3": float(snapshot.leakoff_volume_m3),
+            "mass_balance_residual_m3": float(snapshot.mass_balance_residual_m3),
+            "mass_balance_relative_error": float(snapshot.mass_balance_relative_error),
+            "target_reached": bool(snapshot.target_reached),
+            "failed_time_steps": int(snapshot.failed_time_steps),
+            "time_step_limit_s": float(snapshot.time_step_limit_s),
         })
     return pd.DataFrame(rows)
 

@@ -37,8 +37,8 @@ except ImportError:  # pragma: no cover - direct package path fallback
 
 ROOT = PATHS.root
 OUTPUTS = PATHS.app_outputs
-BASE_PYTHON = Path(os.environ.get("FRACTURING_ALGORITHM_PYTHON", sys.executable))
-QT_PYTHON = Path(os.environ.get("FRACTURING_QT_PYTHON", sys.executable))
+BASE_PYTHON = Path(os.environ.get("FRACTURING_ALGORITHM_PYTHON", r"C:\Users\xinonome\anaconda3\python.exe"))
+QT_PYTHON = Path(os.environ.get("FRACTURING_QT_PYTHON", r"C:\Users\xinonome\anaconda3\envs\frac_app\python.exe"))
 
 
 def load_json(path: Path) -> dict:
@@ -146,7 +146,7 @@ def run_gui(smoke: bool = False) -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     app.setFont(QFont("Microsoft YaHei UI", 10))
     service = ReplayService(RegistryLoader())
-    window = create_main_window(service.timeline, service.registry, html_path=PATHS.dt_html)
+    window = create_main_window(service, service.registry, html_path=PATHS.dt_html)
     window.show()
     if smoke:
         QTimer.singleShot(1600, app.quit)

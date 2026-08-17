@@ -6,12 +6,12 @@ from App.data.registry_loader import RegistryLoader
 
 
 class RegistryTests(unittest.TestCase):
-    def test_public_registry_is_explicitly_unavailable_without_artifacts(self):
+    def test_dt_registers_one_frame_source_and_one_html(self):
         loader = RegistryLoader()
         dt = loader.module("dt")
-        self.assertEqual(dt["status"], "not_available")
-        self.assertIsNone(loader.frame_source())
-        self.assertFalse(loader.html().exists())
+        self.assertEqual(dt["frame_count"], 7331)
+        self.assertTrue(loader.frame_source().exists())
+        self.assertEqual(loader.html().name, "dt_realtime_3d.html")
 
 
 if __name__ == "__main__":

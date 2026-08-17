@@ -39,7 +39,15 @@ class DTLoader:
             return {}
         try:
             value = json.loads(self.cache_path.read_text(encoding="utf-8"))
-            return value if isinstance(value, dict) else {}
+            if not isinstance(value, dict):
+                return {}
+            scenarios = value.get("scenarios", {})
+            scenario_id = getattr(self.registry, "scenario_id", None)
+            if scenario_id and isinstance(scenarios, dict) and scenario_id in scenarios:
+                selected = scenarios[scenario_id]
+                if isinstance(selected, dict):
+                    return selected
+            return value
         except (OSError, json.JSONDecodeError):
             return {}
 
@@ -49,6 +57,29 @@ class DTLoader:
         count = normalized_count or len(self.history)
         source_index = round(index / max(count - 1, 1) * max(len(self.history) - 1, 0))
         row = self.history[min(max(source_index, 0), len(self.history) - 1)]
+        if self.cache.get("meta", {}).get("observation_mode") == "pressure_only":
+            timeline = self.cache.get("timeline_s", [])
+            cache_index = round(index / max(count - 1, 1) * max(len(timeline) - 1, 0)) if timeline else 0
+            arrays = self.cache.get("arrays", {})
+            get = lambda name: number((arrays.get(name) or [None])[min(max(cache_index, 0), len(arrays.get(name, []) or [None]) - 1)])
+            return {
+                "time_s": get("timeline_s") if arrays.get("timeline_s") else (float(timeline[cache_index]) if timeline else float(index + 1)),
+                "surface_pressure_mpa": get("surface_pressure_mpa"),
+                "bottomhole_pressure_mpa": get("posterior_bhp_mpa"),
+                "observed_bottomhole_pressure_mpa": get("observed_bhp_mpa"),
+                "prior_bottomhole_pressure_mpa": get("prior_bhp_mpa"),
+                "net_pressure_mpa": get("net_pressure_mpa"),
+                "prior_error": None,
+                "posterior_error": None,
+                "prior_pressure_error": None,
+                "posterior_pressure_error": None,
+                "prior_parameters": {},
+                "posterior_parameters": {},
+                "prior_half_lengths_m": [],
+                "posterior_half_lengths_m": [],
+                "clusters": [],
+                "quality": {"source": self.module.get("scenarios", {}).get("no_das_pressure_only", {}).get("pressure_source"), "valid": True, "observation_mode": "pressure_only", "cluster_observations": "not_available"},
+            }
         time_s = number(row.get("time_s"), 0.0) or 0.0
         cluster_rows = [item for item in self.clusters if number(item.get("time_s"), -1.0) == time_s]
         clusters = []

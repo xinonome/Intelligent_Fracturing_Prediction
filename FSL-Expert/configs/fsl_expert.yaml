@@ -1,6 +1,6 @@
 data:
-  path: C:/Workspace/Intelligent_Fracturing_Prediction/Data/raw_frac
-  reference_header_path: C:/Workspace/Intelligent_Fracturing_Prediction/Data/raw_frac/FDBH26.xlsx
+  path: Data/raw_frac
+  reference_header_path: Data/raw_frac/FDBH26.xlsx
   exclude_name_patterns:
     - WITHfiltered
 

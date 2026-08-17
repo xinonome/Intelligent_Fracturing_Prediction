@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -20,14 +19,13 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA_ROOT = Path(os.environ.get("FRACTURING_DATA_ROOT", str(ROOT / "data")))
 if str(ROOT / "DT-Crack") not in sys.path:
     sys.path.insert(0, str(ROOT / "DT-Crack"))
 
 from data_fusion.frac_monitor_text_adapter import load_frac_monitor_text
 
 
-DEFAULT_INPUT = DATA_ROOT / "frac_monitor.txt"
+DEFAULT_INPUT = ROOT / "Data" / "3Dfrac" / "光纤本井监测08.txt"
 DEFAULT_OUTPUT = ROOT / "outputs" / "app" / "fiber_six_cluster"
 
 
@@ -119,7 +117,7 @@ def _plot(table, output_path: Path, title: str) -> None:
     fig.text(
         0.5,
         0.015,
-        "数据源：授权压裂监测文件；簇级曲线来自分簇液量/砂量。"
+        "数据源：光纤本井监测08.txt，第08段；簇级曲线来自分簇液量/砂量。"
         "裂缝均衡程度是阶段级字段，未作为簇级曲线重复绘制。",
         ha="center",
         fontsize=10,
