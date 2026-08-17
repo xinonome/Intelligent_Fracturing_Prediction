@@ -22,8 +22,11 @@ HMI-KE/outputs/
 .DS_Store
 Thumbs.db
 
+# Sensitive source datasets must never be committed or released.
+Data/raw_frac/
+Data/3Dfrac/
+
 # The following paths are intentionally versioned in this release:
-#   Data/raw_frac, Data/3Dfrac
 #   artifacts/
 #   outputs/app, outputs/dt, outputs/hmi
 #   trained model files (*.zip, *.joblib, *.pt)
