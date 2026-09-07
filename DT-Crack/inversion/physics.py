@@ -1,10 +1,13 @@
 """Fast PKN forward operator and parameter-space EnKF utilities.
 
 The EnKF state contains physical parameters.  The historical optional
-``4 + n_clusters`` layout is still accepted for old experiments, but the new
-default layout is ``[log E', log C_L, log mu, sigma_min, log K_IC]``.  Fracture
-length is always recomputed by the forward operator after each update; it is
-not directly overwritten by the filter.
+``4 + n_clusters`` layout is still accepted for old experiments.  The default
+pressure state is ``[log E', log C_L, log mu, sigma_min, log K_IC]``.  The
+parameterized six-cluster layout appends ``n_clusters + 3`` allocation
+parameters: per-cluster intake capacity, stress-shadow scale, boundary-relief
+scale and allocation nonlinearity.  Fracture length and cluster rates are
+always recomputed by the forward operator after each update; they are not
+directly overwritten by the filter.
 """
 
 from __future__ import annotations
@@ -26,6 +29,7 @@ class PhysicalEnKFConfig:
     min_effective_rate_fraction: float = 0.05
     max_leakoff_fraction: float = 0.85
     stress_shadow_strength: float = 0.06
+    boundary_relief_strength: float = 0.05
     leakoff_iterations: int = 6
     hydraulic_coupling_mode: str = "coupled"
     conductance_exponent: float = 0.45
@@ -42,6 +46,18 @@ class PhysicalEnKFConfig:
     # bounded exponent makes the new K_IC state observable in the PKN baseline.
     fracture_toughness_length_exponent: float = 0.08
     fracture_toughness_aperture_exponent: float = 0.05
+
+
+def parameterized_allocation_state_size(n_clusters: int) -> int:
+    """Return the state size for pressure + inferred cluster allocation."""
+
+    return 8 + int(n_clusters)
+
+
+def has_parameterized_allocation_state(state: np.ndarray, n_clusters: int) -> bool:
+    """Whether ``state`` uses the new pressure/allocation block layout."""
+
+    return int(np.asarray(state).shape[-1]) == parameterized_allocation_state_size(n_clusters)
 
 
 STATE_GLOBAL_NAMES = [
@@ -63,7 +79,14 @@ def physical_values(
     # archived runs.  It must remain readable even when the compatibility flag
     # is false.  The new five-state layout reserves index 4 for log K_IC.
     legacy_cluster_layout = bool(state.shape[-1] == 4 + n_clusters)
-    if cluster_factors is None:
+    allocation_parameterized = has_parameterized_allocation_state(state, n_clusters)
+    if cluster_factors is None and allocation_parameterized:
+        # Capacity parameters are represented in log space and normalized to
+        # mean one.  This identifies relative six-cluster intake without
+        # changing the total injected rate.
+        log_capacity = np.asarray(state[5 : 5 + n_clusters], dtype=float)
+        cluster_factors = np.exp(log_capacity - float(np.mean(log_capacity)))
+    elif cluster_factors is None:
         # Four-state runs intentionally do not expose a free per-cluster growth
         # factor.  Keep the legacy state format readable, but default missing
         # cluster state to a neutral multiplier.
@@ -84,6 +107,16 @@ def physical_values(
             else cfg.base_fracture_toughness_pa_sqrt_m
         ),
         "cluster_factors": cluster_factors,
+        "allocation_parameterized": allocation_parameterized,
+        "stress_shadow_scale": (
+            float(np.exp(state[5 + n_clusters])) if allocation_parameterized else 1.0
+        ),
+        "boundary_relief_scale": (
+            float(np.exp(state[6 + n_clusters])) if allocation_parameterized else 1.0
+        ),
+        "allocation_exponent": (
+            float(np.exp(state[7 + n_clusters])) if allocation_parameterized else 1.0
+        ),
     }
 
 
@@ -96,6 +129,14 @@ def clip_state(state: np.ndarray, n_clusters: int) -> np.ndarray:
     legacy_cluster_layout = out.shape[-1] == 4 + n_clusters
     if legacy_cluster_layout:
         out[..., 4 : 4 + n_clusters] = np.clip(out[..., 4 : 4 + n_clusters], 0.65, 1.35)
+    elif has_parameterized_allocation_state(out, n_clusters):
+        # These are absolute numerical/physical-domain guards, not limits on
+        # the change made in one assimilation step.  The update itself is not
+        # delta-clipped.
+        out[..., 5 : 5 + n_clusters] = np.clip(out[..., 5 : 5 + n_clusters], -6.0, 6.0)
+        out[..., 5 + n_clusters : 8 + n_clusters] = np.clip(
+            out[..., 5 + n_clusters : 8 + n_clusters], -4.0, 4.0
+        )
     elif out.shape[-1] >= 5:
         out[..., 4] = np.clip(out[..., 4], np.log(0.25), np.log(4.0))
         if out.shape[-1] >= 5 + n_clusters:
@@ -139,6 +180,10 @@ def pkn_with_carter_leakoff(
     viscosity = float(values["viscosity_pa_s"])
     stress = float(values["min_horizontal_stress_mpa"])
     factors = np.asarray(values["cluster_factors"], dtype=float)
+    allocation_parameterized = bool(values["allocation_parameterized"])
+    stress_shadow_scale = float(values["stress_shadow_scale"])
+    boundary_relief_scale = float(values["boundary_relief_scale"])
+    allocation_exponent = max(float(values["allocation_exponent"]), 1.0e-4)
     toughness_ratio = float(
         np.clip(
             values["fracture_toughness_pa_sqrt_m"] / max(cfg.base_fracture_toughness_pa_sqrt_m, 1.0),
@@ -160,8 +205,12 @@ def pkn_with_carter_leakoff(
         q_current_nominal = float(q_current.sum()) * current_allocation
     else:
         weighted_rate = q_base * np.maximum(factors, 1e-6)
+        if allocation_parameterized:
+            weighted_rate = np.power(np.maximum(weighted_rate, 1.0e-12), allocation_exponent)
         q_nominal = float(q_base.sum()) * weighted_rate / max(float(weighted_rate.sum()), 1e-12)
         weighted_current = q_current * np.maximum(factors, 1e-6)
+        if allocation_parameterized:
+            weighted_current = np.power(np.maximum(weighted_current, 1.0e-12), allocation_exponent)
         q_current_nominal = float(q_current.sum()) * weighted_current / max(float(weighted_current.sum()), 1e-12)
     q_nominal = np.maximum(q_nominal, 1e-9)
     q_current_nominal = np.maximum(q_current_nominal, 1e-9)
@@ -169,7 +218,8 @@ def pkn_with_carter_leakoff(
     q_current_effective = q_current_nominal.copy()
 
     def shadow_factor_from_rate(rate: np.ndarray) -> np.ndarray:
-        if n_clusters <= 1 or cfg.stress_shadow_strength <= 0.0:
+        shadow_strength = cfg.stress_shadow_strength * stress_shadow_scale
+        if n_clusters <= 1 or shadow_strength <= 0.0:
             return np.ones(n_clusters, dtype=float)
         distance = np.abs(np.arange(n_clusters)[:, None] - np.arange(n_clusters)[None, :])
         interaction = np.exp(-distance / max(cfg.shadow_decay_clusters, 1e-6))
@@ -177,7 +227,17 @@ def pkn_with_carter_leakoff(
         interaction /= np.maximum(interaction.sum(axis=1, keepdims=True), 1e-12)
         normalized_rate = rate / max(float(np.mean(rate)), 1e-12)
         shadow = np.tanh(interaction @ normalized_rate)
-        return np.clip(1.0 - cfg.stress_shadow_strength * shadow, 0.85, 1.0)
+        return np.clip(1.0 - shadow_strength * shadow, 0.70, 1.05)
+
+    def boundary_factor() -> np.ndarray:
+        if n_clusters <= 1 or not allocation_parameterized:
+            return np.ones(n_clusters, dtype=float)
+        positions = np.linspace(-1.0, 1.0, n_clusters)
+        edge_score = np.abs(positions)
+        return np.maximum(
+            1.0 + cfg.boundary_relief_strength * boundary_relief_scale * edge_score,
+            1.0e-6,
+        )
 
     injected_volume = float(q_nominal.sum()) * t
     leakoff_volume = np.zeros(n_clusters, dtype=float)
@@ -233,7 +293,15 @@ def pkn_with_carter_leakoff(
             conductance = np.maximum(factors, 1e-6) * np.power(
                 np.clip(relative_aperture, 0.35, 2.5), cfg.conductance_exponent
             )
-            conductance *= np.power(shadow_factor, max(cfg.stress_shadow_feedback, 0.0))
+            if allocation_parameterized:
+                # The second inversion block is a forward allocation model:
+                # intake capacity, stress shadow and boundary relief all
+                # contribute to the six-cluster rate split.
+                conductance = np.power(np.maximum(conductance, 1.0e-12), allocation_exponent)
+                conductance *= boundary_factor()
+                conductance *= np.power(np.maximum(shadow_factor, 1.0e-6), 1.0 + max(cfg.stress_shadow_feedback, 0.0))
+            else:
+                conductance *= np.power(shadow_factor, max(cfg.stress_shadow_feedback, 0.0))
             q_nominal = float(q_base.sum()) * conductance / max(float(conductance.sum()), 1e-12)
             q_current_nominal = float(q_current.sum()) * conductance / max(float(conductance.sum()), 1e-12)
             q_nominal = np.maximum(q_nominal, 1e-9)
@@ -259,8 +327,14 @@ def pkn_with_carter_leakoff(
         "leakoff_fraction": float(leakoff_volume.sum()) / max(injected_volume, 1e-12),
         "rate_conservation_error": abs(float(q_nominal.sum()) - float(q_base.sum())) / max(float(q_base.sum()), 1e-12),
         "measured_allocation_used": bool(measured_allocation),
+        "allocation_parameterized": allocation_parameterized,
         "cluster_allocation": allocation if allocation is not None else normalize_allocation(q_nominal),
         "cluster_current_allocation": current_allocation if current_allocation is not None else normalize_allocation(q_current_nominal),
+        "intake_capacity_factor": factors,
+        "stress_shadow_scale": stress_shadow_scale,
+        "boundary_relief_scale": boundary_relief_scale,
+        "allocation_exponent": allocation_exponent,
+        "boundary_effect_factor": boundary_factor(),
         "net_pressure_mpa": net_pressure_mpa,
         "bottomhole_pressure_mpa": stress + net_pressure_mpa,
         "stress_shadow_factor": final_shadow_factor,
@@ -286,6 +360,10 @@ def enkf_update(
     rng: np.random.Generator,
     localization: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
+    if len(np.asarray(ensemble)) < 3:
+        raise ValueError(
+            "有效 EnKF 协方差至少需要 3 个同步成员；单成员只能做前向计算，不能进行参数同化"
+        )
     x_anom = ensemble - ensemble.mean(axis=0)
     y_anom = predicted_obs - predicted_obs.mean(axis=0)
     denom = max(len(ensemble) - 1, 1)
@@ -318,6 +396,10 @@ def denkf_update(
     """
 
     x = np.asarray(ensemble, dtype=float)
+    if x.ndim != 2 or x.shape[0] < 3:
+        raise ValueError(
+            "有效 DEnKF 协方差至少需要 3 个同步成员；单成员只能做前向计算，不能进行参数同化"
+        )
     y = np.asarray(predicted_obs, dtype=float)
     observed = np.asarray(observed_obs, dtype=float)
     std = np.maximum(np.asarray(observation_std, dtype=float), 1.0e-9)
@@ -351,5 +433,10 @@ def state_record(prefix: str, state: np.ndarray, cfg: PhysicalEnKFConfig, n_clus
         f"{prefix}_fracture_toughness_pa_sqrt_m": float(values["fracture_toughness_pa_sqrt_m"]),
     }
     for index, value in enumerate(np.asarray(values["cluster_factors"]), start=1):
+        record[f"{prefix}_intake_capacity_factor_c{index}"] = float(value)
+        # Keep the historical field for old APP readers and archived output.
         record[f"{prefix}_factor_c{index}"] = float(value)
+    record[f"{prefix}_stress_shadow_scale"] = float(values["stress_shadow_scale"])
+    record[f"{prefix}_boundary_relief_scale"] = float(values["boundary_relief_scale"])
+    record[f"{prefix}_allocation_exponent"] = float(values["allocation_exponent"])
     return record

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "default_scenario": "das_cluster_observation",
+  "scenarios": {
+    "no_das_pressure_only": {
+      "scenario_id": "no_das_pressure_only",
+      "display_name": "无 DAS：压力在线校正",
+      "observation_mode": "pressure_only",
+      "observation_vector": ["bottomhole_pressure_mpa"],
+      "pressure_source": "Data/3Dfrac/JY84-Z1-stage08-f1.xls",
+      "pressure_calibration_source": "App/config/pressure_calibration.json",
+      "fiber_source": null,
+      "trajectory_source": null,
+      "cluster_geometry_source": null,
+      "well_id": "JY84-Z1",
+      "stage_id": "08",
+      "source_start_s": 1,
+      "source_end_s": 7331,
+      "assumed_cluster_count": 6,
+      "cluster_result_status": "model_estimate_only",
+      "calibration_status": "待校准",
+      "status_note": "仅同化井底压力；阶段级 PKN 和假设簇间影响用于形态估计，不作为簇级现场观测。"
+    },
+    "das_cluster_observation": {
+      "scenario_id": "das_cluster_observation",
+      "display_name": "有 DAS：压力 + 分簇观测校验",
+      "observation_mode": "pressure_plus_cluster",
+      "observation_vector": [
+        "cumulative_liquid_share_by_cluster",
+        "cumulative_sand_share_by_cluster",
+        "bottomhole_pressure_mpa"
+      ],
+      "pressure_source": "Data/3Dfrac/JY84-Z1-stage08-f1.xls",
+      "pressure_calibration_source": "App/config/pressure_calibration.json",
+      "fiber_source": "Data/3Dfrac/光纤本井监测08.txt",
+      "trajectory_source": "Data/3Dfrac/JY84-Z1HF-1011.csv",
+      "cluster_geometry_source": "App/config/cluster_geometry.csv",
+      "well_id": "JY84-Z1",
+      "stage_id": "08",
+      "source_start_s": 1,
+      "source_end_s": 4435,
+      "cluster_result_status": "interpreted_observation",
+      "calibration_status": "待校准",
+      "status_note": "FracMonitor 解释后的分簇结果，不等同于原始 DAS 振幅。"
+    }
+  }
+}

@@ -134,7 +134,13 @@ def relaunch_with_qt_env(arguments: list[str]) -> int | None:
     return subprocess.call([str(QT_PYTHON), str(Path(__file__).resolve()), *arguments], cwd=ROOT, env=env)
 
 
-def run_gui(smoke: bool = False) -> int:
+def run_gui(smoke: bool = False, edition: str = "integrated", theme: str | None = None) -> int:
+    # Configure QtWebEngine before QApplication/QtWebEngine initialization.
+    # This avoids GPU context loss when switching between the two Plotly 3D
+    # scenario documents on machines with unstable D3D drivers.
+    from App.ui.web_view import configure_webengine_environment
+
+    configure_webengine_environment()
     from PySide6.QtCore import QTimer
     from PySide6.QtGui import QFont
     from PySide6.QtWidgets import QApplication
@@ -146,7 +152,13 @@ def run_gui(smoke: bool = False) -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     app.setFont(QFont("Microsoft YaHei UI", 10))
     service = ReplayService(RegistryLoader())
-    window = create_main_window(service, service.registry, html_path=PATHS.dt_html)
+    window = create_main_window(
+        service,
+        service.registry,
+        html_path=PATHS.dt_html,
+        edition=edition,
+        theme=theme,
+    )
     window.show()
     if smoke:
         QTimer.singleShot(1600, app.quit)
@@ -161,30 +173,59 @@ def main() -> None:
     parser.add_argument("--light-validation", action="store_true", help="执行输出隔离的轻量联调验证")
     parser.add_argument("--no-auto-env", action="store_true", help="不自动切换到 Qt 环境")
     parser.add_argument("--smoke-gui", action="store_true", help="启动 GUI 后自动退出，用于 smoke 验证")
+    parser.add_argument(
+        "--edition",
+        choices=("integrated", "fsl", "dt_hmi"),
+        default="integrated",
+        help="软件发行版本：综合版、工况风险软著版或数字孪生安全建议软著版",
+    )
+    parser.add_argument(
+        "--theme",
+        choices=("dark", "light"),
+        default=None,
+        help="界面主题：dark 保留原工业深色风格，light 使用蓝白浅色风格",
+    )
     args = parser.parse_args()
 
-    summary = write_summary()
-    report: dict[str, Any] = {
-        "summary": str(summary),
-        "mode": "frozen_replay",
-        "preflight": collect_preflight(),
-        "registry": nested(load_json(summary), "registry", "modules", default={}),
-    }
-    if args.light_validation:
-        validation_root = PATHS.app_runs / datetime.now().strftime("%Y%m%d_%H%M%S_cli")
-        report["light_validation"] = run_light_validation(validation_root, BASE_PYTHON if BASE_PYTHON.exists() else Path(sys.executable))
-    print(json.dumps(report, ensure_ascii=False, indent=2))
-    if args.no_gui or args.preflight or args.light_validation:
+    from App.ui.web_view import configure_webengine_environment
+
+    configure_webengine_environment()
+    # The acceptance APP and its diagnostics contain Chinese status text.
+    # Keep CLI diagnostics usable on the default Windows GBK console too.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
+
+    diagnostics_requested = args.no_gui or args.preflight or args.light_validation
+    if diagnostics_requested:
+        summary = write_summary()
+        report: dict[str, Any] = {
+            "summary": str(summary),
+            "mode": "frozen_replay",
+            "preflight": collect_preflight(),
+            "registry": nested(load_json(summary), "registry", "modules", default={}),
+        }
+        if args.light_validation:
+            validation_root = PATHS.app_runs / datetime.now().strftime("%Y%m%d_%H%M%S_cli")
+            report["light_validation"] = run_light_validation(validation_root, BASE_PYTHON if BASE_PYTHON.exists() else Path(sys.executable))
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    if diagnostics_requested:
         return
     qt_error = qt_import_error()
     if qt_error:
         if not args.no_auto_env:
-            relaunch_args = ["--no-auto-env"] + (["--demo"] if args.demo else [])
+            relaunch_args = ["--no-auto-env", "--edition", args.edition]
+            if args.theme:
+                relaunch_args += ["--theme", args.theme]
+            if args.demo:
+                relaunch_args += ["--demo"]
             code = relaunch_with_qt_env(relaunch_args)
             if code is not None:
                 raise SystemExit(code)
         raise SystemExit(f"PySide6/QtWebEngine 无法加载：{qt_error}")
-    raise SystemExit(run_gui(smoke=args.smoke_gui))
+    raise SystemExit(run_gui(smoke=args.smoke_gui, edition=args.edition, theme=args.theme))
 
 
 if __name__ == "__main__":

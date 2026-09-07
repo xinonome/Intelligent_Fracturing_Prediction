@@ -154,7 +154,7 @@ def evaluate(model, loader, criterion, device: str) -> tuple[EvalMetrics, dict]:
     )
 
 
-def train_epochs(model, loader, optimizer, criterion, device: str, epochs: int) -> list[dict]:
+def train_epochs(model, loader, optimizer, criterion, device: str, epochs: int, progress_callback=None) -> list[dict]:
     history = []
     for epoch in range(1, epochs + 1):
         model.train()
@@ -167,7 +167,10 @@ def train_epochs(model, loader, optimizer, criterion, device: str, epochs: int) 
             loss.backward()
             optimizer.step()
             losses.append(float(loss.item()))
-        history.append({"epoch": epoch, "loss": float(np.mean(losses)) if losses else 0.0})
+        record = {"epoch": epoch, "loss": float(np.mean(losses)) if losses else 0.0}
+        history.append(record)
+        if progress_callback is not None:
+            progress_callback(record)
     return history
 
 

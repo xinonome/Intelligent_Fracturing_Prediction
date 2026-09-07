@@ -11,8 +11,9 @@ from .fracture_length_models import (
     build_length_forward_model,
 )
 from .pkn_model import PKNForwardModel, PKNParameters
-from .pyfrac_adapter import PyFracAdapter, PyFracLengthForwardModel, PyFracRunResult
+from .pyfrac_adapter import PyFracAdapter, PyFracLengthForwardModel, PyFracNativeSession, PyFracRunResult
 from .pyfrac_config import PyFracConfig
+from .pyfrac_robustness import CheckpointManager, MeshDecision, choose_mesh, evaluate_convergence, relaxed_update
 
 __all__ = [
     "BEMLengthForwardModelStub",
@@ -27,6 +28,12 @@ __all__ = [
     "PyFracAdapter",
     "PyFracConfig",
     "PyFracLengthForwardModel",
+    "PyFracNativeSession",
     "PyFracRunResult",
+    "CheckpointManager",
+    "MeshDecision",
+    "choose_mesh",
+    "evaluate_convergence",
+    "relaxed_update",
     "build_length_forward_model",
 ]

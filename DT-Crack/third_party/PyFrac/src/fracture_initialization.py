@@ -330,7 +330,11 @@ def generate_footprint(mesh, surv_cells, inner_region, dist_surv_cells, projMeth
     FillFrac = FillFrac_tmp[newTip_indices]
 
     if EltChannel.size <= EltRibbon.size:
-        raise SystemExit("No channel elements. The initial radius is probably too small!")
+        raise SystemExit(
+            "No channel elements. The initial radius is probably too small! "
+            f"(channel={EltChannel.size}, ribbon={EltRibbon.size}, "
+            f"tip={EltTip.size}, survey={len(surv_cells)}, inner={len(inner_region)})"
+        )
 
 
     return EltChannel, EltTip, EltCrack, EltRibbon, ZeroVertex, CellStatus, l, alpha, FillFrac, sgndDist, Ffront, number_of_fronts, fronts_dictionary

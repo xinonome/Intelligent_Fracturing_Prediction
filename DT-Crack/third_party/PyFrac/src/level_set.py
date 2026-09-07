@@ -197,6 +197,7 @@ def reconstruct_front(dist, bandElts, EltChannel, mesh):
     """
 
     # Elements that are not in channel
+    log = logging.getLogger('PyFrac.reconstruct_front')
     EltRest = np.setdiff1d(bandElts, EltChannel)
     ElmntTip = np.asarray([], int)
     l = np.asarray([])
@@ -218,12 +219,28 @@ def reconstruct_front(dist, bandElts, EltChannel, mesh):
             # calculate angle imposed by the perpendicular on front (see Peirce & Detournay 2008)
             delDist = miny - minx
             beta = mesh.hx / mesh.hy
-            theta = (mesh.hx ** 2 * (1 + beta ** 2) - beta ** 2 * delDist ** 2) ** 0.5
+            theta_sq = mesh.hx ** 2 * (1 + beta ** 2) - beta ** 2 * delDist ** 2
+            # In exact arithmetic theta_sq is non-negative.  Near a grid
+            # corner, round-off in two independently reconstructed signed
+            # distances can make it very slightly negative and turn the
+            # whole front metadata into NaN.  Clamp only this geometric
+            # radicand; a topological inconsistency is still reported later
+            # by the controller's front-state audit.
+            geometry_scale = max(mesh.hx ** 2 * (1 + beta ** 2), 1.0e-30)
+            if theta_sq < 0.0:
+                if theta_sq < -1.0e-8 * geometry_scale:
+                    log.debug("clamping negative front-angle radicand %.6g", theta_sq)
+                theta_sq = 0.0
+            theta = theta_sq ** 0.5
             # angle calculate with inverse of cosine trigonometric function
-            a1 = np.arccos((theta + beta ** 2 * delDist) / (mesh.hx * (1 + beta ** 2)))
+            a1 = np.arccos(np.clip(
+                (theta + beta ** 2 * delDist) / (mesh.hx * (1 + beta ** 2)),
+                -1.0,
+                1.0,
+            ))
             # angle calculate with inverse of sine trigonometric function
             sinalpha = beta * (theta - delDist) / (mesh.hx * (1 + beta ** 2))
-            a2 = np.arcsin(sinalpha)
+            a2 = np.arcsin(np.clip(sinalpha, -1.0, 1.0))
 
             # !!!Hack. this check of zero or 90 degree angle works better
             warnings.filterwarnings("ignore")

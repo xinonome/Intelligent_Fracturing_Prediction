@@ -22,6 +22,28 @@ class PressureOnlyConfig:
     ensemble_size: int = 200
     seed: int = 20260814
 
+    @classmethod
+    def from_pressure_model_config(cls, pressure_config: Any) -> "PressureOnlyConfig":
+        """Build the pressure-bias filter settings from the shared calibration file.
+
+        Keeping these values in one configuration prevents the pressure
+        conversion and its online bias correction from silently using
+        different uncertainty assumptions.
+        """
+
+        def value(name: str, default: float) -> float:
+            try:
+                return float(getattr(pressure_config, name))
+            except (AttributeError, TypeError, ValueError):
+                return float(default)
+
+        return cls(
+            process_std_mpa=value("pressure_bias_process_std_mpa", cls.process_std_mpa),
+            observation_std_mpa=value("pressure_observation_std_mpa", cls.observation_std_mpa),
+            bias_lower_mpa=value("pressure_bias_lower_mpa", cls.bias_lower_mpa),
+            bias_upper_mpa=value("pressure_bias_upper_mpa", cls.bias_upper_mpa),
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 

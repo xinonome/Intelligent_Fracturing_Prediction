@@ -118,9 +118,9 @@ class TimelineController:
     def current(self) -> Any | None:
         return self.frames[self.index] if self.frames else None
 
-    def set_frames(self, frames: list[Any]) -> None:
+    def set_frames(self, frames: list[Any], *, emit: bool = True) -> None:
         self.frames = list(frames)
-        self.set_index(0, emit=True)
+        self.set_index(0, emit=emit)
 
     def set_index(self, index: int, emit: bool = True) -> Any | None:
         self.index = max(0, min(int(index), max(len(self.frames) - 1, 0)))

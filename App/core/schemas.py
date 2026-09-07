@@ -30,6 +30,9 @@ class DTState:
     observed_bottomhole_pressure_mpa: float | None = None
     bottomhole_pressure_mpa: float | None = None
     net_pressure_mpa: float | None = None
+    cluster_balance_degree: float | None = None
+    fracture_length_m: float | None = None
+    fracture_width_m: float | None = None
     cumulative_liquid_m3: float | None = None
     cumulative_sand_t: float | None = None
     prior_parameters: dict[str, Any] = field(default_factory=dict)
@@ -41,6 +44,9 @@ class DTState:
     prior_pressure_error: float | None = None
     posterior_pressure_error: float | None = None
     runtime_ms: float | None = None
+    allocation_mode: str = "unknown"
+    parameterized_allocation: bool = False
+    clusters: list[dict[str, Any]] = field(default_factory=list)
     quality: dict[str, Any] = field(default_factory=dict)
 
 

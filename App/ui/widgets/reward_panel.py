@@ -2,16 +2,21 @@ from __future__ import annotations
 
 
 def create_reward_panel():
-    from PySide6.QtWidgets import QLabel, QFrame, QVBoxLayout
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QLabel, QFrame, QSizePolicy, QVBoxLayout
 
     panel = QFrame()
     panel.setObjectName("panel")
+    panel.setMinimumHeight(150)
+    panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
     layout = QVBoxLayout(panel)
     layout.setContentsMargins(12, 10, 12, 10)
-    title = QLabel("安全验证")
+    title = QLabel("安全验证 / 改造奖励")
     title.setObjectName("sectionTitle")
     body = QLabel("等待当前帧")
     body.setWordWrap(True)
+    body.setTextFormat(Qt.RichText)
+    body.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
     layout.addWidget(title)
     layout.addWidget(body)
     panel._body_label = body
@@ -26,6 +31,8 @@ def update_reward_panel(panel, frame: dict):
     panel._body_label.setText(
         f"总奖励：{_fmt(components.get('integrated_reward'))}　"
         f"改造效果：{_fmt(components.get('effectiveness'))}<br>"
+        f"分簇均衡度：{_fmt(components.get('cluster_balance_degree'))}　"
+        f"均衡奖励：{_fmt(components.get('cluster_balance_reward'))}<br>"
         f"压力安全：{_fmt(components.get('pressure_safety'))}　"
         f"异常风险：{_fmt(components.get('abnormal_risk'))}　"
         f"施工成本：{_fmt(components.get('construction_cost'))}<br>"

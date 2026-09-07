@@ -8,6 +8,7 @@ All rights reserved. See the LICENSE.TXT file for more details.
 """
 import logging
 import copy
+import json
 import matplotlib.pyplot as plt
 import dill
 import os
@@ -27,6 +28,7 @@ from visualization import plot_footprint_analytical, plot_analytical_solution,\
                           plot_injection_source, get_elements
 from symmetry import load_isotropic_elasticity_matrix_symmetric, symmetric_elasticity_matrix_from_full
 from labels import TS_errorMessages, supported_projections, suitable_elements
+from front_stability import audit_front_state, canonicalize_front_state, front_cfl_time_step
 
 
 class Controller:
@@ -62,6 +64,15 @@ class Controller:
         self.load_prop = Load_prop
         self.C = C
         self.fr_queue = [None, None, None, None, None]  # queue of fractures from the last five time steps
+        # A fracture checkpoint is inseparable from the elasticity matrix
+        # built on its mesh.  The legacy controller only queued the fracture;
+        # after a remesh followed by a failed step it could therefore restore
+        # an old fracture with a newer, differently-sized C matrix.  Keep only
+        # a lightweight mesh signature here and rebuild C on rollback.  Five
+        # deep copies of a dense elasticity matrix would be prohibitive on a
+        # long run.
+        self.C_queue = [None, None, None, None, None]
+        self.c_was_provided = C is not None
         self.stepsFromChckPnt = 0
         self.tmStpPrefactor_copy = copy.copy(Sim_prop.tmStpPrefactor) # should be in simulation properties
         self.stagnant_TS = None     # time step if the front is stagnant. It is increased exponentialy to avoid uneccessary small steps.
@@ -75,12 +86,34 @@ class Controller:
         self.delta_w = None         # change in width between successive time steps. Used to limit time step.
         self.lstTmStp = None
         self.solveDetlaP_cp = self.sim_prop.solveDeltaP # copy of the flag indicating the solver to solve for pressure or delta p
-        self.PstvInjJmp = None      # flag specifyung if the jump to the time of the next positive injection after the fracture is
-                                        # fully closed is to be taken or not. Asked from user if it is None.
+        # The interactive application asks the user whether to jump to the
+        # next positive injection after closure. Batch/assimilation runs must
+        # make this decision deterministically; the adapter opts in through
+        # ``autoJumpClosedFracture``.
+        self.PstvInjJmp = (
+            True if getattr(Sim_prop, "autoJumpClosedFracture", False) else None
+        )
         self.fullyClosed = False    # should be related to the fracture state (thus in fracture class)
         self.setFigPos = True
         self.lastSuccessfulTS = Fracture.time
         self.maxTmStp = 0           # the maximum time step taken uptil now by the controller.
+        self.frontCflLimitedSteps = 0
+        self.frontStateRepairs = 0
+        self.nonMonotonicStateRejects = 0
+        self.lastTimeStep = float("nan")
+        self.lastAcceptedDeltaTime = float("nan")
+        self.lastTimeStepDiagnostics = {}
+        self.lastAttemptStatus = None
+        self.lastAttemptTimeStep = float("nan")
+        self.lastAttemptFailureCause = None
+        self.attemptStatusCounts = {}
+        self.zeroInjectionJumps = []
+        self.volumeProjectionCount = 0
+        self.volumeProjectionLastFactor = float("nan")
+        self.volumeProjectionMaxFactor = 1.0
+        self.volumeProjectionMinFactor = 1.0
+        self.progressFile = os.environ.get("PYFRAC_PROGRESS_FILE")
+        self.nativeAttempt = int(os.environ.get("PYFRAC_NATIVE_ATTEMPT", "0"))
 
 
         # make a list of Nones with the size of the number of variables to plot during simulation
@@ -190,6 +223,7 @@ class Controller:
         """
         log = logging.getLogger('PyFrac.controller.run')
         log_only_to_logfile = logging.getLogger('PyFrac_LF.controller.run')
+        self._write_progress(status=0, phase="controller_start")
 
         # output initial fracture
         if self.sim_prop.saveToDisk:
@@ -253,10 +287,96 @@ class Controller:
         #         self.sim_prop.frontAdvancing = "implicit"
 
         log.info("Starting time = " + repr(self.fracture.time))
+        self._write_progress(status=0, phase="time_marching_ready")
         # starting time stepping loop
-        while self.fracture.time < 0.999 * self.sim_prop.finalTime and self.TmStpCount < self.sim_prop.maxTimeSteps:
+        # Upstream 1.1.1 used ``0.999 * finalTime`` here.  On long runs that
+        # silently stops several model seconds early (4.435 s for a 4435 s
+        # target) and can also create a zero-step restart near an assimilation
+        # node.  Keep only a floating-point tolerance; get_time_step() already
+        # clips the last accepted step to finalTime.
+        final_time_tolerance = max(1e-8, 1e-10 * abs(self.sim_prop.finalTime))
+        while self.fracture.time < self.sim_prop.finalTime - final_time_tolerance and self.TmStpCount < self.sim_prop.maxTimeSteps:
+
+            # Optional diagnostic path for the legacy closed-front failure:
+            # when the input rate is exactly zero, advance only the clock to
+            # the next positive-injection event. This does not solve the
+            # shut-in PDE; recording the interval makes the limitation
+            # explicit and prevents it being mistaken for a full dynamic
+            # validation.
+            if getattr(self.sim_prop, "skipZeroInjectionIntervals", False):
+                current_rate = np.asarray(
+                    self.injection_prop.get_injection_rate(self.fracture.time, self.fracture),
+                    dtype=float,
+                ).reshape(-1)
+                if (
+                    current_rate.size
+                    and np.all(np.isfinite(current_rate))
+                    and np.max(np.abs(current_rate)) <= 1.0e-12
+                ):
+                    times = np.asarray(self.injection_prop.injectionRate[0, :], dtype=float)
+                    rates = np.asarray(self.injection_prop.injectionRate[1, :], dtype=float)
+                    candidates = times[
+                        (times > self.fracture.time + final_time_tolerance)
+                        & (rates > 1.0e-12)
+                    ]
+                    if candidates.size:
+                        next_time = min(float(np.min(candidates)), float(self.sim_prop.finalTime))
+                        if next_time > self.fracture.time + final_time_tolerance:
+                            start_time = float(self.fracture.time)
+                            self.fracture.time = next_time
+                            self.zeroInjectionJumps.append({
+                                "start_time_s": start_time,
+                                "end_time_s": next_time,
+                                "duration_s": next_time - start_time,
+                            })
+                            self.lastAcceptedDeltaTime = next_time - start_time
+                            self._write_progress(status=14, phase="zero_injection_interval_skipped")
+                            continue
 
             timeStep = self.get_time_step()
+            # Apply the front-traversal cap before calling the nonlinear
+            # solver.  The legacy implementation only detects a multi-cell
+            # jump after reconstruction (status 17), which is too late for
+            # the continuous-front bookkeeping to remain reliable.
+            front_cfl = getattr(self.sim_prop, "frontCFL", 0.8)
+            limited_step, was_limited = front_cfl_time_step(
+                timeStep,
+                getattr(self.fracture, "v", None),
+                self.fracture.mesh.hx,
+                self.fracture.mesh.hy,
+                front_cfl,
+            )
+            if was_limited:
+                self.frontCflLimitedSteps += 1
+                log.debug(
+                    "front CFL limited time step %.6g -> %.6g s at t=%.6g s",
+                    timeStep,
+                    limited_step,
+                    self.fracture.time,
+                )
+                timeStep = limited_step
+            self.lastTimeStep = float(timeStep)
+
+            # A continuation window may contain a rate transition (for
+            # example, a short ramp followed by a shut-in).  The legacy
+            # controller restores ``solveDeltaP`` after every accepted step,
+            # so setting it once when the Controller is constructed is not
+            # sufficient.  When the adapter opts in, select the pressure
+            # formulation at the actual current injection state for every
+            # step: delta-pressure during positive injection, absolute
+            # pressure during shut-in.  This prevents the delta-pressure
+            # system from becoming singular after injection is stopped while
+            # preserving the original behavior for all other callers.
+            if getattr(self.sim_prop, "solveDeltaPByInjectionRate", False):
+                current_q = self.injection_prop.get_injection_rate(self.fracture.time, self.fracture)
+                # The first step after a closed-fracture jump must rebuild
+                # absolute pressure from elasticity and the leak-off ledger.
+                # Switching immediately to delta-pressure at the jumped time
+                # uses a zero/closed pressure increment as its reference and
+                # is a common source of an invalid EHL iterate.
+                self.sim_prop.solveDeltaP = (
+                    False if self.fullyClosed else bool(np.nanmax(current_q) > 1.0e-12)
+                )
 
             if self.sim_prop.collectPerfData:
                 tmStp_perf = IterationProperties(itr_type="time step")
@@ -266,8 +386,39 @@ class Controller:
             # advancing time step
             status, Fr_n_pls1 = self.advance_time_step(self.fracture,
                                                          self.C,
-                                                         timeStep,
-                                                         tmStp_perf)
+                                                        timeStep,
+                                                        tmStp_perf)
+
+            if status == 1 and Fr_n_pls1 is not None:
+                # A solver return code of 1 is not sufficient evidence that
+                # the candidate state is usable.  Older PyFrac paths can
+                # return a state whose time went backwards after a failed
+                # reconstruction/remesh.  Accepting it would poison the
+                # checkpoint queue and make the next loop silently replay an
+                # earlier physical time while reporting success.
+                current_time = float(self.fracture.time)
+                next_time = float(getattr(Fr_n_pls1, "time", np.nan))
+                time_tolerance = max(1.0e-10, 1.0e-10 * abs(current_time))
+                if (not np.isfinite(next_time)) or next_time <= current_time + time_tolerance:
+                    self.nonMonotonicStateRejects += 1
+                    log.warning(
+                        "front state rejected because time did not advance: %.12g -> %.12g",
+                        current_time,
+                        next_time,
+                    )
+                    status = 18
+                else:
+                    repairs = canonicalize_front_state(Fr_n_pls1)
+                    self.frontStateRepairs += len(repairs)
+                    if repairs:
+                        log.warning("canonicalized front state after accepted step: %s", "; ".join(repairs))
+                    structural_errors = audit_front_state(Fr_n_pls1)
+                    if structural_errors:
+                        # Never place a structurally inconsistent state in the
+                        # five-state retry queue.  It will follow the normal
+                        # controller rollback path instead.
+                        log.warning("front state rejected after reconstruction: %s", "; ".join(structural_errors))
+                        status = 18
 
             if self.sim_prop.collectPerfData:
                 tmStp_perf.CpuTime_end = time.time()
@@ -285,8 +436,33 @@ class Controller:
                 log.debug("Ny: " + str(Fr_n_pls1.mesh.ny))
                 log.debug("hx: " + str(Fr_n_pls1.mesh.hx))
                 log.debug("hy: " + str(Fr_n_pls1.mesh.hy))
+
+                # The legacy delta-pressure solve can produce an unphysical
+                # negative absolute fluid pressure during a rapid rate ramp
+                # down.  Once that value is carried into the next step, the
+                # increment equation can diverge by many orders of magnitude.
+                # The realtime continuation adapter opts into a conservative
+                # zero-gauge-pressure floor.  This is a numerical/physical
+                # admissibility guard, not an observation correction: it only
+                # clips impossible absolute pressure and recomputes pNet from
+                # the clipped pFluid and the current confining stress.
+                pressure_floor = getattr(self.sim_prop, "pressureFloorPa", None)
+                if pressure_floor is not None and hasattr(Fr_n_pls1, "pFluid"):
+                    crack_indices = np.asarray(Fr_n_pls1.EltCrack, dtype=int)
+                    if crack_indices.size:
+                        p_floor = float(pressure_floor)
+                        Fr_n_pls1.pFluid[crack_indices] = np.maximum(
+                            np.asarray(Fr_n_pls1.pFluid[crack_indices], dtype=float),
+                            p_floor,
+                        )
+                        Fr_n_pls1.pNet[crack_indices] = (
+                            Fr_n_pls1.pFluid[crack_indices]
+                            - self.solid_prop.SigmaO[crack_indices]
+                        )
+                self._apply_volume_balance_projection(Fr_n_pls1)
                 self.delta_w = Fr_n_pls1.w - self.fracture.w
                 self.lstTmStp = Fr_n_pls1.time - self.fracture.time
+                self.lastAcceptedDeltaTime = float(self.lstTmStp)
                 # output
                 if self.sim_prop.plotFigure or self.sim_prop.saveToDisk:
                     if Fr_n_pls1.time > self.lastSavedTime:
@@ -294,7 +470,13 @@ class Controller:
 
                 # add the advanced fracture to the last five fractures list
                 self.fracture = copy.deepcopy(Fr_n_pls1)
-                self.fr_queue[self.successfulTimeSteps % 5] = copy.deepcopy(Fr_n_pls1)
+                queue_index = self.successfulTimeSteps % 5
+                self.fr_queue[queue_index] = copy.deepcopy(Fr_n_pls1)
+                self.C_queue[queue_index] = (
+                    int(self.fracture.mesh.nx),
+                    int(self.fracture.mesh.ny),
+                    int(self.fracture.mesh.NumberOfElts),
+                )
 
                 if self.fracture.time > self.lastSuccessfulTS:
                     self.lastSuccessfulTS = self.fracture.time
@@ -316,11 +498,20 @@ class Controller:
                     self.sim_prop.solveDeltaP = False
                 else:
                     self.sim_prop.solveDeltaP = self.solveDetlaP_cp
-                self.PstvInjJmp = None
+                self.PstvInjJmp = (
+                    True if getattr(self.sim_prop, "autoJumpClosedFracture", False)
+                    else None
+                )
                 self.fullyClosed = False
 
-                # set front advancing back as set in simulation properties originally if velocity becomes available.
-                if np.max(Fr_n_pls1.v) > 0 or not np.isnan(Fr_n_pls1.v).any():
+                # Set front advancing back as set in simulation properties
+                # originally if velocity becomes available.  A same-footprint
+                # continuation can legitimately return an empty velocity array
+                # in the legacy ILSA path; ``np.max(empty)`` used to abort the
+                # whole native run here.  Treat that state as “velocity not
+                # available” and let the next step use the implicit path.
+                velocity = np.asarray(Fr_n_pls1.v)
+                if velocity.size and (np.max(velocity) > 0 or not np.isnan(velocity).any()):
                     self.sim_prop.frontAdvancing = copy.copy(self.frontAdvancing)
                 else:
                     self.sim_prop.frontAdvancing = 'implicit'
@@ -440,15 +631,36 @@ class Controller:
                             # ensure all directions to extend are true
                             self.sim_prop.set_mesh_extension_direction(['all'])
 
-                        front_indices = \
-                        np.intersect1d(self.fracture.mesh.Frontlist, Fr_n_pls1.EltTip, return_indices=True)[1]
-                        side_bools = [(front_indices <= Fr_n_pls1.mesh.nx - 3).any(),
-                                      (front_indices[front_indices > Fr_n_pls1.mesh.nx - 3]
-                                       <= 2 * (Fr_n_pls1.mesh.nx - 3) + 1).any(),
-                                      (front_indices[front_indices >= 2 * (Fr_n_pls1.mesh.nx - 2)] % 2 == 0).any(),
-                                      (front_indices[front_indices >= 2 * (Fr_n_pls1.mesh.nx - 2)] % 2 != 0).any()]
-                        # side_bools is a set of booleans telling us which sides are touched by the remeshing.
-                        # First boolean represents bottom, top, left, right
+                        # ``Frontlist`` is an ordered boundary list, not a
+                        # global mesh-index map.  After a remesh/extension its
+                        # positional index cannot be used to infer which
+                        # physical side was reached.  The old implementation
+                        # did exactly that, causing horizontal-only extension
+                        # to be skipped or the wrong side to be extended.
+                        # Determine touched sides from actual tip-cell
+                        # centers.  The order remains [bottom, top, left,
+                        # right].
+                        tip_cells = np.asarray(Fr_n_pls1.EltTip, dtype=int).reshape(-1)
+                        tip_cells = tip_cells[
+                            (tip_cells >= 0) &
+                            (tip_cells < Fr_n_pls1.mesh.NumberOfElts)
+                        ]
+                        if tip_cells.size:
+                            tip_centers = Fr_n_pls1.mesh.CenterCoor[tip_cells]
+                            edge_x = max(float(Fr_n_pls1.mesh.hx), 1.0e-12) * 1.5
+                            edge_y = max(float(Fr_n_pls1.mesh.hy), 1.0e-12) * 1.5
+                            x_min = float(Fr_n_pls1.mesh.domainLimits[2])
+                            x_max = float(Fr_n_pls1.mesh.domainLimits[3])
+                            y_min = float(Fr_n_pls1.mesh.domainLimits[0])
+                            y_max = float(Fr_n_pls1.mesh.domainLimits[1])
+                            side_bools = [
+                                bool(np.any(tip_centers[:, 1] <= y_min + edge_y)),
+                                bool(np.any(tip_centers[:, 1] >= y_max - edge_y)),
+                                bool(np.any(tip_centers[:, 0] <= x_min + edge_x)),
+                                bool(np.any(tip_centers[:, 0] >= x_max - edge_x)),
+                            ]
+                        else:
+                            side_bools = [False, False, False, False]
 
                         if not self.sim_prop.meshExtensionAllDir:
                             compress = \
@@ -457,6 +669,44 @@ class Controller:
 
 
                     # This is the classical remeshing where the sides of the elements are multiplied by a constant.
+                    # The legacy fallback compresses the domain whenever an
+                    # allowed extension is unavailable.  That keeps the
+                    # front inside the grid but changes the physical scale
+                    # and can create an artificial high-pressure state on a
+                    # long run.  An opt-in fixed-cell regrid grows only the
+                    # horizontal domain, preserving the initial small-grid
+                    # resolution while avoiding an ever-growing elasticity
+                    # matrix.  The remesh path remains subject to the normal
+                    # front and mass audits.
+                    if compress and getattr(self.sim_prop, "expandDomainOnBoundary", False):
+                        expansion = max(
+                            float(getattr(self.sim_prop, "domainExpansionFactor", 2.0)),
+                            1.05,
+                        )
+                        x_min = float(self.fracture.mesh.domainLimits[2])
+                        x_max = float(self.fracture.mesh.domainLimits[3])
+                        y_min = float(self.fracture.mesh.domainLimits[0])
+                        y_max = float(self.fracture.mesh.domainLimits[1])
+                        x_center = 0.5 * (x_min + x_max)
+                        x_half = 0.5 * (x_max - x_min) * expansion
+                        new_limits = [
+                            [x_center - x_half, x_center + x_half],
+                            [y_min, y_max],
+                        ]
+                        elems = [self.fracture.mesh.nx, self.fracture.mesh.ny]
+                        log.info(
+                            "Regridding to expand horizontal domain by %.3g with fixed cell count",
+                            expansion,
+                        )
+                        self.remesh(
+                            new_limits,
+                            elems,
+                            direction=None,
+                            rem_factor=expansion,
+                        )
+                        compress = False
+                        side_bools = [False, False, False, False]
+
                     if compress:
                         log.info("Remeshing by compressing the domain...")
 
@@ -565,7 +815,13 @@ class Controller:
                                                        elems_add * self.fracture.mesh.hy/2]]
                                         side_bools[1] = False
 
-                                    direction = 'bottom'
+                                    # For a symmetric mesh both vertical sides
+                                    # are added at once.  ``mapping_old_indexes``
+                                    # needs the paired-direction token so that
+                                    # old rows are centred in the new mesh;
+                                    # using ``bottom`` here shifts every old
+                                    # cell by the full added height.
+                                    direction = 'vertical' if self.sim_prop.symmetric else 'bottom'
 
                                     elems = [self.fracture.mesh.nx, self.fracture.mesh.ny + elems_add]
 
@@ -593,7 +849,7 @@ class Controller:
                                                        elems_add * self.fracture.mesh.hy/2]]
                                         side_bools[0] = False
 
-                                    direction = 'top'
+                                    direction = 'vertical' if self.sim_prop.symmetric else 'top'
 
                                     elems = [self.fracture.mesh.nx, self.fracture.mesh.ny + elems_add]
 
@@ -619,7 +875,13 @@ class Controller:
                                              self.fracture.mesh.domainLimits[1]]]
                                         side_bools[3] = False
 
-                                    direction = 'left'
+                                    # Symmetric horizontal extension grows the
+                                    # domain on both x sides.  The old code
+                                    # passed ``left``/``right`` even though
+                                    # both sides had been added, so the index
+                                    # map became row-dependent and moved crack
+                                    # cells outside their physical locations.
+                                    direction = 'horizontal' if self.sim_prop.symmetric else 'left'
 
                                     elems = [self.fracture.mesh.nx + elems_add, self.fracture.mesh.ny]
 
@@ -645,7 +907,7 @@ class Controller:
                                              self.fracture.mesh.domainLimits[1]]]
                                         side_bools[2] = False
 
-                                    direction = 'right'
+                                    direction = 'horizontal' if self.sim_prop.symmetric else 'right'
 
                                     elems = [self.fracture.mesh.nx + elems_add, self.fracture.mesh.ny]
 
@@ -829,17 +1091,35 @@ class Controller:
                     self.chkPntReattmpts += 1
 
                     # We need to re-update first the properties (in case meshing occurred in between!)
-                    self.solid_prop.remesh(self.fr_queue[(self.successfulTimeSteps + self.chkPntReattmpts) % 5].mesh)
-                    self.injection_prop.remesh(self.fr_queue[(self.successfulTimeSteps + self.chkPntReattmpts) % 5].mesh
+                    rollback_index = (self.successfulTimeSteps + self.chkPntReattmpts) % 5
+                    rollback_fracture = self.fr_queue[rollback_index]
+                    self.solid_prop.remesh(rollback_fracture.mesh)
+                    self.injection_prop.remesh(rollback_fracture.mesh
                                                ,self.fracture.mesh)
 
-                    self.fracture = copy.deepcopy(self.fr_queue[(self.successfulTimeSteps + self.chkPntReattmpts) % 5])
+                    self.fracture = copy.deepcopy(rollback_fracture)
+                    if not self.c_was_provided:
+                        # Rebuild the matrix on the restored mesh instead of
+                        # restoring a potentially huge matrix snapshot.  This
+                        # also repairs the exact mismatch that used to occur
+                        # when a remesh happened between two checkpoints.
+                        self.C = self._build_elasticity_matrix(self.fracture.mesh)
+                    else:
+                        signature = self.C_queue[rollback_index]
+                        if signature is not None and np.asarray(self.C).ndim >= 2:
+                            expected = int(signature[2])
+                            if int(np.asarray(self.C).shape[0]) != expected:
+                                raise RuntimeError(
+                                    "provided elasticity matrix cannot be paired with "
+                                    f"rollback mesh ({np.asarray(self.C).shape[0]} != {expected})"
+                                )
                     log.warning("Time step have failed despite of reattempts with slightly smaller/bigger time steps...\n"
                                   "Going " + repr(5 - self.chkPntReattmpts) + " time steps back and re-attempting with the"
                                     " time step pre-factor of " + repr(current_PreFctr))
 
                     self.failedTimeSteps += 1
 
+            self._write_progress(status=status)
             self.TmStpCount += 1
 
         print("\n")
@@ -848,9 +1128,19 @@ class Controller:
         log.info("number of time steps = " + repr(self.successfulTimeSteps))
         log.info("failed time steps = " + repr(self.failedTimeSteps))
         log.info("number of remeshings = " + repr(self.remeshings))
+        log.info("front CFL limited steps = " + repr(self.frontCflLimitedSteps))
+        log.info("front state repairs = " + repr(self.frontStateRepairs))
+        log.info("non-monotonic state rejects = " + repr(self.nonMonotonicStateRejects))
 
-        plt.show(block=False)
-        plt.close('all')
+        # Headless/native workers explicitly disable plotting.  Calling
+        # ``plt.show`` unconditionally here can still enter a backend/event
+        # loop after the physical time march has reached ``finalTime``;
+        # isolated inversion workers then appear to finish in the heartbeat
+        # but never return their result before the parent timeout.  Only run
+        # plotting cleanup when a caller actually requested a figure.
+        if self.sim_prop.plotFigure:
+            plt.show(block=False)
+            plt.close('all')
 
         if self.sim_prop.collectPerfData:
             file_address = self.sim_prop.get_outputFolder() + "perf_data.dat"
@@ -858,6 +1148,208 @@ class Controller:
             with open(file_address, 'wb') as output:
                 dill.dump(self.perfData, output, -1)
         return True
+
+    # ------------------------------------------------------------------------------------------------------------------
+
+    def _apply_volume_balance_projection(self, fracture):
+        """Project an accepted state onto the global fluid-volume ledger.
+
+        The legacy viscous EHL system may lose global volume after a domain
+        regrid even when each local nonlinear solve reports success.  This
+        optional experiment applies a transparent global projection only
+        after a successful step: target opening volume is injected volume
+        minus cumulative leak-off, then the opening is scaled and pressure is
+        recomputed from the elasticity matrix.  It is deliberately disabled
+        by default and is recorded separately from an unmodified native run.
+        """
+        if not getattr(self.sim_prop, "enableVolumeBalanceProjection", False):
+            return False
+        if self.C is None:
+            return False
+        crack = np.asarray(getattr(fracture, "EltCrack", []), dtype=int).reshape(-1)
+        if crack.size == 0:
+            return False
+        area = float(getattr(fracture.mesh, "EltArea", np.nan))
+        if not np.isfinite(area) or area <= 0.0:
+            return False
+        try:
+            injected = float(np.asarray(getattr(fracture, "injectedVol", np.nan)).reshape(-1)[0])
+            leakoff = float(np.nansum(np.asarray(getattr(fracture, "LkOffTotal", 0.0), dtype=float)))
+            current_volume = float(np.nansum(np.asarray(fracture.w, dtype=float)[crack]) * area)
+        except (TypeError, ValueError):
+            return False
+        target_volume = injected - leakoff
+        if not np.isfinite((injected, leakoff, current_volume, target_volume)).all():
+            return False
+        if target_volume <= 0.0 or current_volume <= 0.0:
+            return False
+        factor = target_volume / current_volume
+        if not np.isfinite(factor) or factor <= 0.0:
+            return False
+
+        width = np.asarray(fracture.w, dtype=float).copy()
+        width[crack] *= factor
+        if not np.isfinite(width[crack]).all() or np.any(width[crack] < 0.0):
+            return False
+        matrix = np.asarray(self.C)
+        if matrix.ndim != 2 or matrix.shape[0] <= int(np.max(crack)):
+            return False
+        try:
+            net = matrix[np.ix_(crack, crack)].dot(width[crack])
+        except (TypeError, ValueError, np.linalg.LinAlgError):
+            return False
+        sigma = np.asarray(self.solid_prop.SigmaO, dtype=float)[crack]
+        pressure = net + sigma
+        if not np.isfinite(pressure).all():
+            return False
+        fracture.w = width
+        fracture.pFluid = np.zeros_like(np.asarray(fracture.pFluid, dtype=float))
+        fracture.pFluid[crack] = pressure
+        fracture.pNet = np.zeros_like(np.asarray(fracture.pNet, dtype=float))
+        fracture.pNet[crack] = net
+        if hasattr(fracture, "wHist"):
+            fracture.wHist = np.maximum(np.asarray(fracture.wHist, dtype=float), width)
+        fracture.FractureVolume = float(target_volume)
+        fracture.efficiency = float(target_volume / max(injected, 1.0e-12))
+        self.volumeProjectionCount += 1
+        self.volumeProjectionLastFactor = float(factor)
+        self.volumeProjectionMaxFactor = max(float(self.volumeProjectionMaxFactor), float(factor))
+        self.volumeProjectionMinFactor = min(float(self.volumeProjectionMinFactor), float(factor))
+        return True
+
+    def _build_elasticity_matrix(self, mesh):
+        """Build an elasticity matrix whose indexing matches ``mesh``.
+
+        This is used only when a failed step rolls back across a remesh.  The
+        old controller restored the fracture object but left ``self.C`` on the
+        newer mesh, so the next extension attempted to concatenate matrices
+        with incompatible row counts.  Rebuilding on the restored mesh is
+        slower than a pointer swap, but it is bounded to rollback events and
+        avoids retaining several dense matrices in memory.
+        """
+
+        if self.solid_prop.TI_elasticity:
+            matrix = load_TI_elasticity_matrix(mesh, self.solid_prop, self.sim_prop)
+            if self.sim_prop.symmetric:
+                return symmetric_elasticity_matrix_from_full(matrix, mesh)
+            return matrix
+
+        if self.sim_prop.symmetric:
+            return load_isotropic_elasticity_matrix_symmetric(mesh, self.solid_prop.Eprime)
+        if self.sim_prop.useBlockToeplizCompression:
+            return load_isotropic_elasticity_matrix_toepliz(mesh, self.solid_prop.Eprime)
+        return load_isotropic_elasticity_matrix(mesh, self.solid_prop.Eprime)
+
+    def _write_progress(self, status=None, phase=None):
+        """Atomically publish the last controller state for long runs.
+
+        The parent process may terminate a slow candidate without being able
+        to receive the Python object in memory.  This small heartbeat is
+        deliberately metadata-only; it is not treated as a valid PyFrac
+        result and it never replaces the acceptance check on final time.
+        """
+        if not self.progressFile:
+            return
+        try:
+            path = os.path.abspath(self.progressFile)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            payload = {
+                "time_s": float(getattr(self.fracture, "time", float("nan"))),
+                "final_time_s": float(getattr(self.sim_prop, "finalTime", float("nan"))),
+                "status": None if status is None else int(status),
+                "phase": phase or "time_marching",
+                "native_attempt": int(self.nativeAttempt),
+                "successful_time_steps": int(self.successfulTimeSteps),
+                "failed_time_steps": int(self.failedTimeSteps),
+                "controller_attempts": int(self.TmStpCount),
+                "max_time_steps": int(getattr(self.sim_prop, "maxTimeSteps", -1)),
+                "zero_injection_jumps": list(self.zeroInjectionJumps),
+                "front_cfl_limited_steps": int(self.frontCflLimitedSteps),
+                "front_state_repairs": int(self.frontStateRepairs),
+                "non_monotonic_state_rejects": int(self.nonMonotonicStateRejects),
+                "last_time_step_s": float(self.lastTimeStep),
+                "last_accepted_delta_time_s": float(self.lastAcceptedDeltaTime),
+                "last_attempt_status": self.lastAttemptStatus,
+                "last_attempt_time_step_s": float(self.lastAttemptTimeStep),
+                "last_attempt_failure_cause": self.lastAttemptFailureCause,
+                "attempt_status_counts": {
+                    str(key): int(value)
+                    for key, value in self.attemptStatusCounts.items()
+                },
+                "time_step_diagnostics": self.lastTimeStepDiagnostics,
+                "mesh_nx": int(getattr(self.fracture.mesh, "nx", 0)),
+                "mesh_ny": int(getattr(self.fracture.mesh, "ny", 0)),
+                "crack_cells": int(len(np.asarray(getattr(self.fracture, "EltCrack", [])))),
+                "tip_cells": int(len(np.asarray(getattr(self.fracture, "EltTip", [])))),
+                "volume_projection_count": int(self.volumeProjectionCount),
+                "volume_projection_last_factor": float(self.volumeProjectionLastFactor),
+                "volume_projection_max_factor": float(self.volumeProjectionMaxFactor),
+                "volume_projection_min_factor": float(self.volumeProjectionMinFactor),
+            }
+            # Publish the conserved-volume ledger with the heartbeat.  This
+            # is diagnostic metadata only, but it lets a long run identify
+            # whether a mass-balance jump is introduced by the EHL step or by
+            # the subsequent remesh/state transfer.  Do not repair values in
+            # this reporting path: the acceptance gate must see the raw state.
+            injected = float(np.asarray(getattr(self.fracture, "injectedVol", np.nan)).reshape(-1)[0])
+            fracture_volume = float(getattr(self.fracture, "FractureVolume", np.nan))
+            leakoff = float(np.nansum(np.asarray(getattr(self.fracture, "LkOffTotal", np.nan), dtype=float)))
+            payload["volume_ledger"] = {
+                "injected_volume_m3": injected,
+                "fracture_volume_m3": fracture_volume,
+                "leakoff_volume_m3": leakoff,
+                "mass_balance_residual_m3": injected - fracture_volume - leakoff,
+                "mesh_half_length_m": float(getattr(self.fracture.mesh, "Lx", np.nan)),
+                "mesh_half_height_m": float(getattr(self.fracture.mesh, "Ly", np.nan)),
+            }
+            # Keep a compact, real field snapshot for the desktop playback.
+            # This is diagnostic output only and never feeds values back into
+            # the solver. Sampling bounds file size on long native runs.
+            crack = np.asarray(getattr(self.fracture, "EltCrack", []), dtype=int)
+            centers = np.asarray(getattr(self.fracture.mesh, "CenterCoor", []), dtype=float)
+            if crack.size and centers.ndim == 2 and centers.shape[1] >= 2:
+                valid = crack[(crack >= 0) & (crack < centers.shape[0])]
+                if valid.size:
+                    coordinates = centers[valid, :2]
+                    payload["half_length_m"] = float(np.nanmax(np.abs(coordinates[:, 0])))
+                    payload["fracture_height_m"] = float(np.nanmax(coordinates[:, 1]) - np.nanmin(coordinates[:, 1]))
+                    widths = np.asarray(getattr(self.fracture, "w", []), dtype=float)
+                    pressures = np.asarray(getattr(self.fracture, "pNet", []), dtype=float)
+                    if widths.size > int(valid.max()):
+                        payload["max_aperture_mm"] = float(np.nanmax(widths[valid]) * 1.0e3)
+                    if pressures.size > int(valid.max()):
+                        field_pressure = pressures[valid] / 1.0e6
+                        payload["mean_net_pressure_mpa"] = float(np.nanmean(field_pressure))
+                        payload["max_net_pressure_mpa"] = float(np.nanmax(field_pressure))
+                    stride = max(1, int(np.ceil(valid.size / 180.0)))
+                    sampled = valid[::stride]
+                    payload["pressure_field"] = [
+                        {
+                            "x_m": float(centers[index, 0]),
+                            "y_m": float(centers[index, 1]),
+                            "net_pressure_mpa": float(pressures[index] / 1.0e6) if pressures.size > index else 0.0,
+                            "width_mm": float(widths[index] * 1.0e3) if widths.size > index else 0.0,
+                        }
+                        for index in sampled
+                    ]
+                    tip = np.asarray(getattr(self.fracture, "EltTip", []), dtype=int)
+                    tip = tip[(tip >= 0) & (tip < centers.shape[0])]
+                    payload["front_geometry"] = centers[tip, :2].tolist() if tip.size else []
+            temporary = path + ".tmp"
+            with open(temporary, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, ensure_ascii=False, indent=2)
+            os.replace(temporary, path)
+            history_path = os.environ.get("PYFRAC_PROGRESS_HISTORY_FILE")
+            if history_path:
+                history_path = os.path.abspath(history_path)
+                os.makedirs(os.path.dirname(history_path), exist_ok=True)
+                with open(history_path, "a", encoding="utf-8") as history_handle:
+                    history_handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        except Exception as exc:
+            # Progress reporting must never change the solver result.
+            logging.getLogger("PyFrac.controller").debug(
+                "could not write progress heartbeat: %s", exc
+            )
 
 
 #-----------------------------------------------------------------------------------------------------------------------
@@ -878,14 +1370,22 @@ class Controller:
             - Fr (Fracture)           -- fracture after advancing time step.
         """
         log = logging.getLogger('PyFrac.controller.advance_time_step')
-        # loop for reattempting time stepping in case of failure.
-        for i in range(0, self.sim_prop.maxReattempts):
-            # smaller time step to reattempt time stepping; equal to the given time step on first iteration
+        # ``maxReattempts`` is the number of *extra* retries in the original
+        # code, but the surrounding controller always expects at least one
+        # actual attempt.  ``range(0, 0)`` used to leave ``status`` and ``Fr``
+        # uninitialised when a caller deliberately disabled retries, causing
+        # an unrelated ``UnboundLocalError`` before the real solver failure
+        # could be reported.  Keep zero as “no retry” while still performing
+        # the initial attempt.
+        attempt_count = max(int(getattr(self.sim_prop, "maxReattempts", 0)), 0) + 1
+        for i in range(attempt_count):
+            # Always retry with a smaller step.  The upstream controller
+            # switched to *larger* steps in the second half of this loop,
+            # which is counterproductive for an EHL non-convergence: after a
+            # failed small-step retry it could immediately re-enter the same
+            # unstable regime.  Monotone reduction makes rollback reproducible
+            # and gives the nonlinear solve a genuine chance to recover.
             tmStp_to_attempt = timeStep * self.sim_prop.reAttemptFactor ** i
-
-            # try larger prefactor
-            if i > self.sim_prop.maxReattempts/2-1:
-                tmStp_to_attempt = timeStep * (1/self.sim_prop.reAttemptFactor)**(i+1 - self.sim_prop.maxReattempts/2)
 
             # check for final time
             if Frac.time + tmStp_to_attempt > 1.01 * self.sim_prop.finalTime:
@@ -906,6 +1406,18 @@ class Controller:
                                             self.injection_prop,
                                             tmStp_to_attempt,
                                             perfNode_TmStpAtmpt)
+
+            # Publish the inner status immediately.  A long native run may
+            # be stopped by the outer wall-clock budget before Controller.run
+            # returns, so the final result alone is not enough to diagnose
+            # where the solver stopped.
+            self.lastAttemptStatus = int(status)
+            self.lastAttemptTimeStep = float(tmStp_to_attempt)
+            self.lastAttemptFailureCause = (
+                None if status == 1 else self.errorMessages[status]
+            )
+            self.attemptStatusCounts[status] = self.attemptStatusCounts.get(status, 0) + 1
+            self._write_progress(status=status, phase="time_step_attempt")
 
             if perfNode_TmStpAtmpt is not None:
                 instrument_close(perfNode, perfNode_TmStpAtmpt,
@@ -1138,6 +1650,10 @@ class Controller:
         """
         log = logging.getLogger('PyFrac.get_time_step')
         time_step_given = False
+        TS_cell_length = np.inf
+        TS_fracture_length = np.inf
+        TS_inj_cell = np.inf
+        TS_delta_vol = np.inf
         if self.sim_prop.fixedTmStp is not None:
             # fixed time step
             if isinstance(self.sim_prop.fixedTmStp, float) or isinstance(self.sim_prop.fixedTmStp, int):
@@ -1163,9 +1679,10 @@ class Controller:
 
         if not time_step_given:
             delta_x = min(self.fracture.mesh.hx, self.fracture.mesh.hy)
-            if np.any(self.fracture.v == np.nan):
-                log.warning("you should not get nan velocities")
-            non_zero_v = np.where(self.fracture.v > 0)[0]
+            velocity = np.asarray(self.fracture.v, dtype=float).reshape(-1)
+            if np.any(~np.isfinite(velocity)):
+                log.warning("non-finite front velocities are present; ignoring them for time-step estimation")
+            non_zero_v = np.where(np.isfinite(velocity) & (velocity > 0.0))[0]
             # time step is calculated with the current propagation velocity
             if len(non_zero_v) > 0:
                 if len(self.injection_prop.sourceElem) < 4:
@@ -1177,16 +1694,41 @@ class Controller:
                                     (tipVrtxCoord[:, 1] - self.injection_prop.sourceCoordinates[1]) ** 2) ** 0.5 \
                                    + self.fracture.l
 
-                    # the time step evaluated by restricting the fracture to propagate not more than 20 percent of the
-                    # current maximum length
-                    TS_fracture_length = min(abs(0.2 * dist_Inj_pnt[non_zero_v] / self.fracture.v[non_zero_v]))
+                    # The legacy continuous-front update can expose a new
+                    # velocity entry for one internal iteration before the
+                    # corresponding tip-distance metadata is rebuilt.  Keep
+                    # the time-step estimate conservative, but do not index
+                    # a shorter distance array with the longer velocity list.
+                    valid_non_zero_v = non_zero_v[non_zero_v < dist_Inj_pnt.size]
+                    if valid_non_zero_v.size > 0:
+                        length_fraction = max(
+                            float(getattr(self.sim_prop, "fractureLengthFraction", 0.2)),
+                            0.0,
+                        )
+                        TS_fracture_length = min(
+                            abs(
+                                length_fraction
+                                * dist_Inj_pnt[valid_non_zero_v]
+                                / velocity[valid_non_zero_v]
+                            )
+                        ) if length_fraction > 0.0 else np.inf
+                    else:
+                        TS_fracture_length = np.inf
                 else:
                     TS_fracture_length = np.inf
 
                 # the time step evaluated by restricting the fraction of the cell that would be traversed in the time
                 # step. e.g., if the pre-factor is 0.5, the tip in the cell with the largest velocity will progress half
                 # of the cell width in either x or y direction depending on which is smaller.
-                TS_cell_length = delta_x / np.max(self.fracture.v)
+                cell_traversal_fraction = max(
+                    float(getattr(self.sim_prop, "cellTraversalFraction", 1.0)),
+                    1.0e-6,
+                )
+                TS_cell_length = (
+                    cell_traversal_fraction
+                    * delta_x
+                    / np.max(velocity[non_zero_v])
+                )
 
             else:
                 TS_cell_length = np.inf
@@ -1201,17 +1743,31 @@ class Controller:
                 TS_inj_cell = 10 * delta_x / abs(vel_injection[0])
             elif current_rate > 0:
                 # for positive injection, use the increase in total fracture volume criteria
-                TS_inj_cell = 0.1 * sum(self.fracture.w) * self.fracture.mesh.EltArea / current_rate
+                injection_fraction = max(
+                    float(getattr(self.sim_prop, "injectionVolumeStepFraction", 0.10)),
+                    1.0e-6,
+                )
+                TS_inj_cell = injection_fraction * sum(self.fracture.w) * self.fracture.mesh.EltArea / current_rate
             else:
                 TS_inj_cell = np.inf
 
             TS_delta_vol = np.inf
             if self.delta_w is not None:
                 delta_vol = sum(self.delta_w) / sum(self.fracture.w)
-                if delta_vol < 0:
-                    TS_delta_vol = self.lstTmStp / abs(delta_vol) * 0.05
+                if abs(delta_vol) <= 1.0e-12:
+                    TS_delta_vol = np.inf
+                elif delta_vol < 0:
+                    volume_change_fraction = max(
+                        float(getattr(self.sim_prop, "negativeVolumeChangeStepFraction", 0.05)),
+                        1.0e-6,
+                    )
+                    TS_delta_vol = self.lstTmStp / abs(delta_vol) * volume_change_fraction
                 else:
-                    TS_delta_vol = self.lstTmStp / abs(delta_vol) * 0.12
+                    volume_change_fraction = max(
+                        float(getattr(self.sim_prop, "positiveVolumeChangeStepFraction", 0.12)),
+                        1.0e-6,
+                    )
+                    TS_delta_vol = self.lstTmStp / abs(delta_vol) * volume_change_fraction
 
             # getting pre-factor for current time
             current_prefactor = self.sim_prop.get_time_step_prefactor(self.fracture.time)
@@ -1225,8 +1781,12 @@ class Controller:
                 time_step = 2 * self.lstTmStp
 
             # limit the time step to be at max 15% of the actual time
-            if time_step > 0.15 * self.fracture.time:
-                time_step = 0.15 * self.fracture.time
+            time_fraction = max(
+                float(getattr(self.sim_prop, "timeStepTimeFraction", 0.15)),
+                1.0e-6,
+            )
+            if time_step > time_fraction * self.fracture.time:
+                time_step = time_fraction * self.fracture.time
 
         # in case of fracture not propagating
         if time_step <= 0 or np.isinf(time_step):
@@ -1265,10 +1825,62 @@ class Controller:
         elif next_in_TS - self.fracture.time < 1.05 * time_step:
             time_step = next_in_TS - self.fracture.time
 
+        # Do not let a native PDE step straddle a positive/zero injection
+        # regime transition.  The legacy controller can otherwise present a
+        # single nonlinear solve with both an open and a shut-in source,
+        # which is the recurrent trigger for front reconstruction failures on
+        # long runs.  Only regime changes are clipped; ordinary measured rate
+        # changes remain eligible for the existing larger time steps.
+        if getattr(self.sim_prop, "clipToInjectionRegimeEvents", False):
+            rate_times = np.asarray(self.injection_prop.injectionRate[0, :], dtype=float)
+            rate_values = np.asarray(self.injection_prop.injectionRate[1, :], dtype=float)
+            finite = np.isfinite(rate_times) & np.isfinite(rate_values)
+            rate_times = rate_times[finite]
+            rate_values = rate_values[finite]
+            if rate_times.size > 1:
+                positive = rate_values > 1.0e-12
+                transition_indices = np.flatnonzero(positive[1:] != positive[:-1]) + 1
+                event_tolerance = max(
+                    1.0e-8,
+                    1.0e-10 * max(abs(float(self.sim_prop.finalTime)), 1.0),
+                )
+                future = transition_indices[
+                    rate_times[transition_indices] > self.fracture.time + event_tolerance
+                ]
+                if future.size:
+                    next_regime_event = float(rate_times[future[0]])
+                    if self.fracture.time + time_step > next_regime_event:
+                        time_step = next_regime_event - self.fracture.time
+
         # checking if the time step is above the limit
         if self.sim_prop.timeStepLimit is not None and time_step > self.sim_prop.timeStepLimit:
             log.warning("Evaluated/given time step is more than the time step limit! Limiting time step...")
             time_step = self.sim_prop.timeStepLimit
+
+        self.lastTimeStepDiagnostics = {
+            "selected_s": float(time_step),
+            "cell_length_s": float(TS_cell_length),
+            "fracture_length_s": float(TS_fracture_length),
+            "injection_volume_s": float(TS_inj_cell),
+            "volume_change_s": float(TS_delta_vol),
+            "injection_volume_fraction": float(
+                getattr(self.sim_prop, "injectionVolumeStepFraction", 0.10)
+            ),
+            "positive_volume_change_fraction": float(
+                getattr(self.sim_prop, "positiveVolumeChangeStepFraction", 0.12)
+            ),
+            "negative_volume_change_fraction": float(
+                getattr(self.sim_prop, "negativeVolumeChangeStepFraction", 0.05)
+            ),
+            "cell_traversal_fraction": float(
+                getattr(self.sim_prop, "cellTraversalFraction", 1.0)
+            ),
+            "time_step_limit_s": (
+                None if self.sim_prop.timeStepLimit is None
+                else float(self.sim_prop.timeStepLimit)
+            ),
+            "time_step_given": bool(time_step_given),
+        }
 
         return time_step
 
@@ -1290,7 +1902,16 @@ class Controller:
         # We adapt the elasticity matrix
         if not self.sim_prop.useBlockToeplizCompression:
             if direction is None:
-                if rem_factor == self.sim_prop.remeshFactor:
+                # The project-level fixed-cell path expands only the
+                # horizontal domain.  The legacy ``C *= 1/rem_factor`` shortcut
+                # is valid only for an isotropic scaling of every coordinate;
+                # applying it here changes the pressure/width relation and
+                # can produce a large nonphysical pressure error.  Rebuild C
+                # on the new mesh whenever the domain is expanded anisotropically.
+                fixed_domain_regrid = bool(
+                    getattr(self.sim_prop, "expandDomainOnBoundary", False)
+                )
+                if rem_factor == self.sim_prop.remeshFactor and not fixed_domain_regrid:
                     self.C *= 1 / self.sim_prop.remeshFactor
                 else:
                     if not self.sim_prop.symmetric:

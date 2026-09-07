@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from decision_engine.integrated_reward import IntegratedRewardConfig
+from decision_engine.integrated_reward import IntegratedRewardConfig, calculate_integrated_reward
 from decision_engine.pump_schedule_constraints import constrain_actions, get_schedule_constraint
 from rl.fracturing_env import (
     FracturingControlEnv,
@@ -31,6 +31,7 @@ from simulator.contract_acceptance import (
     evaluate_direct_5min_warning,
     summarize_decision_latency,
 )
+from train_rl_control_agent import summarize_action_safety
 
 
 def build_env() -> FracturingControlEnv:
@@ -78,6 +79,90 @@ def test_environment_step_is_action_conditioned() -> None:
     assert np.isfinite(aggressive_reward)
 
 
+def test_sand_recommendation_is_a_distinct_action_field() -> None:
+    env = build_env()
+    env.reset()
+    _, _, _, _, info = env.step(np.array([-0.5, 1.0], dtype=np.float32))
+    assert info["current_sand_ratio_percent"] == info["pre_action_sand_ratio_percent"]
+    assert info["recommended_sand_ratio_percent"] == info["sand_ratio_percent"]
+    assert info["recommended_sand_ratio_percent"] > info["current_sand_ratio_percent"]
+    assert info["policy_sand_action_effective"] is True
+
+
+def test_cluster_balance_improvement_is_a_separate_effectiveness_reward() -> None:
+    context = pd.DataFrame(
+        {
+            "posterior_total_half_length_m": [100.0, 101.0],
+            "posterior_error": [0.10, 0.10],
+            "bottomhole_pressure_mpa": [85.0, 85.0],
+            "net_pressure_mpa": [20.0, 20.0],
+            "cluster_balance_degree": [0.60, 0.80],
+        }
+    )
+    result = calculate_integrated_reward(
+        np.array([10.0, 10.0]),
+        np.array([4.0, 4.0]),
+        np.array([10.0, 10.0]),
+        np.array([4.0, 4.0]),
+        context,
+        20.0,
+        14.0,
+        IntegratedRewardConfig(),
+    )
+    assert result["cluster_balance_available"][-1]
+    assert abs(result["cluster_balance_improvement"][-1] - 0.20) < 1.0e-9
+    assert result["cluster_balance_reward"][-1] > 0.0
+    assert result["effectiveness_reward"][-1] > result["cluster_balance_reward"][-1]
+
+
+def test_missing_cluster_balance_does_not_create_reward() -> None:
+    context = pd.DataFrame(
+        {
+            "posterior_total_half_length_m": [100.0, 101.0],
+            "bottomhole_pressure_mpa": [85.0, 85.0],
+            "net_pressure_mpa": [20.0, 20.0],
+        }
+    )
+    result = calculate_integrated_reward(
+        np.array([10.0, 10.0]),
+        np.array([4.0, 4.0]),
+        np.array([10.0, 10.0]),
+        np.array([4.0, 4.0]),
+        context,
+        20.0,
+        14.0,
+        IntegratedRewardConfig(),
+    )
+    assert not result["cluster_balance_available"][-1]
+    assert result["cluster_balance_reward"][-1] == 0.0
+    assert np.isnan(result["cluster_balance_degree"][-1])
+
+
+def test_width_and_volume_are_internal_effectiveness_signals() -> None:
+    context = pd.DataFrame(
+        {
+            "posterior_total_half_length_m": [100.0, 101.0],
+            "fracture_width_m": [0.0010, 0.0011],
+            "fracture_volume_m3": [100.0, 110.0],
+            "bottomhole_pressure_mpa": [85.0, 85.0],
+            "net_pressure_mpa": [20.0, 20.0],
+        }
+    )
+    result = calculate_integrated_reward(
+        np.array([10.0, 10.0]),
+        np.array([4.0, 4.0]),
+        np.array([10.0, 10.0]),
+        np.array([4.0, 4.0]),
+        context,
+        20.0,
+        14.0,
+        IntegratedRewardConfig(),
+    )
+    assert result["fracture_width_reward"][-1] > 0.0
+    assert result["fracture_volume_reward"][-1] > 0.0
+    assert result["effectiveness_reward"][-1] > 0.0
+
+
 def test_engineering_action_round_trip_stays_within_bounds() -> None:
     env = build_env()
     env.reset()
@@ -85,10 +170,58 @@ def test_engineering_action_round_trip_stays_within_bounds() -> None:
     assert env.action_space.contains(encoded)
     _, _, _, _, info = env.step(encoded)
     assert 0.0 <= info["flow_m3_min"] <= env.schedule.max_flow_m3_min
-    assert 0.0 <= info["sand_ratio_percent"] <= env.schedule.max_sand_ratio_percent
+    assert 0.0 <= info["sand_ratio_percent"] <= env.schedule.sand_ratio_scale_percent
 
 
-def test_conservative_sand_projection_does_not_cross_high_sand_limit() -> None:
+def test_centered_action_encoding_uses_zero_as_the_hold_point() -> None:
+    base = build_env()
+    env = FracturingControlEnv(
+        base.features,
+        base.meta,
+        base.context,
+        base.schedule,
+        base.reward_config,
+        FracturingEnvConfig(episode_steps=5, action_encoding="centered_delta"),
+        random_start=False,
+    )
+    env.reset()
+    _, _, _, _, hold = env.step(np.array([0.0, 0.0], dtype=np.float32))
+    assert abs(hold["sand_ratio_percent"] - hold["current_sand_ratio_percent"]) < 1.0e-6
+
+    env.reset()
+    _, _, _, _, increase = env.step(np.array([0.0, 1.0], dtype=np.float32))
+    assert increase["sand_ratio_percent"] > increase["current_sand_ratio_percent"]
+    assert increase["sand_delta_from_current_percent"] <= env.schedule.max_sand_increase_percent
+
+    env.reset()
+    _, _, _, _, decrease = env.step(np.array([0.0, -1.0], dtype=np.float32))
+    assert decrease["sand_ratio_percent"] < decrease["current_sand_ratio_percent"]
+    assert abs(decrease["raw_sand_action"] + 1.0) < 1.0e-6
+
+
+def test_hierarchical_centered_grow_exposes_decrease_hold_increase() -> None:
+    base = build_env()
+    env = HierarchicalFracturingControlEnv(
+        base.features,
+        base.meta,
+        base.context,
+        base.schedule,
+        base.reward_config,
+        HierarchicalFracturingEnvConfig(episode_steps=5, action_encoding="centered_delta"),
+        random_start=False,
+    )
+
+    values = []
+    for raw_sand in (-1.0, 0.0, 1.0):
+        env.reset()
+        _, _, _, _, info = env.step(np.array([0.0, raw_sand], dtype=np.float32))
+        values.append(float(info["sand_ratio_percent"]))
+
+    assert values[0] < values[1] < values[2]
+    assert abs(values[1] - 4.0) < 1.0e-6
+
+
+def test_conservative_sand_projection_holds_already_high_observation() -> None:
     schedule = get_schedule_constraint("continuous")
     flow, sand, diagnostics = constrain_actions(
         np.array([18.0]),
@@ -117,6 +250,53 @@ def test_repeated_advisory_actions_stay_anchored_to_observed_sand() -> None:
     assert second["sand_control_mode"] == "observed_reference_micro_adjustment"
 
 
+def test_observed_high_sand_is_not_increased_without_configured_hard_limit() -> None:
+    env = build_env()
+    env.meta["current_sand_ratio"] = 13.8
+    env.reset()
+    _, _, _, _, info = env.step(np.array([1.0, 1.0], dtype=np.float32))
+    assert info["sand_ratio_percent"] <= 13.8 + 1e-6
+    assert info["sand_ratio_hard_limit_configured"] is False
+    assert info["current_sand_above_absolute_limit"] is False
+    assert info["sand_ratio_requires_confirmation"] is True
+
+
+def test_high_observed_input_is_audited_and_not_increased() -> None:
+    env = build_env()
+    env.meta["current_sand_ratio"] = 15.0
+    env.reset()
+    _, _, _, _, info = env.step(np.array([1.0, 1.0], dtype=np.float32))
+    assert info["current_sand_above_absolute_limit"] is False
+    assert info["sand_ratio_hard_limit_configured"] is False
+    assert info["sand_ratio_percent"] <= 15.0 + 1e-6
+
+
+def test_unconfigured_hard_limit_is_not_reported_as_nan_output() -> None:
+    frame = pd.DataFrame(
+        {
+            "episode": [0],
+            "step": [0],
+            "high_level_option": ["hold"],
+            "sand_ratio_percent": [14.0],
+            "sand_delta_from_reference_percent": [0.0],
+            "pre_action_flow_m3_min": [10.0],
+            "flow_m3_min": [10.0],
+            "sand_ratio_hard_limit_configured": [False],
+            "sand_ratio_hard_limit_percent": [None],
+            "posterior_fracture_toughness_pa_sqrt_m": [None],
+            "cluster_geometry_spread": [None],
+            "sand_ratio_requires_confirmation": [True],
+            "action_clipped": [False],
+            "surrogate_fallback": [False],
+            "unsafe": [False],
+        }
+    )
+    audit = summarize_action_safety(frame)
+    assert audit["hard_sand_limit_configured"] is False
+    assert audit["hard_sand_limit_violation_count"] is None
+    assert audit["nan_or_inf_output"] is False
+
+
 def test_hierarchical_environment_exposes_option_and_safe_low_level_action() -> None:
     base = build_env()
     env = HierarchicalFracturingControlEnv(
@@ -134,7 +314,7 @@ def test_hierarchical_environment_exposes_option_and_safe_low_level_action() -> 
     _, reward, _, _, step_info = env.step(np.array([1.0, 1.0], dtype=np.float32))
     assert step_info["high_level_option"] in env.OPTIONS
     assert 0.0 <= step_info["flow_m3_min"] <= env.schedule.max_flow_m3_min
-    assert 0.0 <= step_info["sand_ratio_percent"] <= env.schedule.max_sand_ratio_percent
+    assert 0.0 <= step_info["sand_ratio_percent"] <= env.schedule.sand_ratio_scale_percent
     assert np.isfinite(reward)
 
 

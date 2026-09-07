@@ -11,7 +11,7 @@ All rights reserved. See the LICENSE.TXT file for more details.
 import logging
 from properties import instrument_start, instrument_close
 import numpy as np
-from scipy.optimize import brentq
+from scipy.optimize import brentq, minimize_scalar
 import warnings
 from scipy.optimize import fsolve
 
@@ -556,14 +556,20 @@ def TipAsymInversion(w, frac, matProp, fluidProp, simParmtrs, dt=None, Kprime_k=
                             ResFunc,
                             simParmtrs)
     ## AM: part added to take care of nan's in the bracketing if bracketing is no longer possible.
-    if any(np.isnan(a)):
-        stagnant_from_bracketing = np.argwhere(np.isnan(a))[::,0]
+    if np.any(~np.isfinite(a)) or np.any(~np.isfinite(b)):
+        stagnant_from_bracketing = np.argwhere(
+            ~np.isfinite(a) | ~np.isfinite(b)
+        )[:, 0]
         a = np.delete(a, stagnant_from_bracketing)
         b = np.delete(b, stagnant_from_bracketing)
         if not stagnant.size == 0:
             stagnant = np.sort(np.unique(np.hstack((stagnant, moving[stagnant_from_bracketing]))))
         else:
-            stagnant = stagnant_from_bracketing
+            # ``stagnant_from_bracketing`` is indexed in the compact
+            # ``moving`` array, not in the fracture ribbon/global mesh.
+            # Using it directly corrupts the front mask when every current
+            # ribbon cell is moving and one bracket is invalid.
+            stagnant = moving[stagnant_from_bracketing]
         moving = np.arange(frac.EltRibbon.shape[0])[~np.in1d(frac.EltRibbon, frac.EltRibbon[stagnant])]
     ## End of adaption
 
@@ -605,6 +611,45 @@ def TipAsymInversion(w, frac, matProp, fluidProp, simParmtrs, dt=None, Kprime_k=
                     dist[moving[i]] = np.nan
             else:
                 dist[moving[i]] = np.nan
+
+            # The legacy root solver can reject an otherwise finite bracket
+            # after a coarse front move because the two endpoint residuals
+            # lose a sign change by round-off.  Preserve the physical bracket
+            # and use its least-residual point as a diagnostic continuation;
+            # non-finite or grossly inconsistent candidates remain rejected by
+            # the normal caller checks.
+            if not np.isfinite(dist[moving[i]]):
+                left = float(a[i]) if i < len(a) else np.nan
+                right = float(b[i]) if i < len(b) else np.nan
+                if np.isfinite(left) and np.isfinite(right) and right > left:
+                    def _residual_magnitude(value):
+                        try:
+                            residual = ResFunc(float(value), *TipAsmptargs)
+                        except (FloatingPointError, OverflowError, ValueError):
+                            return np.inf
+                        residual = float(np.asarray(residual).reshape(-1)[0])
+                        return abs(residual) if np.isfinite(residual) else np.inf
+
+                    try:
+                        least_residual = minimize_scalar(
+                            _residual_magnitude,
+                            bounds=(left, right),
+                            method='bounded',
+                            options={'xatol': max((right - left) * 1.0e-8, 1.0e-10)},
+                        )
+                        candidate = float(least_residual.x)
+                        residual = _residual_magnitude(candidate)
+                        residual_scale = max(1.0, abs(float(w[frac.EltRibbon[moving[i]]])))
+                        if (least_residual.success and np.isfinite(candidate) and
+                                np.isfinite(residual) and residual <= 0.25 * residual_scale):
+                            dist[moving[i]] = candidate
+                            log.warning(
+                                'Tip inversion used least-residual continuation at ribbon index %s '
+                                '(residual=%g)',
+                                int(moving[i]), residual,
+                            )
+                    except (FloatingPointError, OverflowError, ValueError):
+                        pass
     return dist
 
 # -----------------------------------------------------------------------------------------------------------------------
@@ -627,29 +672,120 @@ def StressIntensityFactor(w, lvlSetData, EltTip, EltRibbon, stagnant, mesh, Epri
         ndarray-float:                  the stress intensity factor of the stagnant cells. Zero is returned for the 
                                         tip cells that are moving.
     """
+    log = logging.getLogger('PyFrac.StressIntensityFactor')
     KIPrime = np.zeros((EltTip.size,), float)
+
+    # The legacy implementation assumes every stagnant tip has a valid ribbon
+    # cell in its eight-cell enclosure.  That assumption is not guaranteed
+    # after a coarse remesh or a front that crosses a cell corner.  Keep only
+    # physically usable ribbon cells here and use the nearest usable cell as a
+    # controlled fallback.  Returning NaN is still intentional when there is
+    # no usable ribbon anywhere: the caller must then reject and roll back the
+    # trial state instead of silently inventing a stress intensity factor.
+    ribbon = np.asarray(EltRibbon, dtype=int).reshape(-1)
+    ribbon = ribbon[(ribbon >= 0) & (ribbon < mesh.NumberOfElts)]
+    ribbon = np.unique(ribbon)
+
+    def _valid_ribbon_cells(cells):
+        cells = np.asarray(cells, dtype=int).reshape(-1)
+        cells = cells[(cells >= 0) & (cells < mesh.NumberOfElts)]
+        if cells.size == 0:
+            return np.asarray([], dtype=int)
+        valid = np.isfinite(lvlSetData[cells]) & (lvlSetData[cells] < 0.0)
+        valid &= np.isfinite(w[cells]) & (w[cells] >= 0.0)
+        return np.unique(cells[valid])
+
+    valid_ribbon = _valid_ribbon_cells(ribbon)
+    cell_diag = float(np.hypot(mesh.hx, mesh.hy))
     for i in range(0, len(EltTip)):
         if stagnant[i]:
+            KIPrime[i] = np.nan
             neighbors = mesh.NeiElements[EltTip[i]]
-            enclosing = np.append(neighbors, np.asarray(
-                [neighbors[2] - 1, neighbors[2] + 1, neighbors[3] - 1, neighbors[3] + 1]))  # eight enclosing cells
+            # Do not derive diagonal neighbours by +/- 1 on a flattened
+            # index.  That wraps across row boundaries after remeshing and
+            # can select a geometrically unrelated cell.
+            tip_center = mesh.CenterCoor[EltTip[i]]
+            centre_distance = np.hypot(
+                mesh.CenterCoor[:, 0] - tip_center[0],
+                mesh.CenterCoor[:, 1] - tip_center[1],
+            )
+            enclosing = np.flatnonzero(centre_distance <= cell_diag * (1.0 + 1.0e-10))
 
             InRibbon = np.asarray([], int)  # find neighbors in Ribbon cells
-            for e in range(8):
-                found = np.where(EltRibbon == enclosing[e])[0]
-                if found.size > 0:
-                    InRibbon = np.append(InRibbon, EltRibbon[found[0]])
+            if enclosing.size:
+                InRibbon = np.intersect1d(ribbon, enclosing)
+
+            # Remove duplicate/invalid candidates introduced by repeated
+            # neighbour indices at boundaries and by remeshing.
+            InRibbon = _valid_ribbon_cells(InRibbon)
+
+            # A front can cross a cell corner and leave no usable ribbon in
+            # the immediate enclosure.  Search a bounded second ring before
+            # selecting a non-local candidate.
+            local_ring = np.flatnonzero(centre_distance <= 2.5 * cell_diag)
+            if InRibbon.size == 0:
+                InRibbon = _valid_ribbon_cells(np.intersect1d(ribbon, local_ring))
 
             if InRibbon.size == 1:
                 KIPrime[i] = w[InRibbon[0]] * Eprime[i] / (-lvlSetData[InRibbon[0]]) ** 0.5
             elif InRibbon.size > 1:  # evaluate using least squares method
-                KIPrime[i] = Eprime[i] * (w[InRibbon[0]] * (-lvlSetData[InRibbon[0]]) ** 0.5 + w[InRibbon[1]] * (
-                    -lvlSetData[InRibbon[1]]) ** 0.5) / (-lvlSetData[InRibbon[0]] - lvlSetData[InRibbon[1]])
-            else:  # ribbon cells not found in enclosure, evaluating with the closest ribbon cell
-                RibbonCellsDist = ((mesh.CenterCoor[EltRibbon, 0] - mesh.CenterCoor[EltTip[i], 0]) ** 2 + (
-                    mesh.CenterCoor[EltRibbon, 1] - mesh.CenterCoor[EltTip[i], 1]) ** 2) ** 0.5
-                closest = EltRibbon[np.argmin(RibbonCellsDist)]
-                KIPrime[i] = w[closest] * Eprime[i] / (-lvlSetData[closest]) ** 0.5
+                # Use the two closest local ribbon cells.  The old code used
+                # the first two array entries, which is sensitive to element
+                # ordering and can create an ill-conditioned denominator.
+                local_dist = np.hypot(
+                    mesh.CenterCoor[InRibbon, 0] - mesh.CenterCoor[EltTip[i], 0],
+                    mesh.CenterCoor[InRibbon, 1] - mesh.CenterCoor[EltTip[i], 1],
+                )
+                local = InRibbon[np.argsort(local_dist)[:2]]
+                denominator = -lvlSetData[local[0]] - lvlSetData[local[1]]
+                if denominator > np.finfo(float).eps:
+                    KIPrime[i] = Eprime[i] * (
+                        w[local[0]] * (-lvlSetData[local[0]]) ** 0.5
+                        + w[local[1]] * (-lvlSetData[local[1]]) ** 0.5
+                    ) / denominator
+
+            if not np.isfinite(KIPrime[i]):
+                # A valid ribbon may be outside the local enclosure after a
+                # front corner crossing.  The nearest valid global ribbon is
+                # a conservative continuation of the original fallback.
+                if valid_ribbon.size > 0:
+                    ribbon_dist = np.hypot(
+                        mesh.CenterCoor[valid_ribbon, 0] - mesh.CenterCoor[EltTip[i], 0],
+                        mesh.CenterCoor[valid_ribbon, 1] - mesh.CenterCoor[EltTip[i], 1],
+                    )
+                    closest = valid_ribbon[np.argmin(ribbon_dist)]
+                    KIPrime[i] = (
+                        w[closest] * Eprime[i] / (-lvlSetData[closest]) ** 0.5
+                    )
+                    log.warning(
+                        'Stagnant tip %s used nearest valid ribbon fallback (local=%s, valid_global=%s)',
+                        int(EltTip[i]), int(InRibbon.size), int(valid_ribbon.size)
+                    )
+                else:
+                    # If ribbon metadata is empty, use an admissible local
+                    # width/level-set pair to evaluate the same LEFM
+                    # relation.  No admissible cell means the trial remains
+                    # invalid and is rejected by the normal rollback path.
+                    admissible = local_ring[
+                        np.isfinite(lvlSetData[local_ring])
+                        & (lvlSetData[local_ring] < 0.0)
+                        & np.isfinite(w[local_ring])
+                        & (w[local_ring] > 0.0)
+                    ]
+                    if admissible.size:
+                        closest = admissible[np.argmin(centre_distance[admissible])]
+                        KIPrime[i] = (
+                            w[closest] * Eprime[i]
+                            / max(-lvlSetData[closest], np.finfo(float).eps) ** 0.5
+                        )
+                        log.warning(
+                            'Stagnant tip %s used local width fallback without ribbon metadata',
+                            int(EltTip[i]),
+                        )
+                    log.warning(
+                        'Stagnant tip %s has no valid ribbon candidate (local=%s, ribbon=%s)',
+                        int(EltTip[i]), int(InRibbon.size), int(ribbon.size)
+                    )
 
             if KIPrime[i] < 0.:
                 KIPrime[i] = 0.

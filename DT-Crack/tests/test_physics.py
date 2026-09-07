@@ -4,7 +4,12 @@ import unittest
 
 import numpy as np
 
-from inversion import PhysicalEnKFConfig, denkf_update, pkn_with_carter_leakoff
+from inversion import (
+    PhysicalEnKFConfig,
+    denkf_update,
+    parameterized_allocation_state_size,
+    pkn_with_carter_leakoff,
+)
 
 
 class EnhancedPKNTests(unittest.TestCase):
@@ -37,6 +42,19 @@ class EnhancedPKNTests(unittest.TestCase):
         self.assertAlmostEqual(float(np.asarray(result["q_current_nominal_m3_s"]).sum()), 0.5, places=10)
         self.assertTrue(np.all(np.asarray(result["max_aperture_mm"]) > 0.0))
 
+    def test_parameterized_allocation_computes_cluster_rates_from_state(self) -> None:
+        state = np.zeros(parameterized_allocation_state_size(6), dtype=float)
+        # Relative log intake capacity: cluster 1 is stronger and cluster 6 is
+        # weaker. The total injected rate must remain conserved.
+        state[5] = 1.5
+        state[10] = -1.5
+        result = pkn_with_carter_leakoff(state, self.q, 1800.0, self.cfg)
+        allocation = np.asarray(result["cluster_allocation"], dtype=float)
+        self.assertTrue(bool(result["allocation_parameterized"]))
+        self.assertGreater(allocation[0], allocation[-1])
+        self.assertAlmostEqual(float(np.sum(result["q_nominal_m3_s"])), float(np.sum(self.q)), places=10)
+        self.assertTrue(np.all(np.isfinite(result["half_length_m"])))
+
     def test_deterministic_enkf_reduces_mean_observation_residual(self) -> None:
         rng = np.random.default_rng(7)
         ensemble = rng.normal(0.0, 1.0, size=(80, 2))
@@ -48,6 +66,15 @@ class EnhancedPKNTests(unittest.TestCase):
         after = abs(float(updated_prediction.mean()) - float(observed[0]))
         self.assertEqual(gain.shape, (2, 1))
         self.assertLess(after, before)
+
+    def test_enkf_rejects_single_member_covariance(self) -> None:
+        with self.assertRaisesRegex(ValueError, "至少需要 3 个同步成员"):
+            denkf_update(
+                np.zeros((1, 2)),
+                np.zeros((1, 1)),
+                np.zeros(1),
+                np.ones(1),
+            )
 
 
 if __name__ == "__main__":

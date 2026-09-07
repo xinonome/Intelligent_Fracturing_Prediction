@@ -42,6 +42,10 @@ class DigitalTwinEnvConfig(FracturingEnvConfig):
     low_flow_pressure_relaxation: float = 0.25
     low_flow_abnormal_decay: float = 0.72
     low_flow_sand_plug_decay: float = 0.62
+    # Compact slurry/proppant response correction used by the advisory twin.
+    # It is deliberately small: fluid volume remains controlled by flow, while
+    # sand concentration changes the effective transport/pressure response.
+    sand_transport_gain: float = 0.08
 
 
 @dataclass(frozen=True)
@@ -72,9 +76,30 @@ class ConditionRiskAdapter:
         sand_delta: float,
         max_sand_step: float,
         cluster_spread: float,
+        current_sand_ratio: float,
+        sand_warning_percent: float,
     ) -> tuple[float, float]:
         pressure_risk = np.clip((bottomhole_mpa - 0.82 * pressure_limit_mpa) / max(0.18 * pressure_limit_mpa, 1e-6), 0.0, 1.0)
+        # A small sand adjustment at a low-risk, low-concentration state is
+        # not equivalent to an immediate sand-plug event.  The former code
+        # added a full jump-risk term for every positive action, which made the
+        # reward landscape prefer ``hold`` even when the state had ample
+        # pressure and sand headroom.  Activate most of the jump penalty only
+        # when pressure or the current concentration is already approaching a
+        # review boundary.
+        sand_level_risk = np.clip(
+            (current_sand_ratio - 0.70 * sand_warning_percent)
+            / max(0.30 * sand_warning_percent, 1e-6),
+            0.0,
+            1.0,
+        )
+        action_risk_gate = max(
+            float(pressure_risk),
+            float(sand_level_risk),
+            float(np.clip(base_sand_plug, 0.0, 1.0)),
+        )
         jump_risk = np.clip(max(sand_delta, 0.0) / max(max_sand_step, 1e-6), 0.0, 1.0)
+        jump_risk *= 0.20 + 0.80 * action_risk_gate
         residual_risk = np.clip(posterior_error / 0.15, 0.0, 1.0)
         imbalance_risk = np.clip(cluster_spread / 0.25, 0.0, 1.0)
         flow_relief = np.clip(max(-flow_delta, 0.0) / max(max_flow_step, 1e-6), 0.0, 1.0)
@@ -123,6 +148,12 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
         self._sand_plug_memory = 0.0
         self._previous_cluster_lengths = np.zeros(cfg.n_clusters, dtype=float)
         self.response_surrogate = response_surrogate
+        self._surrogate_status = {
+            "surrogate_used": False,
+            "surrogate_fallback": False,
+            "surrogate_fallback_reason": "not_configured",
+            "surrogate_ood_score": 0.0,
+        }
 
     def _initialize_twin(self) -> None:
         n = self.dt_config.n_clusters
@@ -197,6 +228,10 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
             "cumulative_injected_volume_m3": float(self._cumulative_injected_volume_m3),
             "current_total_rate_m3_s": max(float(flow), 0.0) / 60.0,
             "pkn_update_skipped": True,
+            "surrogate_used": False,
+            "surrogate_fallback": False,
+            "surrogate_fallback_reason": "low_flow_path",
+            "surrogate_ood_score": 0.0,
         }
         return {
             "pressure": float(pressure),
@@ -206,6 +241,10 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
             "net_pressure_mpa": float(net_pressure),
             "abnormal_probability": self._abnormal_memory,
             "sand_plug_probability": self._sand_plug_memory,
+            "cluster_balance_degree": float(base.get("cluster_balance_degree", np.nan)),
+            "fracture_width_m": float(base.get("fracture_width_m", np.nan)),
+            "fracture_volume_m3": float(base.get("fracture_volume_m3", np.nan)),
+            "surrogate_fallback_required": False,
         }
 
     def _simulate_response(self, flow: float, sand: float) -> dict[str, float]:
@@ -220,6 +259,15 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
         q_current = np.full(n, q_current_total / n, dtype=float)
         sand_delta = sand - self._current_sand
         flow_delta = flow - self._current_flow
+        sand_transport_factor = 1.0 + self.dt_config.sand_transport_gain * np.clip(
+            max(float(sand), 0.0) / max(self.schedule.sand_ratio_scale_percent, 1.0),
+            0.0,
+            2.0,
+        )
+        # Keep injected fluid volume as Q * dt.  Only the PKN response operator
+        # sees the small concentration-dependent effective transport factor.
+        q_base_response = q_base * sand_transport_factor
+        q_current_response = q_current * sand_transport_factor
         # The EnKF state is now five global physical parameters.  Cluster
         # allocation is supplied by observations, so no legacy per-cluster
         # process-noise terms belong in this vector.
@@ -229,9 +277,13 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
         )
 
         prior_state = self._ensemble.mean(axis=0)
-        prior = pkn_with_carter_leakoff(prior_state, q_base, elapsed, self.physics_config, q_current)
+        prior = pkn_with_carter_leakoff(
+            prior_state, q_base_response, elapsed, self.physics_config, q_current_response
+        )
         ensemble_predictions = [
-            pkn_with_carter_leakoff(x, q_base, elapsed, self.physics_config, q_current)
+            pkn_with_carter_leakoff(
+                x, q_base_response, elapsed, self.physics_config, q_current_response
+            )
             for x in self._ensemble
         ]
         predicted_obs = np.column_stack([
@@ -242,7 +294,9 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
         # Synthetic field response for scenario training. In deployment these
         # two observations are replaced by DAS observation-operator output and
         # measured bottom-hole pressure.
-        truth = pkn_with_carter_leakoff(self._truth_state, q_base, elapsed, self.physics_config, q_current)
+        truth = pkn_with_carter_leakoff(
+            self._truth_state, q_base_response, elapsed, self.physics_config, q_current_response
+        )
         observed_lengths = np.asarray(truth["half_length_m"]) + self.np_random.normal(0.0, self.dt_config.length_observation_std_m, n)
         historical_pressure = float(self.meta.iloc[self._cursor]["current_pressure"])
         observed_bhp = 0.65 * float(truth["bottomhole_pressure_mpa"]) + 0.35 * historical_pressure
@@ -270,29 +324,71 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
         # imbalance.  This is not a free state update; it is derived from the
         # re-run PKN output after the physical-parameter EnKF update.
         posterior_lengths_array = np.asarray(posterior["half_length_m"], dtype=float)
+        posterior_aperture_m = np.asarray(posterior["max_aperture_mm"], dtype=float) / 1000.0
+        posterior_width_m = float(np.nanmax(posterior_aperture_m))
+        # PKN elliptical footprint approximation, used only as an internal
+        # physical-effectiveness signal. It is not a production/production-
+        # rate KPI and is not used for cross-algorithm output comparison.
+        posterior_fracture_volume_m3 = float(
+            np.nansum(posterior_aperture_m * posterior_lengths_array * self.physics_config.height_m * np.pi / 2.5)
+        )
         cluster_spread = float(
             np.ptp(posterior_lengths_array) / max(float(np.mean(posterior_lengths_array)), 1.0e-9)
         )
+        # When field cluster balance is not connected, expose a clearly
+        # model-derived balance diagnostic from the posterior geometry.  This
+        # is useful for digital-twin training, but it must not be described as
+        # DAS/FracMonitor observation in reports.
+        cluster_balance_degree = float(np.clip(1.0 - cluster_spread, 0.0, 1.0))
         abnormal, sand_plug = ConditionRiskAdapter.predict(
             base_abnormal, base_sand_plug, float(posterior["bottomhole_pressure_mpa"]),
             self.reward_config.bottomhole_pressure_max_mpa, posterior_error,
             flow_delta, self.schedule.max_flow_step_m3_min, sand_delta,
             self.schedule.max_sand_increase_percent, cluster_spread,
+            self._current_sand, self.schedule.high_sand_warning_percent,
         )
         surrogate_result = None
+        surrogate_fallback = False
+        surrogate_fallback_reason = "not_configured"
+        surrogate_ood_score = 0.0
         posterior_bhp = float(posterior["bottomhole_pressure_mpa"])
         posterior_net = float(posterior["net_pressure_mpa"])
         if self.response_surrogate is not None:
-            surrogate_result = self.response_surrogate.predict_one(
-                self.features[self._cursor], self.meta.iloc[self._cursor], flow, sand
-            )
-            # The real-data surrogate learns surface-pressure and condition
-            # residuals. Geometry and physical parameters remain PKN-EnKF outputs.
-            surface_delta = surrogate_result["pressure_mean"] - float(self.meta.iloc[self._cursor]["current_pressure"])
-            posterior_bhp += surface_delta
-            posterior_net = max(posterior_net + surface_delta, 0.0)
-            abnormal = 0.65 * surrogate_result["abnormal_probability"] + 0.35 * abnormal
-            sand_plug = 0.65 * surrogate_result["sand_plug_probability"] + 0.35 * sand_plug
+            try:
+                candidate = self.response_surrogate.predict_one(
+                    self.features[self._cursor], self.meta.iloc[self._cursor], flow, sand
+                )
+                surrogate_ood_score = float(candidate.get("ood_score", np.nan))
+                finite_prediction = all(
+                    np.isfinite(float(candidate.get(key, np.nan)))
+                    for key in ("pressure_mean", "pressure_max", "abnormal_probability", "sand_plug_probability")
+                )
+                if not finite_prediction:
+                    surrogate_fallback_reason = "non_finite_prediction_or_unavailable_label"
+                elif surrogate_ood_score > self.config.surrogate_ood_max:
+                    surrogate_fallback_reason = "out_of_distribution"
+                else:
+                    surrogate_result = candidate
+                    surrogate_fallback_reason = "used"
+            except Exception as exc:  # pragma: no cover - defensive deployment boundary
+                surrogate_fallback_reason = f"prediction_error:{type(exc).__name__}"
+            if surrogate_result is not None:
+                # The real-data surrogate learns surface-pressure and condition
+                # residuals. Geometry and physical parameters remain PKN-EnKF outputs.
+                surface_delta = surrogate_result["pressure_mean"] - float(self.meta.iloc[self._cursor]["current_pressure"])
+                posterior_bhp += surface_delta
+                posterior_net = max(posterior_net + surface_delta, 0.0)
+                abnormal = 0.65 * surrogate_result["abnormal_probability"] + 0.35 * abnormal
+                sand_plug = 0.65 * surrogate_result["sand_plug_probability"] + 0.35 * sand_plug
+            else:
+                surrogate_fallback = True
+        self._surrogate_status = {
+            "surrogate_used": bool(surrogate_result is not None),
+            "surrogate_fallback": bool(surrogate_fallback),
+            "surrogate_fallback_reason": surrogate_fallback_reason,
+            "surrogate_ood_score": float(surrogate_ood_score) if np.isfinite(surrogate_ood_score) else None,
+            "sand_transport_factor": float(sand_transport_factor),
+        }
         # Risk persists over the following decision windows. A conservative
         # action can dissipate it gradually, but one safe point cannot erase a
         # sand-plug warning immediately.
@@ -322,12 +418,17 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
                 physical_values(posterior_state, self.physics_config, n)["fracture_toughness_pa_sqrt_m"]
             ),
             "cluster_geometry_spread": cluster_spread,
+            "cluster_balance_degree": cluster_balance_degree,
+            "cluster_balance_source": "pkn_geometry_derived",
+            "posterior_width_m": posterior_width_m,
+            "posterior_fracture_volume_m3": posterior_fracture_volume_m3,
             "cumulative_injected_volume_m3": float(self._cumulative_injected_volume_m3),
             "current_total_rate_m3_s": float(q_current_total),
             "pkn_update_skipped": False,
-            "surrogate_ood_score": float(surrogate_result["ood_score"]) if surrogate_result else 0.0,
+            "surrogate_ood_score": float(surrogate_ood_score) if np.isfinite(surrogate_ood_score) else np.nan,
             "surrogate_future_surface_pressure_mpa": float(surrogate_result["pressure_mean"]) if surrogate_result else np.nan,
             "surrogate_future_surface_pressure_max_mpa": float(surrogate_result["pressure_max"]) if surrogate_result else np.nan,
+            **self._surrogate_status,
         }
         return {
             "pressure": posterior_bhp,
@@ -337,6 +438,10 @@ class DigitalTwinFracturingControlEnv(FracturingControlEnv):
             "net_pressure_mpa": posterior_net,
             "abnormal_probability": abnormal,
             "sand_plug_probability": sand_plug,
+            "cluster_balance_degree": cluster_balance_degree,
+            "fracture_width_m": posterior_width_m,
+            "fracture_volume_m3": posterior_fracture_volume_m3,
+            "surrogate_fallback_required": bool(surrogate_fallback),
         }
 
     def step(self, action: np.ndarray):

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "default_dataset_id": "jy84_z1_stage08",
+  "raw_frac_discovery": {
+    "enabled": true,
+    "directory": "Data/raw_frac",
+    "reference_header_source": null,
+    "use_reference_header": false,
+    "include_extensions": [".xlsx", ".xls", ".csv"],
+    "exclude_name_contains": ["WITHfiltered", "mark", "label", "distribution"],
+    "composite_name_contains": ["便签数据"]
+  },
+  "datasets": {
+    "jy84_z1_stage08": {
+      "display_name": "焦页84-Z1 · Stage 08（压力 + DAS）",
+      "adapter": "stage_3dfrac",
+      "well_id": "JY84-Z1",
+      "stage_id": "08",
+      "data_scope": "single_stage",
+      "supported_scenarios": ["das_cluster_observation"],
+      "evolution_supported": true,
+      "pressure_source": "Data/3Dfrac/JY84-Z1-stage08-f1.xls",
+      "fiber_source": "Data/3Dfrac/光纤本井监测08.txt",
+      "trajectory_source": "Data/3Dfrac/JY84-Z1HF-1011.csv",
+      "cluster_geometry_source": "App/config/cluster_geometry.csv",
+      "pressure_calibration_source": "App/config/pressure_calibration.json",
+      "cache_source": "outputs/app/dt_realtime_cache.json",
+      "active_dt_run": "outputs/dt/second_part_kg_enkf_20260824/20260824_004357",
+      "allocation_mode": "parameterized",
+      "state_dimension": 14,
+      "html_by_scenario": {
+        "das_cluster_observation": "outputs/app/dt_realtime_3d.html",
+        "no_das_pressure_only": "outputs/app/dt_realtime_3d_no_das.html"
+      },
+      "source_start_s": 1,
+      "source_end_s": 7331,
+      "assumed_cluster_count": 6,
+      "hmi_available": true,
+      "calibration_status": "待校准"
+    }
+  }
+}

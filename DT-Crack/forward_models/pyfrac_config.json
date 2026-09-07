@@ -8,6 +8,8 @@
   "min_horizontal_stress_pa": 60000000.0,
   "height_m": 30.0,
   "initial_time_s": 1.0,
+  "native_start_time_s": 1.0,
+  "initial_step_limit_s": 1.0,
   "mesh_half_length_m": 80.0,
   "mesh_half_height_m": 25.0,
   "mesh_nx": 61,

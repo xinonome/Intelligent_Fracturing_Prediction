@@ -139,7 +139,16 @@ def main() -> None:
     args = parser.parse_args()
     configure_fonts()
 
-    frames = discover_segment_frames(args.data_path, args.reference_header_path, "FDBH", "SGSJ", ["SGBY", "PL", "SB", "WORKING_TYPE"], ["WITHfiltered"], args.max_files, args.max_rows_per_file)
+    frames = discover_segment_frames(
+        args.data_path,
+        args.reference_header_path,
+        "FDBH",
+        "SGSJ",
+        ["SGBY", "PL", "SB", "WORKING_TYPE"],
+        ["WITHfiltered", "便签数据", "综合", "aggregate", "combined"],
+        args.max_files,
+        args.max_rows_per_file,
+    )
     interval = estimate_sample_interval_seconds(frames, "SGSJ", 10.0)
     bundle = build_dataset(frames, ["SGBY", "PL", "SB"], ["PL", "SB"], "SGSJ", max(2, int(round(300 / interval))), max(1, int(round(60 / interval))), "WORKING_TYPE")
     meta = annotate_real_scenarios(bundle.meta)

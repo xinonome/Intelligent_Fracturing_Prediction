@@ -23,7 +23,14 @@ DEFAULT_STAGES = [
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Curriculum training from stable operation to six-scenario control.")
-    parser.add_argument("--algorithm", choices=["ppo", "sac"], default="ppo")
+    parser.add_argument("--algorithm", choices=["ppo", "sac", "td3"], default="ppo")
+    parser.add_argument(
+        "--scenario-source",
+        choices=["historical", "synthetic", "fsl_real"],
+        default="synthetic",
+        help="Use synthetic counterfactuals by default so the curriculum contains action-sensitive stress states.",
+    )
+    parser.add_argument("--action-encoding", choices=["auto", "legacy", "centered_delta"], default="auto")
     parser.add_argument("--stage-timesteps", nargs="+", type=int, default=None)
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--episode-steps", type=int, default=60)
@@ -50,6 +57,7 @@ def main() -> None:
             str(ROOT / "train_rl_control_agent.py"),
             "--algorithm", args.algorithm,
             "--scenario", scenario,
+            "--scenario-source", args.scenario_source,
             "--response-model", "digital_twin",
             "--hierarchical",
             "--total-timesteps", str(timesteps),
@@ -61,6 +69,8 @@ def main() -> None:
             "--seed", str(args.seed),
             "--run-dir", str(stage_root),
         ]
+        if args.action_encoding != "auto":
+            command.extend(["--action-encoding", args.action_encoding])
         if previous_model is not None:
             command.extend(["--resume-model", str(previous_model)])
         log_path = root / f"{index:02d}_{scenario}.log"

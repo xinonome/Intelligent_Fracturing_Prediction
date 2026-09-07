@@ -35,7 +35,8 @@ def main() -> None:
 
     frames = discover_segment_frames(
         args.data_path, args.reference_header_path, args.segment_column, args.time_column,
-        ["SGBY", "PL", "SB", args.label_column], ["WITHfiltered"],
+        ["SGBY", "PL", "SB", args.label_column],
+        ["WITHfiltered", "便签数据", "综合", "aggregate", "combined"],
         args.max_files, args.max_rows_per_file,
     )
     interval = estimate_sample_interval_seconds(frames, args.time_column, args.sample_interval_seconds)
@@ -81,6 +82,16 @@ def main() -> None:
         "train_samples": len(train_idx),
         "test_samples": len(evaluation_idx),
         "action_bounds": bundle.action_bounds,
+        "label_statistics": model.label_statistics,
+        "admission": {
+            "sand_plug_classifier_available": bool(model.sand_plug_model is not None),
+            "sand_plug_classifier_status": (
+                "available" if model.sand_plug_model is not None else "not_estimable_one_class_labels"
+            ),
+            "default_correction_layer": False,
+            "reason": "Risk classifier cannot be admitted without both positive and negative real labels."
+            if model.sand_plug_model is None else "Requires independent safety and non-inferiority evaluation.",
+        },
         "metrics": metrics,
         "outputs": {"model": str(out / "response_surrogate.joblib"), "predictions": str(out / "predictions.csv")},
     }

@@ -169,6 +169,11 @@ def apply_scenario(
     _ensure_context_column(scenario_context, "posterior_error", np.clip(spec.posterior_error_base + spec.posterior_error_trend * p, 0.0, 1.0))
     _ensure_context_column(scenario_context, "abnormal_probability", np.clip(spec.abnormal_probability_base + spec.abnormal_probability_trend * p, 0.0, 1.0))
     _ensure_context_column(scenario_context, "sand_plug_probability", np.clip(spec.sand_plug_probability_base + spec.sand_plug_probability_trend * p, 0.0, 1.0))
+    # Synthetic stress scenarios expose the balance signal explicitly so the
+    # policy can be evaluated against a controlled imbalance.  This is a
+    # scenario diagnostic, not a substitute for real DAS/FracMonitor balance.
+    if "cluster_balance_degree" not in scenario_context:
+        scenario_context["cluster_balance_degree"] = np.clip(1.0 - spec.balance_imbalance, 0.0, 1.0)
 
     if "bottomhole_pressure_mpa" in scenario_context:
         bhp = pd.to_numeric(scenario_context["bottomhole_pressure_mpa"], errors="coerce").to_numpy(dtype=float)

@@ -40,3 +40,34 @@ def test_action_response_surrogate_trains_and_predicts_candidate_action() -> Non
     assert all(np.isfinite(value) for value in result.values())
     assert 0.0 <= result["abnormal_probability"] <= 1.0
 
+
+def test_one_class_sand_plug_labels_are_not_treated_as_classifier_evidence() -> None:
+    rng = np.random.default_rng(9)
+    size = 24
+    x = rng.normal(size=(size, 42))
+    flow = rng.uniform(8.0, 18.0, size)
+    sand = rng.uniform(0.0, 8.0, size)
+    pressure = rng.uniform(55.0, 75.0, size)
+    meta = pd.DataFrame({
+        "current_flow": flow,
+        "current_sand_ratio": sand,
+        "current_pressure": pressure,
+        "future_pressure_mean": pressure,
+        "future_pressure_max": pressure + 1.0,
+        "future_abnormal": (sand > 4.0).astype(int),
+        "future_sand_plug": np.zeros(size, dtype=int),
+    })
+    feature_names = [f"raw_{i}" for i in range(30)] + [
+        f"{column}_{stat}" for column in ("SGBY", "PL", "SB") for stat in ("last", "mean", "std", "slope")
+    ]
+    bounds = {"PL": {"p01": 8.0, "p99": 18.0}, "SB": {"p01": 0.0, "p99": 8.0}}
+    model = ActionResponseSurrogate(feature_names, bounds, seed=9).fit(
+        x, meta, np.column_stack([flow, sand])
+    )
+    assert model.sand_plug_model is None
+    assert model.label_statistics["sand_plug"]["available"] is False
+    prediction = model.predict_one(x[0], meta.iloc[0], 10.0, 4.0)
+    assert np.isnan(prediction["sand_plug_probability"])
+    metrics = model.evaluate(x, meta, np.column_stack([flow, sand]))
+    assert metrics["sand_plug_probability"]["available"] is False
+    assert metrics["sand_plug_probability"]["roc_auc"] is None

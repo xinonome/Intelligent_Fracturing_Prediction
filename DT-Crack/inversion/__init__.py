@@ -7,6 +7,8 @@ from .physics import (
     enkf_update,
     physical_values,
     pkn_with_carter_leakoff,
+    parameterized_allocation_state_size,
+    has_parameterized_allocation_state,
     state_record,
 )
 from .knowledge_guided_enkf import (
@@ -14,6 +16,10 @@ from .knowledge_guided_enkf import (
     apply_knowledge_guided_observation_std,
     build_knowledge_guided_prior,
     project_knowledge_guided_update,
+)
+from .rate_balance_response import (
+    RateBalanceResponseConfig,
+    scan_rate_balance_response,
 )
 
 __all__ = [
@@ -23,9 +29,13 @@ __all__ = [
     "enkf_update",
     "physical_values",
     "pkn_with_carter_leakoff",
+    "parameterized_allocation_state_size",
+    "has_parameterized_allocation_state",
     "state_record",
     "KnowledgeGuidedPriorConfig",
     "apply_knowledge_guided_observation_std",
     "build_knowledge_guided_prior",
     "project_knowledge_guided_update",
+    "RateBalanceResponseConfig",
+    "scan_rate_balance_response",
 ]

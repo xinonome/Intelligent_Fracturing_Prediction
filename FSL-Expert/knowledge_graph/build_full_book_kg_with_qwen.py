@@ -604,43 +604,65 @@ def write_html(output_dir: Path, graph: dict[str, Any]) -> None:
     relation_counts = Counter(edge.get("label", "相关") for edge in graph["edges"])
     type_html = "".join(f"<li>{html.escape(k)}：{v}</li>" for k, v in type_counts.most_common())
     relation_html = "".join(f"<li>{html.escape(k)}：{v}</li>" for k, v in relation_counts.most_common(12))
+    type_options = "".join(
+        f"<option value=\"{html.escape(key, quote=True)}\">{html.escape(key)}（{count}）</option>"
+        for key, count in type_counts.most_common()
+    )
     page = f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>全书知识图谱 - Qwen 抽取</title>
+  <title>全书知识图谱 - Qwen 抽取版</title>
   <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
   <style>
     body {{ margin: 0; font-family: "Microsoft YaHei", sans-serif; background: #f5f1e8; color: #1e1b16; }}
-    header {{ padding: 22px 28px; background: linear-gradient(120deg, #254f5f, #b96536); color: white; }}
-    header h1 {{ margin: 0 0 8px; font-size: 26px; }}
-    main {{ display: grid; grid-template-columns: 1fr 320px; gap: 18px; padding: 18px; }}
-    #graph {{ height: calc(100vh - 125px); min-height: 620px; border-radius: 16px; background: white; border: 1px solid #ddd; }}
-    aside {{ background: white; border-radius: 16px; padding: 18px; border: 1px solid #ddd; overflow: auto; max-height: calc(100vh - 125px); }}
-    .metric {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }}
-    .card {{ padding: 12px; background: #f8f5ef; border-radius: 12px; }}
-    .card b {{ display: block; font-size: 24px; color: #b96536; }}
-    li {{ margin: 6px 0; }}
+    header {{ padding: 18px 26px; background: linear-gradient(120deg, #254f5f, #b96536); color: white; }}
+    header h1 {{ margin: 0 0 6px; font-size: 26px; }}
+    header div {{ opacity: .9; font-size: 14px; }}
+    main {{ display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; padding: 14px; }}
+    section, aside {{ background: white; border-radius: 14px; border: 1px solid #ddd; }}
+    section {{ padding: 12px; }}
+    #graph {{ height: calc(100vh - 180px); min-height: 540px; border-radius: 10px; border: 1px solid #e1e1e1; }}
+    aside {{ padding: 15px; overflow: auto; max-height: calc(100vh - 180px); }}
+    .toolbar {{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }}
+    button, select {{ border: 1px solid #b9c4c7; border-radius: 7px; background: #f7faf9; padding: 7px 10px; font: inherit; cursor: pointer; }}
+    button.primary {{ background: #254f5f; color: white; border-color: #254f5f; }}
+    button:hover {{ filter: brightness(.96); }}
+    .metric {{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }}
+    .card {{ padding: 10px; background: #f8f5ef; border-radius: 10px; }}
+    .card b {{ display: block; font-size: 22px; color: #b96536; }}
+    .muted {{ color: #687477; font-size: 13px; line-height: 1.45; }}
+    li {{ margin: 5px 0; }}
   </style>
 </head>
 <body>
   <header>
     <h1>全书知识图谱 - Qwen 抽取版</h1>
-    <div>数据来源：陪陵页岩气田试气压裂作业井复杂情况与故障案例分析271；生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+    <div>268 页文本 · 初始展示核心关系，可逐步展开 · 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
   </header>
   <main>
-    <div id="graph"></div>
+    <section>
+      <div class="toolbar">
+        <button id="coreBtn" class="primary">核心图</button>
+        <button id="expandBtn">逐步展开</button>
+        <button id="allBtn">显示全部</button>
+        <button id="resetBtn">重置</button>
+        <label>类型 <select id="typeFilter"><option value="">全部类型</option>{type_options}</select></label>
+      </div>
+      <div id="graph"></div>
+    </section>
     <aside>
       <div class="metric">
-        <div class="card">节点数<b>{len(graph['nodes'])}</b></div>
-        <div class="card">关系数<b>{len(graph['edges'])}</b></div>
+        <div class="card">总节点<b>{len(graph['nodes'])}</b></div>
+        <div class="card">总关系<b>{len(graph['edges'])}</b></div>
       </div>
+      <div class="card" id="visibleMetric">当前视图：核心节点</div>
       <h3>实体类型分布</h3>
       <ul>{type_html}</ul>
       <h3>关系类型分布</h3>
       <ul>{relation_html}</ul>
-      <p>提示：拖拽节点可查看结构，悬停节点/边可查看页码和证据。</p>
+      <p class="muted">初始只展示高连接度核心节点。点击“逐步展开”增加一批节点；点击“显示全部”查看完整图谱。拖拽节点或悬停边可查看页码和证据。</p>
     </aside>
   </main>
   <script>
@@ -650,24 +672,50 @@ def write_html(output_dir: Path, graph: dict[str, Any]) -> None:
       "处置措施": "#54a24b", "施工参数": "#2f9aa0", "设备": "#8c6d31", "材料": "#b279a2",
       "井": "#4c78a8", "地层": "#72b7b2", "指标": "#f58518", "风险": "#e45756", "其他": "#999999"
     }};
-    const nodes = new vis.DataSet(data.nodes.map(n => ({{
-      ...n,
-      color: colors[n.type] || colors["其他"],
-      shape: n.type === "故障类型" ? "diamond" : "dot",
-      size: n.type === "故障类型" ? 24 : 14
-    }})));
-    const edges = new vis.DataSet(data.edges.map(e => ({{
-      ...e,
-      arrows: "to",
-      font: {{ align: "middle", size: 11 }},
-      width: Math.min(5, 1 + Math.log((e.weight || 1) + 1))
-    }})));
-    new vis.Network(document.getElementById("graph"), {{ nodes, edges }}, {{
-      physics: {{ stabilization: true, barnesHut: {{ gravitationalConstant: -4200, springLength: 130 }} }},
-      interaction: {{ hover: true, tooltipDelay: 120 }},
-      nodes: {{ font: {{ size: 14, face: "Microsoft YaHei" }} }},
-      edges: {{ smooth: {{ type: "dynamic" }} }}
+    const scores = new Map(data.nodes.map(n => [n.id, 0]));
+    data.edges.forEach(e => {{
+      const weight = Number(e.weight || 1);
+      scores.set(e.from, (scores.get(e.from) || 0) + weight);
+      scores.set(e.to, (scores.get(e.to) || 0) + weight);
     }});
+    const ranked = [...data.nodes].sort((a, b) => (scores.get(b.id) || 0) - (scores.get(a.id) || 0));
+    let network = null;
+    let limit = 80;
+    let filterType = "";
+
+    function renderGraph() {{
+      let candidates = ranked.filter(n => !filterType || n.type === filterType);
+      const selected = new Set(candidates.slice(0, limit).map(n => n.id));
+      const visibleNodes = data.nodes.filter(n => selected.has(n.id)).map(n => ({{
+        id: n.id, label: n.label, title: `${{n.type || "其他"}}<br>${{n.label}}`,
+        color: colors[n.type] || colors["其他"],
+        shape: n.type === "故障类型" ? "diamond" : "dot",
+        size: n.type === "故障类型" ? 22 : 14,
+        font: {{ size: 13, face: "Microsoft YaHei" }}
+      }}));
+      const visibleEdges = data.edges.filter(e => selected.has(e.from) && selected.has(e.to)).map(e => ({{
+        from: e.from, to: e.to, arrows: "to", label: "",
+        title: `${{e.label || "相关"}}<br>${{e.title || ""}}`,
+        width: Math.min(4, 1 + Math.log((e.weight || 1) + 1)),
+        color: {{ color: "#aab6b8", opacity: .65 }}
+      }}));
+      if (network) network.destroy();
+      network = new vis.Network(document.getElementById("graph"),
+        {{ nodes: new vis.DataSet(visibleNodes), edges: new vis.DataSet(visibleEdges) }},
+        {{ physics: {{ stabilization: {{ iterations: 120 }}, barnesHut: {{ gravitationalConstant: -3200, springLength: 125 }} }},
+           interaction: {{ hover: true, tooltipDelay: 100, navigationButtons: true }},
+           nodes: {{ borderWidth: 1 }}, edges: {{ smooth: {{ type: "dynamic" }} }} }});
+      document.getElementById("visibleMetric").textContent =
+        `当前视图：${{visibleNodes.length}} 个节点 / ${{visibleEdges.length}} 条关系` +
+        (filterType ? ` · 类型：${{filterType}}` : "");
+    }}
+    function resetView() {{ limit = 80; filterType = ""; document.getElementById("typeFilter").value = ""; renderGraph(); }}
+    document.getElementById("coreBtn").onclick = resetView;
+    document.getElementById("expandBtn").onclick = () => {{ limit = Math.min(limit + 50, ranked.length); renderGraph(); }};
+    document.getElementById("allBtn").onclick = () => {{ limit = ranked.length; renderGraph(); }};
+    document.getElementById("resetBtn").onclick = resetView;
+    document.getElementById("typeFilter").onchange = event => {{ filterType = event.target.value; limit = 80; renderGraph(); }};
+    renderGraph();
   </script>
 </body>
 </html>"""

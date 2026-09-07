@@ -11,10 +11,5 @@ if (-not (Test-Path -LiteralPath $python)) {
     throw 'PySide environment not found.'
 }
 
-& $python -c "from PySide6.QtCore import qVersion; print('Qt preflight OK:', qVersion())"
-if ($LASTEXITCODE -ne 0) {
-    throw 'Qt preflight failed in frac_app.'
-}
-
 Set-Location -LiteralPath $root
 & $python $appScript '--no-auto-env'

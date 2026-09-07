@@ -12,6 +12,11 @@ import math
 import os
 from pathlib import Path
 
+try:
+    from .ui.widgets.chart_panel import _format_tick, _nice_axis_ticks
+except ImportError:  # pragma: no cover - supports running this legacy module directly
+    from ui.widgets.chart_panel import _format_tick, _nice_axis_ticks
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE_PATH = ROOT / "outputs" / "app" / "dt_realtime_cache.json"
@@ -102,21 +107,20 @@ def build_dt_realtime_panel(html_path: Path | None = None):
     def cluster_mean_allocation(index: int) -> float:
         values = []
         for record in clusters.values():
-            series = record.get("fiber_liquid_allocation", record.get("posterior_cluster_factor", []))
+            # Fiber shares are observation targets in the parameterized run.
+            # Display the forward-model allocation inferred by EnKF instead.
+            series = record.get(
+                "posterior_model_liquid_allocation",
+                record.get("posterior_cluster_factor", record.get("fiber_liquid_allocation", [])),
+            )
             if series:
                 values.append(_float(series[max(0, min(index, len(series) - 1))]))
         return sum(values) / len(values) if values else 0.0
 
     def fixed_range(values: list[float], padding=0.05):
-        finite = [float(v) for v in values if math.isfinite(float(v))]
-        if not finite:
-            return 0.0, 1.0
-        low, high = min(finite), max(finite)
-        if math.isclose(low, high):
-            delta = max(abs(low) * 0.05, 1.0)
-        else:
-            delta = (high - low) * padding
-        return low - delta, high + delta
+        del padding  # retained for compatibility with the legacy call sites
+        low, high, _ticks, _step = _nice_axis_ticks(values, y_min=0.0)
+        return low, high
 
     class Panel(QFrame):
         def __init__(self, title: str):
@@ -170,26 +174,27 @@ def build_dt_realtime_panel(html_path: Path | None = None):
             painter.drawText(rect.left() + 12, rect.top() + 18, title)
             plot = rect.adjusted(58, 48, -48 if right_series else -18, -28)
             all_values = [v for _, values, _ in series for v in values]
-            low, high = fixed_range(all_values)
-            for tick in range(5):
-                y = plot.top() + plot.height() * tick / 4
+            low, high, ticks, tick_step = _nice_axis_ticks(all_values, y_min=0.0)
+            for value in reversed(ticks):
+                ratio = (value - low) / max(high - low, 1e-12)
+                y = plot.bottom() - plot.height() * ratio
                 painter.setPen(QPen(QColor("#e6edf3"), 1))
                 painter.drawLine(plot.left(), y, plot.right(), y)
                 painter.setPen(QColor("#66788a"))
-                label = f"{high - (high - low) * tick / 4:.1f}"
+                label = _format_tick(value, tick_step)
                 painter.drawText(rect.left() + 4, int(y + 4), label)
             for name, values, color in series:
                 self._line(painter, self._points(values, plot, low, high), color)
 
             if right_series:
                 right_values = [v for _, values, _ in right_series for v in values]
-                right_low, right_high = fixed_range(right_values)
+                right_low, right_high, right_ticks, right_step = _nice_axis_ticks(right_values, y_min=0.0)
                 right_plot = rect.adjusted(58, 30, -18, -28)
                 for name, values, color in right_series:
                     self._line(painter, self._points(values, right_plot, right_low, right_high), color)
                 painter.setPen(QColor("#66788a"))
-                painter.drawText(rect.right() - 42, plot.top() + 4, f"{right_high:.1f}")
-                painter.drawText(rect.right() - 42, plot.bottom(), f"{right_low:.1f}")
+                painter.drawText(rect.right() - 42, plot.top() + 4, _format_tick(right_ticks[-1], right_step))
+                painter.drawText(rect.right() - 42, plot.bottom(), _format_tick(right_ticks[0], right_step))
 
             marker_x = self._x(self.index, plot.left(), plot.width())
             painter.setPen(QPen(QColor("#dc3545"), 2, Qt.DashLine))
@@ -401,7 +406,7 @@ def build_dt_realtime_panel(html_path: Path | None = None):
                     ("length", "最大分簇半缝长"),
                     ("pressure", "PKN 井底压力"),
                     ("net", "净压力"),
-                    ("factor", "平均光纤液量分配"),
+                    ("factor", "平均模型液量分配"),
                     ("step", "当前计算步"),
                 ],
             )

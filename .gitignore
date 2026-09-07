@@ -1,34 +1,31 @@
-# Local environments and generated caches
-.venv/
-.venv*/
+Data/
+outputs/
+*.xlsx
+*.xls
+*.pkl
+*.pt
+*.pth
+*.zip
 __pycache__/
-*.py[cod]
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.tmp/
 .env
-.env.*
-!.env.example
-
-# Historical experiment folders are not part of the frozen handoff.
-**/runs/
-HMI-KE/outputs/
-
-# Local logs and editor files
 *.log
-.idea/
-.vscode/
-.DS_Store
-Thumbs.db
 
-# Sensitive source datasets must never be committed or released.
-Data/raw_frac/
-Data/3Dfrac/
-
-# The following paths are intentionally versioned in this release:
-#   artifacts/
-#   outputs/app, outputs/dt, outputs/hmi
-#   trained model files (*.zip, *.joblib, *.pt)
-# Do not add a global *.zip/*.csv/*.pt rule here: it would silently hide
-# the frozen models and validation outputs required by the runnable handoff.
+# Private project materials and source data are never part of the public code
+# mirror. Existing tracked files are not removed by this rule; review them
+# before adding new release content.
+Data/
+专利与软著/
+deliverables/
+Reports/
+docs/
+tmp/
+.tmp/
+_qa*/
+_manual_assets*/
+.frontend-design/
+node_modules/
+*.doc
+*.docx
+*.pdf
+DT-Crack/third_party/PyFrac/data/raw/

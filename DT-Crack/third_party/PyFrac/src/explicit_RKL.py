@@ -28,6 +28,31 @@ for j in range(2, s_max):
     mu[j] = (2 * j - 1) * b[j] / (j * b[j - 1])
     nu[j] = - (j - 1) * b[j] / (j * b[j - 2])
 
+
+def _solve_linear_system(A, rhs):
+    """Solve an RKL pressure block while retaining an auditable fallback.
+
+    The legacy explicit path uses a dense ``solve`` on a block assembled from
+    the active tip set.  At a closed/re-opening front that block can be rank
+    deficient.  A least-squares solution is only a numerical fallback; the
+    outer PyFrac admissibility checks still reject non-finite or non-converged
+    states, so it cannot silently promote a failed step to a valid result.
+    """
+    matrix = np.asarray(A, dtype=float)
+    vector = np.asarray(rhs, dtype=float)
+    if matrix.size == 0 or vector.size == 0:
+        return np.zeros_like(vector, dtype=float)
+    try:
+        result = np.linalg.solve(matrix, vector)
+    except np.linalg.LinAlgError:
+        logging.getLogger('PyFrac.solve_width_pressure_RKL2').warning(
+            "RKL pressure block is singular; using least-squares fallback"
+        )
+        result, _, _, _ = np.linalg.lstsq(matrix, vector, rcond=None)
+    if not np.all(np.isfinite(result)):
+        raise np.linalg.LinAlgError("RKL pressure solve returned non-finite values")
+    return result
+
 # @profile
 def solve_width_pressure_RKL2(Eprime, GPU, n_threads, perf_node, *args):
     log = logging.getLogger('PyFrac.solve_width_pressure_RKL2')
@@ -85,9 +110,11 @@ def solve_width_pressure_RKL2(Eprime, GPU, n_threads, perf_node, *args):
     W_0 = wLastTS[EltCrack]
     pf_0 = np.empty(len(EltCrack))
     pf_0[ch_indxs] = np.dot(C[np.ix_(to_solve, EltCrack)], wLastTS[EltCrack]) + sigma0[to_solve]
-    pf_0[n_ch:] = np.linalg.solve(dt * mu_t_1 * (cond_0[n_ch:, n_ch:-1]).toarray(),
-                                    act_tip_val - dt * mu_t_1 * (cond_0[n_ch:, :][:, :n_ch].dot(pf_0[:n_ch]) +
-                                    G[n_ch:] + (Q[EltCrack[n_ch:]] - Lk_rate[EltCrack[n_ch:]]) / Mesh.EltArea))
+    pf_0[n_ch:] = _solve_linear_system(
+        dt * mu_t_1 * (cond_0[n_ch:, n_ch:-1]).toarray(),
+        act_tip_val - dt * mu_t_1 * (cond_0[n_ch:, :][:, :n_ch].dot(pf_0[:n_ch]) +
+        G[n_ch:] + (Q[EltCrack[n_ch:]] - Lk_rate[EltCrack[n_ch:]]) / Mesh.EltArea),
+    )
 
     M_0 = cond_0[:, :-1].dot(pf_0) + (Q[EltCrack] - Lk_rate[EltCrack]) / Mesh.EltArea + G
     W_1 = wLastTS[EltCrack] + dt * mu_t_1 * M_0
@@ -115,7 +142,17 @@ def solve_width_pressure_RKL2(Eprime, GPU, n_threads, perf_node, *args):
         perfNode_RKL.iterations = s
         perf_node.RKL_data.append(perfNode_RKL)
 
-    return sol, s
+    # ``solve_width_pressure`` expects the same diagnostics container as the
+    # implicit Picard/Anderson solvers: [fluid_velocity, effective_viscosity,
+    # gravity_term].  The Newtonian RKL path does not calculate the optional
+    # diagnostics, so return shape-compatible values instead of the bare
+    # sub-step count.  The count remains available through instrumentation.
+    rkl_diagnostics = [
+        np.zeros((4, Mesh.NumberOfElts), dtype=np.float64),
+        None,
+        np.zeros((Mesh.NumberOfElts,), dtype=np.float64),
+    ]
+    return sol, rkl_diagnostics
 
 # @profile
 #todo: this function is a mess in terms of arguments. Need to think how to pass them. The idea originally was to
@@ -162,13 +199,23 @@ def RKL_substep_neg(j, s, W_jm1, W_jm2, W_0, crack, n_channel, tip_delw_step, pa
     else:
         pf[:n_channel] = pardot_matrix_vector(C, W_jm1, n_threads) + sigmaO[EltChannel]
 
-    imposed_value[-len(tip_delw_step):] = j * tip_delw_step
+    # ``-0`` is ``0`` in Python, so slicing ``[-len(...):]`` with an empty
+    # tip increment selects the *whole* array and raises a broadcasting
+    # error.  An empty tip set is a legitimate closed/stagnant-front state;
+    # leave the imposed boundary unchanged in that case.
+    tip_delw_step = np.asarray(tip_delw_step).reshape(-1)
+    if tip_delw_step.size:
+        if tip_delw_step.size > imposed_value.size:
+            raise ValueError(
+                "tip width increment is larger than the imposed-value array"
+            )
+        imposed_value[-tip_delw_step.size:] = j * tip_delw_step
     M_jm1_tip = np.dot((cond[n_channel:, :][:, :n_channel]).toarray(),
                        pf[:n_channel]) + G[n_channel:] + (Qin[n_channel:] - LeakOff[n_channel:])/Mesh.EltArea
     S = imposed_value - mu[j] * W_jm1[n_channel:] - nu[j] * W_jm2[n_channel:] + (mu[j] + nu[j]) * W_0[
                             n_channel:] - gamma_t * tau_M0[n_channel:] - mu_t * tau * M_jm1_tip
     A = mu_t * tau * (cond[n_channel:, :][:, n_channel:-1]).toarray()
-    pf[n_channel:] = np.linalg.solve(A, S)
+    pf[n_channel:] = _solve_linear_system(A, S)
 
     M_jm1 = cond[:, :-1].dot(pf) + G + (Qin - LeakOff) / Mesh.EltArea
 

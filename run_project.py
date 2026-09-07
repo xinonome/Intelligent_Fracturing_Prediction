@@ -59,7 +59,34 @@ def dt_command(action: str, extra: list[str]) -> int:
         "--construction-pressure-xls", str(DATA / "3Dfrac" / "JY84-Z1-stage08-f1.xls"),
     ]
     if action == "validate":
-        return run(module / "inversion" / "validate_direct_observations.py", [*common, *extra])
+        # The APP runtime configuration is the single default selector for
+        # the enhanced DT path.  Explicit CLI choices (including ``off`` for
+        # a baseline experiment) always win.
+        has_kg_mode = any(
+            item == "--knowledge-guided-mode" or str(item).startswith("--knowledge-guided-mode=")
+            for item in extra
+        )
+        kg_mode = "soft_correlated"
+        runtime_config = ROOT / "App" / "config" / "runtime_config.json"
+        try:
+            runtime = json.loads(runtime_config.read_text(encoding="utf-8-sig"))
+            kg_mode = str(runtime.get("knowledge_guided_mode", kg_mode))
+        except (OSError, json.JSONDecodeError):
+            pass
+        selected = list(extra)
+        if not has_kg_mode and kg_mode in {"off", "uncertainty_only", "soft_prior", "soft_correlated"}:
+            selected.extend(["--knowledge-guided-mode", kg_mode])
+        return run(module / "inversion" / "validate_direct_observations.py", [*common, *selected])
+    if action == "piggy-bank":
+        piggy_args = [
+            "--frac-monitor-text", str(DATA / "3Dfrac" / "光纤本井监测08.txt"),
+            "--trajectory-csv", str(DATA / "3Dfrac" / "JY84-Z1HF-1011.csv"),
+            "--output-dir", str(OUTPUTS / "dt" / "piggy_bank_open_loop"),
+        ]
+        default_history = OUTPUTS / "dt" / "second_part_kg_enkf_20260824" / "20260824_004357" / "cluster_share_history.csv"
+        if default_history.exists() and "--cluster-history" not in extra:
+            piggy_args.extend(["--cluster-history", str(default_history)])
+        return run(module / "inversion" / "run_piggy_bank_open_loop.py", [*piggy_args, *extra])
     if action == "benchmark":
         benchmark_args = [
             "--frac-monitor-text", str(DATA / "3Dfrac" / "光纤本井监测08.txt"),
@@ -91,6 +118,8 @@ def hmi_command(action: str, extra: list[str]) -> int:
         return run(module / "validate_simulation_environment.py", extra, module)
     if action == "full-train":
         return run(module / "run_full_training.py", extra, module)
+    if action == "optimize":
+        return run(module / "optimize_agent.py", extra, module)
     if action == "curriculum":
         return run(module / "run_curriculum_training.py", extra, module)
     if action == "train":
@@ -137,16 +166,22 @@ def main() -> None:
         code = fsl_command(action, extra)
     elif args.module == "dt":
         action = args.action or "validate"
-        if action not in {"validate", "benchmark", "visualize"}:
+        if action not in {"validate", "benchmark", "visualize", "piggy-bank"}:
             parser.error(f"unsupported DT action: {action}")
         code = dt_command(action, extra)
     elif args.module == "hmi":
         action = args.action or "train"
-        if action not in {"train", "train-surrogate", "full-train", "curriculum", "validate-env", "scenarios", "acceptance"}:
+        if action not in {"train", "train-surrogate", "full-train", "optimize", "curriculum", "validate-env", "scenarios", "acceptance"}:
             parser.error(f"unsupported HMI action: {action}")
         code = hmi_command(action, extra)
     elif args.module == "app":
-        code = run(ROOT / "App" / "run_app.py", ([args.action] if args.action else []) + extra)
+        if args.action == "layout-test":
+            # The layout playground is a separate window so manual splitter
+            # changes never alter the production APP until the user presses
+            # “保存布局”.  The production APP reads that same JSON file.
+            code = run(ROOT / "App" / "layout_test_app.py", extra)
+        else:
+            code = run(ROOT / "App" / "run_app.py", ([args.action] if args.action else []) + extra)
     else:
         code = test_all()
     raise SystemExit(code)

@@ -9,10 +9,11 @@ def create_timeline_control(controller):
     layout = QHBoxLayout(widget)
     layout.setContentsMargins(0, 0, 0, 0)
     timer = QTimer(widget)
-    play = QPushButton("▶ 播放")
-    reset = QPushButton("重置")
-    back = QPushButton("−1步")
-    forward = QPushButton("+1步")
+    playback_callbacks = []
+    play = QPushButton("▶  播放")
+    reset = QPushButton("↺  重置")
+    back = QPushButton("‹  上一步")
+    forward = QPushButton("下一步  ›")
     speed = QComboBox()
     for value in (0.25, 0.5, 1.0, 2.0, 4.0):
         speed.addItem(f"{value:g}×", value)
@@ -52,10 +53,19 @@ def create_timeline_control(controller):
     def toggle():
         if timer.isActive():
             timer.stop()
-            play.setText("▶ 播放")
+            play.setText("▶  播放")
+            notify_playback_changed(False)
         else:
             timer.start(interval())
-            play.setText("⏸ 暂停")
+            play.setText("⏸  暂停")
+            notify_playback_changed(True)
+
+    def notify_playback_changed(playing):
+        for callback in list(playback_callbacks):
+            try:
+                callback(bool(playing))
+            except Exception:
+                continue
 
     timer.timeout.connect(lambda: controller.set_index((controller.index + 1) % max(len(controller.frames), 1)))
     play.clicked.connect(toggle)
@@ -66,6 +76,32 @@ def create_timeline_control(controller):
     slider.valueChanged.connect(controller.set_index)
     jump.valueChanged.connect(controller.set_index)
     controller.frameChanged.connect(show)
+
+    def pause():
+        """Pause playback without changing the current frame."""
+
+        if timer.isActive():
+            timer.stop()
+            play.setText("▶  播放")
+            notify_playback_changed(False)
+
+    def resume():
+        """Resume playback after a temporary UI/data transition."""
+
+        if not timer.isActive():
+            timer.start(interval())
+            play.setText("⏸  暂停")
+            notify_playback_changed(True)
+
+    def set_playback_callback(callback):
+        if callable(callback):
+            playback_callbacks.append(callback)
+            callback(bool(timer.isActive()))
+
+    widget.pause = pause
+    widget.resume = resume
+    widget.is_playing = timer.isActive
+    widget.set_playback_callback = set_playback_callback
     widget._timer = timer
     widget._show_frame = show
     show(controller.current)

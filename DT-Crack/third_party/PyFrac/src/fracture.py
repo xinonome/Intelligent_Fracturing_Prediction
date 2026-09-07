@@ -17,15 +17,197 @@ import dill
 import numpy as np
 import math
 from scipy.interpolate import griddata
+
+
+def _safe_griddata(points, values, targets, method='linear', fill_value=np.nan):
+    """Interpolate remeshing fields on the *effective* geometry dimension.
+
+    The height-contained formulation stores coordinates as 3-D points even
+    though every point lies on one plane.  ``scipy.griddata(..., method='linear')``
+    then sends a rank-deficient point cloud to Qhull and raises ``QhullError``.
+    Determine the non-degenerate coordinate axes first, use a 1-D interpolant
+    when appropriate, and fall back to nearest-neighbour interpolation only
+    for a genuinely degenerate/ill-conditioned linear triangulation.  This
+    preserves the old linear interpolation for full 2-D meshes while making
+    remeshing deterministic for planar PKN states.
+    """
+
+    points = np.asarray(points, dtype=float)
+    values = np.asarray(values)
+    targets = np.asarray(targets, dtype=float)
+    original_shape = targets.shape[:-1]
+    if points.ndim != 2 or targets.ndim < 2 or points.shape[0] == 0:
+        return np.full(original_shape, fill_value, dtype=np.result_type(values, float))
+
+    finite_points = np.isfinite(points).all(axis=1)
+    finite_values = np.isfinite(values) if np.issubdtype(values.dtype, np.number) else np.ones(values.shape, dtype=bool)
+    finite_points &= finite_values.reshape(-1)
+    points = points[finite_points]
+    values = values.reshape(-1)[finite_points]
+    if points.shape[0] == 0:
+        return np.full(original_shape, fill_value, dtype=np.result_type(values, float))
+
+    targets_flat = targets.reshape(-1, targets.shape[-1])
+    ranges = np.ptp(points, axis=0)
+    scale = max(float(np.max(ranges)), 1.0)
+    active_axes = np.flatnonzero(ranges > 1.0e-12 * scale)
+
+    if active_axes.size == 0:
+        result = np.full(targets_flat.shape[0], fill_value, dtype=float)
+        result[:] = float(values[0])
+        return result.reshape(original_shape)
+
+    p = points[:, active_axes]
+    t = targets_flat[:, active_axes]
+    if active_axes.size == 1:
+        order = np.argsort(p[:, 0])
+        x = p[order, 0]
+        y = np.asarray(values[order], dtype=float)
+        unique_x, inverse = np.unique(x, return_inverse=True)
+        if unique_x.size == 1:
+            result = np.full(t.shape[0], float(y[0]), dtype=float)
+        else:
+            sums = np.bincount(inverse, weights=y)
+            counts = np.bincount(inverse)
+            result = np.interp(t[:, 0], unique_x, sums / np.maximum(counts, 1))
+            outside = (t[:, 0] < unique_x[0]) | (t[:, 0] > unique_x[-1])
+            result[outside] = fill_value
+        return result.reshape(original_shape)
+
+    try:
+        result = griddata(p, values, t, method=method, fill_value=fill_value)
+    except Exception as exc:
+        # Qhull can still reject nearly collinear point clouds after scaling.
+        # Nearest-neighbour is a bounded state-transfer fallback; it does not
+        # invent values and the caller's front/volume audits remain active.
+        logging.getLogger('PyFrac.fracture').warning(
+            'linear remesh interpolation fell back to nearest neighbour: %s', exc
+        )
+        result = griddata(p, values, t, method='nearest', fill_value=fill_value)
+    return np.asarray(result).reshape(original_shape)
+
+
+def _remap_extensive_ledger(old_mesh, old_values, new_mesh):
+    """Transfer an extensive per-cell ledger without changing its total.
+
+    ``LkOffTotal`` is a volume ledger, not an intensive state such as pressure
+    or width.  Interpolating it and accepting the raw result can lose or
+    create volume during a domain compression/extension.  Nearest-cell
+    transfer is sufficient for the bookkeeping field; the final rescaling is
+    what makes the extensive quantity invariant under remeshing.
+    """
+
+    old_count = int(old_mesh.NumberOfElts)
+    new_count = int(new_mesh.NumberOfElts)
+    raw = np.asarray(old_values, dtype=float).reshape(-1)
+    if raw.size == 1:
+        total = float(raw[0])
+        values = np.zeros(old_count, dtype=float)
+        if total:
+            values[int(np.argmin(np.sum(old_mesh.CenterCoor ** 2, axis=1)))] = total
+    elif raw.size == old_count:
+        values = np.where(np.isfinite(raw), raw, 0.0)
+        total = float(np.sum(values))
+    else:
+        values = np.zeros(old_count, dtype=float)
+        total = float(np.nansum(raw))
+        if total:
+            values[int(np.argmin(np.sum(old_mesh.CenterCoor ** 2, axis=1)))] = total
+
+    transferred = _safe_griddata(
+        old_mesh.CenterCoor,
+        values,
+        new_mesh.CenterCoor,
+        method='nearest',
+        fill_value=0.0,
+    )
+    transferred = np.asarray(transferred, dtype=float).reshape(-1)
+    transferred = np.where(np.isfinite(transferred), transferred, 0.0)
+    transferred_total = float(np.sum(transferred))
+    if total and transferred_total > 0.0:
+        transferred *= total / transferred_total
+    elif total:
+        transferred[int(np.argmin(np.sum(new_mesh.CenterCoor ** 2, axis=1)))] = total
+    return transferred.reshape(new_count)
+
+
+def _transfer_level_set(old_mesh, new_mesh, level_set, fracture=None):
+    """Transfer a signed-distance field across a remesh without losing the front.
+
+    The legacy remesh implementation interpolated only ``EltChannel``.  That
+    is insufficient when a boundary extension or a coarse regrid is performed:
+    the channel can be only one cell wide, and the old front/ribbon cells are
+    then absent from the interpolation cloud.  The result is a positive field
+    on the new mesh and the next front reconstruction reports ``No channel
+    elements``.
+
+    Use the complete finite old level-set field as the primary transfer.  For
+    old PyFrac states where only the fracture-region values are meaningful,
+    add the known crack/ribbon/tip cells as a second, conservative source.  A
+    nearest-neighbour transfer is deliberate here: it preserves the sign and
+    avoids inventing a zero crossing between two sparse front cells.  Points
+    outside the old physical domain are explicitly marked as unfractured;
+    without this mask nearest interpolation would incorrectly extend the old
+    front into every newly added cell.
+    """
+
+    old_centres = np.asarray(old_mesh.CenterCoor, dtype=float)
+    new_centres = np.asarray(new_mesh.CenterCoor, dtype=float)
+    values = np.asarray(level_set, dtype=float).reshape(-1)
+    if values.size != old_centres.shape[0]:
+        return np.full(new_centres.shape[0], 1e10, dtype=float)
+
+    finite = np.isfinite(values) & (np.abs(values) < 1e20)
+    if fracture is not None:
+        region = []
+        for name in ("EltCrack", "EltRibbon", "EltTip", "EltChannel"):
+            if hasattr(fracture, name):
+                indices = np.asarray(getattr(fracture, name), dtype=int).reshape(-1)
+                indices = indices[(indices >= 0) & (indices < values.size)]
+                if indices.size:
+                    region.append(indices)
+        if region:
+            finite[np.concatenate(region)] = True
+
+    source = np.flatnonzero(finite)
+    if source.size == 0:
+        return np.full(new_centres.shape[0], 1e10, dtype=float)
+
+    transferred = _safe_griddata(
+        old_centres[source],
+        values[source],
+        new_centres,
+        method="nearest",
+        fill_value=1e10,
+    )
+    transferred = np.asarray(transferred, dtype=float).reshape(-1)
+
+    # Do not extrapolate the old sign-distance field into newly added cells.
+    # Keep a half-cell halo so that a front cell whose centre is on the old
+    # boundary is not dropped during a one-cell extension.
+    x_min = float(old_mesh.domainLimits[2]) - 0.5 * float(old_mesh.hx)
+    x_max = float(old_mesh.domainLimits[3]) + 0.5 * float(old_mesh.hx)
+    y_min = float(old_mesh.domainLimits[0]) - 0.5 * float(old_mesh.hy)
+    y_max = float(old_mesh.domainLimits[1]) + 0.5 * float(old_mesh.hy)
+    inside = (
+        (new_centres[:, 0] >= x_min)
+        & (new_centres[:, 0] <= x_max)
+        & (new_centres[:, 1] >= y_min)
+        & (new_centres[:, 1] <= y_max)
+    )
+    transferred[~inside] = 1e10
+    transferred[~np.isfinite(transferred)] = 1e10
+    return transferred
 from elasticity import mapping_old_indexes
 
 # local import
 # import fracture_initialization
 # import visualization
 from level_set import SolveFMM
-from volume_integral import Pdistance
+from volume_integral import Pdistance, Integral_over_cell
 from fracture_initialization import get_survey_points, get_width_pressure, generate_footprint
 from fracture_initialization import Geometry, InitializationParameters
+from continuous_front_reconstruction import reconstruct_front_continuous, UpdateListsFromContinuousFrontRec
 from HF_reference_solutions import HF_analytical_sol
 from visualization import plot_fracture_list, plot_fracture_list_slice, to_precision, zoom_factory
 from labels import unidimensional_variables
@@ -182,7 +364,12 @@ class Fracture:
         self.Tarrival = np.full((self.mesh.NumberOfElts,), np.nan, dtype=np.float64)
         self.Tarrival[self.EltCrack] = self.time
         self.LkOff = np.zeros((self.mesh.NumberOfElts,), dtype=np.float64)
-        self.LkOffTotal = 0.
+        # Keep cumulative leak-off as an extensive per-cell field.  The
+        # legacy source initialized this as a scalar and some propagation
+        # branches then added the *total* leak-off to every cell.  Summing the
+        # field at the end consequently counted the same volume once per
+        # crack cell.  A vector also makes remeshing/state transfer explicit.
+        self.LkOffTotal = np.zeros((self.mesh.NumberOfElts,), dtype=np.float64)
         self.efficiency = 1.
         self.FractureVolume = np.sum(self.w) * mesh.EltArea
         self.injectedVol = np.sum(self.w) * mesh.EltArea
@@ -603,25 +790,55 @@ class Fracture:
         return new
 
     def update_front_dict(self, old, ind_old_elts):
+        # ``fronts_dictionary`` is only populated by the continuous-front
+        # projection.  ILSA/level-set projections intentionally keep it as
+        # ``None``.  The legacy remeshing path nevertheless called this
+        # method unconditionally, so any ILSA run that extended its mesh
+        # failed with ``TypeError: argument of type 'NoneType' is not
+        # iterable`` before the next physical step.  A missing dictionary is
+        # therefore a valid no-op, not a malformed front state.
+        if old is None:
+            return None
+        if not isinstance(old, dict):
+            raise TypeError(
+                "fronts_dictionary must be a dict or None, "
+                f"got {type(old).__name__}"
+            )
+
+        ind_old_elts = np.asarray(ind_old_elts, dtype=int)
+
+        def remap(value):
+            if value is None:
+                return None
+            values = np.asarray(value, dtype=int).reshape(-1)
+            if values.size == 0:
+                return values
+            if np.any(values < 0) or np.any(values >= ind_old_elts.size):
+                raise IndexError(
+                    "front dictionary contains an element outside the "
+                    "old-mesh index map"
+                )
+            # Mesh compression can map several old cells to one new cell.
+            # De-duplicate after mapping so downstream front membership tests
+            # do not see the same discrete cell more than once.
+            return np.unique(ind_old_elts[values])
+
         mylist = ['crackcells_0','TIPcellsONLY_0','crackcells_1','TIPcellsONLY_1']
         for elem in mylist:
             if elem in old:
                 temp = old[elem]
                 if temp is not None:
-                    del old[elem]
-                    old[elem] = ind_old_elts[temp]
+                    old[elem] = remap(temp)
 
         if 'TIPcellsANDfullytrav_0' in old:
             temp = old['TIPcellsANDfullytrav_0']
             if temp is not None:
-                del old['TIPcellsANDfullytrav_0']
-                old['TIPcellsANDfullytrav_0'] = (ind_old_elts[temp]).tolist()
+                old['TIPcellsANDfullytrav_0'] = remap(temp).tolist()
 
         if 'TIPcellsANDfullytrav_1' in old:
             temp = old['TIPcellsANDfullytrav_1']
             if temp is not None:
-                del old['TIPcellsANDfullytrav_1']
-                old['TIPcellsANDfullytrav_1'] = (ind_old_elts[temp]).tolist()
+                old['TIPcellsANDfullytrav_1'] = remap(temp).tolist()
 
         return old
 
@@ -677,18 +894,212 @@ class Fracture:
                      [],
                      self.EltChannel)
 
-            sgndDist_coarse = griddata(self.mesh.CenterCoor[self.EltChannel],
-                                       self.sgndDist[self.EltChannel],
-                                       coarse_mesh.CenterCoor,
-                                       method='linear',
-                                       fill_value=1e10)
+            sgndDist_coarse = _transfer_level_set(
+                self.mesh,
+                coarse_mesh,
+                self.sgndDist,
+                fracture=self,
+            )
 
             # avoid adding tip cells from the fine mesh to get into the channel cells of the coarse mesh
             max_diag = (coarse_mesh.hx ** 2 + coarse_mesh.hy ** 2) ** 0.5
             excluding_tip = np.where(sgndDist_coarse <= -max_diag)[0]
             sgndDist_copy = np.copy(sgndDist_coarse)
+            # On a coarse remesh the fracture can be only one cell thick in
+            # the direction normal to its front.  The strict ``-max_diag``
+            # filter then removes every interior candidate and the legacy
+            # constructor reports ``No channel elements``.  Retain the
+            # already-entered coarse cells as a controlled fallback; the
+            # level-set/front reconstruction below still validates the
+            # resulting topology before accepting the remesh.
+            entered_coarse = np.where(
+                np.isfinite(sgndDist_copy) & (sgndDist_copy < 0.0)
+            )[0]
+            if excluding_tip.size < 2 and entered_coarse.size >= 2:
+                excluding_tip = entered_coarse
+
+            # A coarse cell can be wider than the old fracture in the
+            # transverse direction.  In that case nearest interpolation may
+            # leave fewer than two negative cell centres even though the old
+            # state has a non-empty fracture.  Map the old crack footprint to
+            # its nearest new cells and retain those cells as the inner
+            # region.  This is a geometric state transfer, not a pressure or
+            # volume invention; it prevents the constructor's historical
+            # ``channel <= ribbon`` guard from deleting a valid small front.
+            if (
+                excluding_tip.size < 2
+                or not np.any(
+                    np.isfinite(sgndDist_copy[excluding_tip])
+                    & (sgndDist_copy[excluding_tip] <= -max_diag)
+                )
+            ):
+                old_region = []
+                old_channel = np.asarray([], dtype=int)
+                if hasattr(self, "EltChannel"):
+                    old_channel = np.asarray(self.EltChannel, dtype=int).reshape(-1)
+                    old_channel = old_channel[
+                        (old_channel >= 0) & (old_channel < self.mesh.NumberOfElts)
+                    ]
+                for name in ("EltCrack", "EltRibbon", "EltTip", "EltChannel"):
+                    if hasattr(self, name):
+                        indices = np.asarray(getattr(self, name), dtype=int).reshape(-1)
+                        indices = indices[
+                            (indices >= 0) & (indices < self.mesh.NumberOfElts)
+                        ]
+                        if indices.size:
+                            old_region.append(indices)
+                if old_region:
+                    old_region = np.unique(np.concatenate(old_region))
+                    mapped = []
+                    new_points = np.asarray(coarse_mesh.CenterCoor, dtype=float)
+                    for point in np.asarray(self.mesh.CenterCoor[old_region], dtype=float):
+                        distance = np.sum((new_points - point) ** 2, axis=1)
+                        mapped.append(int(np.argmin(distance)))
+                    mapped = np.unique(np.asarray(mapped, dtype=int))
+                    if mapped.size:
+                        # Keep any valid transferred depth.  If the old field
+                        # has no negative value at the mapped centre, assign a
+                        # half-cell interior distance so the front
+                        # reconstruction has a finite channel seed.
+                        mapped_values = np.asarray(sgndDist_copy[mapped], dtype=float)
+                        mapped_values = np.where(
+                            np.isfinite(mapped_values) & (mapped_values < 0.0),
+                            mapped_values,
+                            -0.5 * max_diag,
+                        )
+                        sgndDist_copy[mapped] = mapped_values
+
+                        # Preserve the old channel/core distinction.  The
+                        # old ``sgndDist`` can be shallower than one new-cell
+                        # diagonal after a fixed-cell regrid, but a cell that
+                        # was already in EltChannel must remain an interior
+                        # seed.  Without this promotion all mapped cells are
+                        # classified as ribbon/tip and the legacy constructor
+                        # rejects the remesh.
+                        mapped_channel = []
+                        for point in np.asarray(self.mesh.CenterCoor[old_channel], dtype=float):
+                            distance = np.sum((new_points - point) ** 2, axis=1)
+                            mapped_channel.append(int(np.argmin(distance)))
+                        mapped_channel = np.unique(np.asarray(mapped_channel, dtype=int))
+                        if mapped_channel.size:
+                            sgndDist_copy[mapped_channel] = np.minimum(
+                                sgndDist_copy[mapped_channel],
+                                -1.1 * max_diag,
+                            )
+                            excluding_tip = mapped_channel
+                        else:
+                            excluding_tip = mapped
+
+            # Last-resort protection for a one-cell initial footprint.  The
+            # nearest old crack cell is still a better state representation
+            # than aborting the whole native run at a remesh boundary.
+            if excluding_tip.size == 0:
+                finite = np.flatnonzero(
+                    np.isfinite(sgndDist_copy) & (np.abs(sgndDist_copy) < 1e20)
+                )
+                if finite.size:
+                    seed = int(finite[np.argmin(sgndDist_copy[finite])])
+                    sgndDist_copy[seed] = -0.5 * max_diag
+                    excluding_tip = np.asarray([seed], dtype=int)
             sgndDist_coarse = np.full(sgndDist_coarse.shape, 1e10, dtype=np.float64)
             sgndDist_coarse[excluding_tip] = sgndDist_copy[excluding_tip]
+            logging.getLogger('PyFrac.remesh').debug(
+                'level-set transfer: old_channel=%d old_crack=%d candidates=%d deep=%d min=%.6g max=%.6g',
+                int(np.asarray(self.EltChannel).size),
+                int(np.asarray(self.EltCrack).size),
+                int(np.asarray(excluding_tip).size),
+                int(np.sum(sgndDist_coarse[excluding_tip] <= -max_diag))
+                if np.asarray(excluding_tip).size else 0,
+                float(np.nanmin(sgndDist_coarse[excluding_tip]))
+                if np.asarray(excluding_tip).size else float('nan'),
+                float(np.nanmax(sgndDist_coarse[excluding_tip]))
+                if np.asarray(excluding_tip).size else float('nan'),
+            )
+
+            # A level-set initialization needs two different sets: a
+            # survey ring on the inside of the front and an inner region
+            # enclosed by that ring.  The old remesh code supplied the same
+            # ``excluding_tip`` array for both, which is why a valid mapped
+            # footprint could still produce ``channel == ribbon``.  Rebuild
+            # those sets from the transferred signed-distance field.
+            negative_mask = (
+                np.isfinite(sgndDist_copy)
+                & (sgndDist_copy < 0.0)
+                & (np.abs(sgndDist_copy) < 1e20)
+            )
+            remesh_inner_cells = np.flatnonzero(negative_mask).astype(int)
+            if remesh_inner_cells.size < 2:
+                remesh_inner_cells = np.unique(np.asarray(excluding_tip, dtype=int))
+
+            # A fixed-cell regrid can collapse a thin old footprint to a
+            # one-cell-wide chain.  Such a chain has no strict inner cell and
+            # the legacy ``UpdateLists`` routine classifies its entire width
+            # as ribbon.  Dilate only the *topological* inner set until it
+            # contains a core cell; the transferred width/pressure fields are
+            # still used below, so this does not create fluid volume by
+            # itself.  The operation is bounded to three neighbour layers to
+            # avoid turning a small fracture into a domain-sized footprint.
+            for _ in range(3):
+                inner_status = np.zeros(coarse_mesh.NumberOfElts, dtype=bool)
+                inner_status[remesh_inner_cells] = True
+                has_core = False
+                for cell in remesh_inner_cells:
+                    neighbours = np.asarray(coarse_mesh.NeiElements[cell], dtype=int).reshape(-1)
+                    if neighbours.size and np.all(inner_status[neighbours]):
+                        has_core = True
+                        break
+                if has_core:
+                    break
+                neighbours = np.asarray(
+                    coarse_mesh.NeiElements[remesh_inner_cells],
+                    dtype=int,
+                ).reshape(-1)
+                remesh_inner_cells = np.unique(
+                    np.concatenate([remesh_inner_cells, neighbours])
+                )
+
+            remesh_survey_cells = np.asarray([], dtype=int)
+            if remesh_inner_cells.size:
+                inner_status = np.zeros(coarse_mesh.NumberOfElts, dtype=bool)
+                inner_status[remesh_inner_cells] = True
+                boundary_cells = []
+                for cell in remesh_inner_cells:
+                    neighbours = np.asarray(coarse_mesh.NeiElements[cell], dtype=int).reshape(-1)
+                    if np.any(~inner_status[neighbours]):
+                        boundary_cells.append(int(cell))
+                remesh_survey_cells = np.unique(np.asarray(boundary_cells, dtype=int))
+
+            # If the nearest-neighbour transfer produces a single-cell
+            # footprint, preserve the old tip cells as the survey ring.  If
+            # even those are unavailable, use the least-negative inner cells
+            # so the constructor receives a finite, oriented front seed.
+            if remesh_survey_cells.size < 2:
+                old_tip = np.asarray(getattr(self, 'EltTip', []), dtype=int).reshape(-1)
+                old_tip = old_tip[(old_tip >= 0) & (old_tip < self.mesh.NumberOfElts)]
+                if old_tip.size:
+                    mapped_tip = []
+                    new_points = np.asarray(coarse_mesh.CenterCoor, dtype=float)
+                    for point in np.asarray(self.mesh.CenterCoor[old_tip], dtype=float):
+                        distance = np.sum((new_points - point) ** 2, axis=1)
+                        mapped_tip.append(int(np.argmin(distance)))
+                    remesh_survey_cells = np.unique(np.asarray(mapped_tip, dtype=int))
+                    remesh_survey_cells = np.intersect1d(
+                        remesh_survey_cells,
+                        remesh_inner_cells,
+                    )
+            if remesh_survey_cells.size < 2 and remesh_inner_cells.size:
+                order = np.argsort(sgndDist_copy[remesh_inner_cells])[::-1]
+                remesh_survey_cells = remesh_inner_cells[order[:min(4, remesh_inner_cells.size)]]
+            if remesh_survey_cells.size == 0:
+                remesh_survey_cells = np.asarray(excluding_tip, dtype=int)
+            remesh_survey_cells = np.unique(remesh_survey_cells)
+            remesh_inner_cells = np.unique(
+                np.concatenate([remesh_inner_cells, remesh_survey_cells])
+            )
+            remesh_tip_distances = np.maximum(
+                -np.asarray(sgndDist_copy[remesh_survey_cells], dtype=float),
+                0.25 * max_diag,
+            )
 
             # enclosing cells for each cell in the grid
             enclosing = np.zeros((self.mesh.NumberOfElts, 8), dtype=int)
@@ -698,7 +1109,55 @@ class Fracture:
             enclosing[:, 6] = self.mesh.NeiElements[enclosing[:, 3], 0]
             enclosing[:, 7] = self.mesh.NeiElements[enclosing[:, 3], 1]
 
-            if factor == 2.:
+            old_crack = np.asarray(self.EltCrack, dtype=int).reshape(-1)
+            old_crack = old_crack[
+                (old_crack >= 0) & (old_crack < self.mesh.NumberOfElts)
+            ]
+
+            if direction is None:
+                # ``direction=None`` is the project-level fixed-cell domain
+                # expansion path. It changes the physical cell size while
+                # keeping nx/ny unchanged; treating factor=2 as the legacy
+                # four-to-one compression stencil would transfer values by
+                # index and silently change the physical state. Interpolate
+                # intensive fields in physical coordinates and rescale the
+                # opening so the represented fracture volume is invariant.
+                if old_crack.size:
+                    old_points = np.asarray(self.mesh.CenterCoor[old_crack], dtype=float)
+                    w_coarse = _safe_griddata(
+                        old_points,
+                        np.asarray(self.w[old_crack], dtype=float),
+                        coarse_mesh.CenterCoor,
+                        method='linear',
+                        fill_value=0.0,
+                    )
+                    wHist_coarse = _safe_griddata(
+                        old_points,
+                        np.asarray(self.wHist[old_crack], dtype=float),
+                        coarse_mesh.CenterCoor,
+                        method='linear',
+                        fill_value=0.0,
+                    )
+                else:
+                    w_coarse = np.zeros(coarse_mesh.NumberOfElts, dtype=np.float64)
+                    wHist_coarse = np.zeros(coarse_mesh.NumberOfElts, dtype=np.float64)
+
+                w_coarse = np.asarray(w_coarse, dtype=float).reshape(-1)
+                wHist_coarse = np.asarray(wHist_coarse, dtype=float).reshape(-1)
+                w_coarse[~np.isfinite(w_coarse)] = 0.0
+                wHist_coarse[~np.isfinite(wHist_coarse)] = 0.0
+                old_volume = float(np.nansum(self.w[old_crack]) * self.mesh.EltArea) if old_crack.size else 0.0
+                new_volume = float(np.nansum(w_coarse) * coarse_mesh.EltArea)
+                if old_volume > 0.0 and new_volume > 0.0:
+                    scale = old_volume / new_volume
+                    w_coarse *= scale
+                    wHist_coarse *= scale
+
+                # LkOff is an extensive per-cell increment, not an
+                # intensive field. Preserve its total separately.
+                LkOff = _remap_extensive_ledger(self.mesh, self.LkOff, coarse_mesh)
+
+            elif factor == 2.:
                 # finding the intersecting cells of the fine and course mesh
                 intersecting = np.array([], dtype=int)
                 #todo: a description is to be written, its not readable
@@ -734,19 +1193,19 @@ class Fracture:
 
             else:
                 # In case the factor by which mesh is compressed is not 2
-                w_coarse = griddata(self.mesh.CenterCoor[self.EltChannel],
+                w_coarse = _safe_griddata(self.mesh.CenterCoor[self.EltChannel],
                                     self.w[self.EltChannel],
                                     coarse_mesh.CenterCoor,
                                     method='linear',
                                     fill_value=0.)
 
-                LkOff = 4 * griddata(self.mesh.CenterCoor[self.EltChannel],
+                LkOff = 4 * _safe_griddata(self.mesh.CenterCoor[self.EltChannel],
                                     self.LkOff[self.EltChannel],
                                     coarse_mesh.CenterCoor,
                                     method='linear',
                                     fill_value=0.)
 
-                wHist_coarse = griddata(self.mesh.CenterCoor[self.EltChannel],
+                wHist_coarse = _safe_griddata(self.mesh.CenterCoor[self.EltChannel],
                                     self.wHist[self.EltChannel],
                                     coarse_mesh.CenterCoor,
                                     method='linear',
@@ -760,16 +1219,17 @@ class Fracture:
                      [],
                      self.EltChannel)
 
-            sgndDist_last_coarse = griddata(self.mesh.CenterCoor[self.EltChannel],
-                                       self.sgndDist_last[self.EltChannel],
-                                       coarse_mesh.CenterCoor,
-                                       method='linear',
-                                       fill_value=1e10)
+            sgndDist_last_coarse = _transfer_level_set(
+                self.mesh,
+                coarse_mesh,
+                self.sgndDist_last,
+                fracture=self,
+            )
 
             Fr_Geometry = Geometry(shape='level set',
-                                   survey_cells=excluding_tip,
-                                   inner_cells=excluding_tip,
-                                   tip_distances=-sgndDist_coarse[excluding_tip])
+                                   survey_cells=remesh_survey_cells,
+                                   inner_cells=remesh_inner_cells,
+                                   tip_distances=remesh_tip_distances)
             init_data = InitializationParameters(geometry=Fr_Geometry,
                                                  regime='static',
                                                  width=w_coarse,
@@ -783,6 +1243,91 @@ class Fracture:
                                 injection=inj_prop,  #unchanged within this routine, until now
                                 simulProp=sim_prop)  #unchanged within this routine, until now
 
+            if direction is None:
+                # The static constructor calls ``get_width_pressure``.  That
+                # routine solves a new equilibrium width and therefore can
+                # silently replace the transferred opening with a much
+                # smaller one.  A domain regrid is a coordinate transform,
+                # not a new physical solve: retain the transferred opening
+                # and its volume here, then let the next native EHL step
+                # re-equilibrate it against the transferred pressure field.
+                transferred_width = np.asarray(w_coarse, dtype=np.float64).reshape(-1)
+                transferred_history = np.asarray(wHist_coarse, dtype=np.float64).reshape(-1)
+                transferred_width = np.where(
+                    np.isfinite(transferred_width) & (transferred_width > 0.0),
+                    transferred_width,
+                    0.0,
+                )
+                transferred_history = np.where(
+                    np.isfinite(transferred_history) & (transferred_history > 0.0),
+                    transferred_history,
+                    0.0,
+                )
+                crack_mask = np.zeros(coarse_mesh.NumberOfElts, dtype=bool)
+                crack_mask[np.asarray(Fr_coarse.EltCrack, dtype=int)] = True
+                transferred_width[~crack_mask] = 0.0
+                transferred_history[~crack_mask] = 0.0
+                Fr_coarse.w = transferred_width
+                Fr_coarse.wHist = np.maximum(transferred_history, transferred_width)
+                Fr_coarse.FractureVolume = float(
+                    np.sum(Fr_coarse.w) * coarse_mesh.EltArea
+                )
+
+            # ``Fracture(...)`` correctly reconstructs the topology and the
+            # opening, but its pressure arrays are intentionally initialized
+            # to zero.  That is fine for a new fracture and wrong for a
+            # remesh: after the first fixed-cell domain expansion the next
+            # EHL solve would see pFluid/pNet=0 and create a spurious pressure
+            # transient.  Transfer the intensive fields in physical
+            # coordinates, just like the opening above.  Keep non-fracture
+            # cells at their constructor defaults (zero).
+            if old_crack.size:
+                old_points = np.asarray(self.mesh.CenterCoor[old_crack], dtype=float)
+                new_crack = np.asarray(Fr_coarse.EltCrack, dtype=int).reshape(-1)
+                new_crack = new_crack[
+                    (new_crack >= 0) & (new_crack < coarse_mesh.NumberOfElts)
+                ]
+                if new_crack.size:
+                    new_points = np.asarray(coarse_mesh.CenterCoor[new_crack], dtype=float)
+
+                    def _transfer_intensive(values, fallback=0.0):
+                        source = np.asarray(values, dtype=float).reshape(-1)
+                        if source.size != self.mesh.NumberOfElts:
+                            return np.full(new_crack.size, float(fallback), dtype=float)
+                        source = source[old_crack]
+                        source = np.where(np.isfinite(source), source, float(fallback))
+                        transferred = _safe_griddata(
+                            old_points,
+                            source,
+                            new_points,
+                            method='linear',
+                            fill_value=float(fallback),
+                        )
+                        return np.where(
+                            np.isfinite(transferred),
+                            np.asarray(transferred, dtype=float),
+                            float(fallback),
+                        )
+
+                    pfluid_coarse = np.zeros(coarse_mesh.NumberOfElts, dtype=np.float64)
+                    pnet_coarse = np.zeros(coarse_mesh.NumberOfElts, dtype=np.float64)
+                    pfluid_coarse[new_crack] = _transfer_intensive(self.pFluid)
+                    pnet_coarse[new_crack] = _transfer_intensive(self.pNet)
+                    Fr_coarse.pFluid = pfluid_coarse
+                    Fr_coarse.pNet = pnet_coarse
+
+                    if hasattr(self, 'muPrime'):
+                        mu_coarse = np.full(
+                            coarse_mesh.NumberOfElts,
+                            float(getattr(fluid_prop, 'muPrime', 0.0)),
+                            dtype=np.float64,
+                        )
+                        mu_coarse[new_crack] = _transfer_intensive(
+                            self.muPrime,
+                            fallback=float(getattr(fluid_prop, 'muPrime', 0.0)),
+                        )
+                        Fr_coarse.muPrime = mu_coarse
+
             # evaluate current level set on the coarse mesh
             EltRibbon = np.delete(Fr_coarse.EltRibbon, np.where(sgndDist_copy[Fr_coarse.EltRibbon] >= 1e10)[0])
             EltChannel = np.delete(Fr_coarse.EltChannel, np.where(sgndDist_copy[Fr_coarse.EltChannel] >= 1e10)[0])
@@ -795,6 +1340,11 @@ class Fracture:
                      coarse_mesh,
                      cells_outside,
                      [])
+            # Persist the transferred level-set fields on the returned
+            # fracture.  The local arrays are also used for velocity below,
+            # but leaving the constructor's original arrays in place makes
+            # the next step reconstruct the front from stale coordinates.
+            Fr_coarse.sgndDist = np.asarray(sgndDist_copy, dtype=np.float64)
 
             # evaluate last level set on the coarse mesh to evaluate velocity of the tip
             EltRibbon = np.delete(Fr_coarse.EltRibbon, np.where(sgndDist_last_coarse[Fr_coarse.EltRibbon] >= 1e10)[0])
@@ -808,13 +1358,17 @@ class Fracture:
                      coarse_mesh,
                      cells_outside,
                      [])
+            Fr_coarse.sgndDist_last = np.asarray(
+                sgndDist_last_coarse,
+                dtype=np.float64,
+            )
 
             if self.timeStep_last is None:
                 self.timeStep_last = 1
             Fr_coarse.v = -(sgndDist_copy[Fr_coarse.EltTip] -
                             sgndDist_last_coarse[Fr_coarse.EltTip]) / self.timeStep_last
 
-            Fr_coarse.Tarrival[Fr_coarse.EltChannel] = griddata(self.mesh.CenterCoor[self.EltChannel],
+            Fr_coarse.Tarrival[Fr_coarse.EltChannel] = _safe_griddata(self.mesh.CenterCoor[self.EltChannel],
                                                                 self.Tarrival[self.EltChannel],
                                                                 coarse_mesh.CenterCoor[Fr_coarse.EltChannel],
                                                                 method='linear')
@@ -824,7 +1378,7 @@ class Fracture:
                     Fr_coarse.Tarrival[Fr_coarse.EltChannel[elt]] = np.nanmean(
                                                 Fr_coarse.Tarrival[coarse_mesh.NeiElements[Fr_coarse.EltChannel[elt]]])
 
-            Fr_coarse.TarrvlZrVrtx[Fr_coarse.EltChannel] = griddata(self.mesh.CenterCoor[self.EltChannel],
+            Fr_coarse.TarrvlZrVrtx[Fr_coarse.EltChannel] = _safe_griddata(self.mesh.CenterCoor[self.EltChannel],
                                                                 self.TarrvlZrVrtx[self.EltChannel],
                                                                 coarse_mesh.CenterCoor[Fr_coarse.EltChannel],
                                                                 method='linear')
@@ -833,7 +1387,26 @@ class Fracture:
             # fine mesh. If not available, average is taken of the enclosing elements
             to_correct = []
             for indx, elt in enumerate(Fr_coarse.EltTip):
-                corr_tip = self.mesh.locate_element(coarse_mesh.CenterCoor[elt, 0], coarse_mesh.CenterCoor[elt, 1])[0]
+                located = self.mesh.locate_element(
+                    coarse_mesh.CenterCoor[elt, 0],
+                    coarse_mesh.CenterCoor[elt, 1],
+                )
+                located = np.asarray(located).reshape(-1)
+                if located.size and np.isfinite(located[0]):
+                    corr_tip = int(located[0])
+                else:
+                    # Compression can place a coarse tip exactly on the old
+                    # domain boundary. ``locate_element`` returns scalar NaN
+                    # there, while the legacy code blindly indexed it as an
+                    # array. Use the nearest fine-cell center as a bounded
+                    # state-transfer fallback; front and mass audits still
+                    # decide whether the remesh can be accepted.
+                    old_centers = np.asarray(self.mesh.CenterCoor, dtype=float)
+                    distance = (
+                        (old_centers[:, 0] - coarse_mesh.CenterCoor[elt, 0]) ** 2
+                        + (old_centers[:, 1] - coarse_mesh.CenterCoor[elt, 1]) ** 2
+                    )
+                    corr_tip = int(np.nanargmin(distance))
                 if np.isnan(self.TarrvlZrVrtx[corr_tip]):
                     TarrvlZrVrtx = 0
                     cnt = 0
@@ -855,13 +1428,31 @@ class Fracture:
 
             coarse_closed = []
             for e in self.closed:
-                coarse_closed.append(self.mesh.locate_element(self.mesh.CenterCoor[e, 0], self.mesh.CenterCoor[e, 1]))
+                if 0 <= int(e) < self.mesh.NumberOfElts:
+                    located = coarse_mesh.locate_element(
+                        self.mesh.CenterCoor[int(e), 0],
+                        self.mesh.CenterCoor[int(e), 1],
+                    )
+                    located = np.asarray(located).reshape(-1)
+                    if located.size and np.isfinite(located[0]):
+                        coarse_closed.append(int(located[0]))
             Fr_coarse.closed = np.unique(np.asarray(coarse_closed, dtype=int))
             
             Fr_coarse.LkOff = LkOff
-            Fr_coarse.LkOffTotal = self.LkOffTotal
+            # Preserve the total leak-off volume while moving the per-cell
+            # ledger to the compressed mesh.  The old implementation copied
+            # the array by position, which is invalid after the cell centres
+            # move and can also make the scalar/vector efficiency expression
+            # inconsistent.
+            Fr_coarse.LkOffTotal = _remap_extensive_ledger(
+                self.mesh,
+                self.LkOffTotal,
+                coarse_mesh,
+            )
             Fr_coarse.injectedVol = self.injectedVol
-            Fr_coarse.efficiency = (Fr_coarse.injectedVol - Fr_coarse.LkOffTotal) / Fr_coarse.injectedVol
+            Fr_coarse.efficiency = (
+                Fr_coarse.injectedVol - np.sum(Fr_coarse.LkOffTotal)
+            ) / Fr_coarse.injectedVol
             Fr_coarse.time = self.time
 
             Fr_coarse.wHist = wHist_coarse
@@ -881,9 +1472,27 @@ class Fracture:
             self.EltChannel=        self.update_index(self.EltChannel,        ind_old_elts,self.EltChannel.size,mytype=int)
             self.EltCrack=          self.update_index(self.EltCrack,          ind_old_elts,self.EltCrack.size,  mytype=int)
             self.EltRibbon=         self.update_index(self.EltRibbon,         ind_old_elts,self.EltRibbon.size, mytype=int)
-            self.EltTip=            self.update_index(self.EltTipBefore,      ind_old_elts,self.EltTipBefore.size,    mytype=int)
+            mapped_tip_before = self.update_index(
+                self.EltTipBefore,
+                ind_old_elts,
+                self.EltTipBefore.size,
+                mytype=int,
+            )
+            self.EltTip = mapped_tip_before
+            # Keep the rollback/remesh marker in the same index space as the
+            # extended mesh.  The legacy branch left EltTipBefore on the old
+            # mesh, so the next boundary event could remap stale cell ids.
+            self.EltTipBefore = np.asarray(mapped_tip_before, dtype=int).copy()
             self.InCrack=           self.update_value(self.InCrack,           ind_new_elts,ind_old_elts,newNumberOfElts,value_new_elem=0,  mytype=int)
             self.LkOff=             self.update_value(self.LkOff,             ind_new_elts,ind_old_elts,newNumberOfElts,value_new_elem=0.,mytype=np.float64)
+            self.LkOffTotal=        self.update_value(
+                np.asarray(self.LkOffTotal, dtype=np.float64).reshape(-1),
+                ind_new_elts,
+                ind_old_elts,
+                newNumberOfElts,
+                value_new_elem=0.,
+                mytype=np.float64,
+            )
             self.Tarrival=          self.update_value(self.Tarrival,          ind_new_elts,ind_old_elts,newNumberOfElts,value_new_elem=np.nan,mytype=np.float64)
             self.TarrvlZrVrtx=      self.update_value(self.TarrvlZrVrtx,      ind_new_elts,ind_old_elts,newNumberOfElts,value_new_elem=np.nan,mytype=np.float64)
             self.closed=            self.update_index(self.closed,            ind_old_elts,self.closed.size,    mytype=int)
@@ -896,10 +1505,106 @@ class Fracture:
             self.w=                 self.update_value(self.w,                 ind_new_elts,ind_old_elts,newNumberOfElts,value_new_elem=0.,mytype=np.float64)
             self.wHist=             self.update_value(self.wHist,             ind_new_elts,ind_old_elts,newNumberOfElts,value_new_elem=0.,mytype=np.float64)
 
+            # ILSA does not maintain continuous-front metadata and therefore
+            # has ``fronts_dictionary=None``.  The helper now handles that
+            # valid case explicitly; continuous-front runs still remap and
+            # de-duplicate their cell memberships here.
             self.fronts_dictionary= self.update_front_dict(self.fronts_dictionary, ind_old_elts)
             self.regime_color=      self.update_regime_color(self.regime_color,    ind_new_elts,ind_old_elts,newNumberOfElts)
             self.source=            inj_prop.sourceElem
             self.mesh=              coarse_mesh
+
+            # Width and cell area changed during extension.  Recompute the
+            # derived volume/efficiency values before the next time-step
+            # controller estimates its limits; retaining the old scalar
+            # FractureVolume makes the subsequent step-size decision stale.
+            self.FractureVolume = float(np.nansum(self.w) * self.mesh.EltArea)
+            injected = float(np.asarray(self.injectedVol).reshape(-1)[0])
+            if injected > 0.0:
+                self.efficiency = float(
+                    (injected - np.nansum(self.LkOffTotal)) / injected
+                )
+
+            # The legacy extension path used to stop here.  That leaves the
+            # continuous-front metadata (EltTip, l, alpha, Ffront and the
+            # front dictionary) indexed on the old mesh.  The next
+            # elastohydrodynamic solve then concatenates tip arrays with
+            # different lengths and fails with a cryptic numpy dimension
+            # error.  Reconstruct the front on the extended mesh before the
+            # controller starts the next time step.
+            if sim_prop.projMethod == 'LS_continousfront':
+                band = np.arange(self.mesh.NumberOfElts, dtype=int)
+                reconstructed = None
+                for _ in range(10):
+                    reconstructed = reconstruct_front_continuous(
+                        self.sgndDist,
+                        band,
+                        np.asarray(self.EltRibbon, dtype=int),
+                        np.asarray(self.EltChannel, dtype=int),
+                        self.mesh,
+                        False,
+                        oldfront=None,
+                    )
+                    status = reconstructed[8]
+                    if status[0]:
+                        break
+                    if status[1] or status[2] or reconstructed[9] is None:
+                        raise ValueError(
+                            "continuous-front reconstruction failed after mesh extension: "
+                            f"status={status}"
+                        )
+
+                if reconstructed is None or not reconstructed[8][0]:
+                    raise ValueError("continuous-front reconstruction did not converge after mesh extension")
+
+                (
+                    tip_cells,
+                    tip_cells_only,
+                    tip_distances,
+                    tip_angles,
+                    _cell_status,
+                    new_ribbon,
+                    _zero_vertices_all,
+                    zero_vertices_tip,
+                    _status,
+                    self.sgndDist,
+                    self.Ffront,
+                    self.number_of_fronts,
+                    self.fronts_dictionary,
+                ) = reconstructed
+
+                (
+                    self.EltChannel,
+                    self.EltTip,
+                    self.EltCrack,
+                    self.EltRibbon,
+                    self.CellStatus,
+                    self.fully_traversed,
+                ) = UpdateListsFromContinuousFrontRec(
+                    new_ribbon,
+                    self.sgndDist,
+                    self.EltChannel,
+                    tip_cells,
+                    tip_cells_only,
+                    self.mesh,
+                )
+
+                tip_indices = np.arange(tip_cells.size, dtype=int)[
+                    np.in1d(tip_cells, tip_cells_only)
+                ]
+                self.l = np.asarray(tip_distances)[tip_indices]
+                self.alpha = np.asarray(tip_angles)[tip_indices]
+                self.ZeroVertex = np.asarray(zero_vertices_tip, dtype=int)
+                self.FillF = Integral_over_cell(
+                    self.EltTip,
+                    self.alpha,
+                    self.l,
+                    self.mesh,
+                    'A',
+                ) / self.mesh.EltArea
+                # Keep the rollback/front-health metadata consistent with
+                # the reconstructed current tip set.
+                self.EltTipBefore = np.asarray(self.EltTip, dtype=int).copy()
 
             if inj_prop.modelInjLine:
                 Fr_coarse.pInjLine = self.pInjLine

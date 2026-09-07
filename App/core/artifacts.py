@@ -196,12 +196,20 @@ class ArtifactRegistry:
 
 def _command_output(command: list[str]) -> dict[str, Any]:
     try:
-        completed = subprocess.run(command, capture_output=True, text=True, timeout=15, check=False)
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+            check=False,
+        )
         return {
             "command": command,
             "returncode": completed.returncode,
-            "stdout": completed.stdout.strip(),
-            "stderr": completed.stderr.strip(),
+            "stdout": (completed.stdout or "").strip(),
+            "stderr": (completed.stderr or "").strip(),
         }
     except (OSError, subprocess.SubprocessError) as exc:
         return {"command": command, "returncode": None, "error": f"{type(exc).__name__}: {exc}"}
@@ -272,6 +280,12 @@ def create_app_run(extra: dict[str, Any] | None = None) -> dict[str, Any]:
         "preflight": preflight,
         "commands": [],
     }
+    try:
+        from .model_runtime import resolve_runtime_selection
+
+        payload["runtime_models"] = resolve_runtime_selection().to_dict()
+    except Exception as exc:
+        payload["runtime_models"] = {"status": "unavailable", "error": f"{type(exc).__name__}: {exc}"}
     try:
         from .integration import build_bridge_from_registry
 

@@ -1,8 +1,9 @@
 """Build the lightweight, synchronized DT playback cache used by the APP.
 
 The Qt environment intentionally does not need numpy/pandas.  This script is
-run with the algorithm Python environment and converts the real stage-08
-sources into one relative-second timeline for the presentation layer.
+run with the algorithm Python environment and converts either the registered
+Stage 08 sources or a single raw_frac construction segment into one
+relative-second timeline for the presentation layer.
 """
 
 from __future__ import annotations
@@ -20,11 +21,30 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "DT-Crack"))
 
 from data_fusion.frac_monitor_text_adapter import load_frac_monitor_text
-from data_fusion.pressure_schedule_adapter import load_pressure_model_config, load_stage_pressure_schedule
+from data_fusion.pressure_schedule_adapter import (
+    load_pressure_model_config,
+    load_raw_construction_schedule,
+    load_stage_pressure_schedule,
+)
 from data_fusion.well_trajectory_adapter import load_well_trajectory
 from data_fusion.scenario import load_cluster_geometry
 from data_fusion.observation_quality import validate_cluster_controls
 from inversion.pressure_only_enkf import PressureOnlyConfig, run_pressure_only_correction
+from inversion.physics import PhysicalEnKFConfig, pkn_with_carter_leakoff
+from dt_pressure_only_model import (
+    build_assumed_cluster_positions,
+    build_straight_assumed_cluster_positions,
+    estimate_pressure_only_multicluster,
+)
+try:
+    from App.data.dt_dataset_registry import get_dataset
+except ModuleNotFoundError:  # direct ``python App/build_dt_realtime_cache.py``
+    from data.dt_dataset_registry import get_dataset
+
+try:
+    from App.core.model_runtime import resolve_runtime_selection
+except ModuleNotFoundError:  # direct algorithm-environment execution fallback
+    resolve_runtime_selection = None
 
 
 def _read_csv(path: Path) -> pd.DataFrame:
@@ -138,14 +158,45 @@ def _build_deep_display_geometry(
     return result, pd.DataFrame(positions), metadata
 
 
-def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
+def build_cache(output: Path, dt_run: str | Path | None = None, dataset_id: str | None = None) -> dict:
+    dataset = get_dataset(dataset_id)
+    if dataset.get("adapter") == "raw_frac_construction":
+        return _build_raw_construction_cache(output, dataset)
+
     fiber_path = ROOT / "Data" / "3Dfrac" / "光纤本井监测08.txt"
     pressure_path = ROOT / "Data" / "3Dfrac" / "JY84-Z1-stage08-f1.xls"
     trajectory_path = ROOT / "Data" / "3Dfrac" / "JY84-Z1HF-1011.csv"
     history_path, cluster_path, summary_path = _latest_dt_run(dt_run)
 
     fiber = load_frac_monitor_text(fiber_path)
-    checked_controls, fiber_quality = validate_cluster_controls(fiber.controls, expected_clusters=6)
+
+    trajectory = load_well_trajectory(trajectory_path) if trajectory_path.exists() else pd.DataFrame()
+    cluster_geometry_path = ROOT / "App" / "config" / "cluster_geometry.csv"
+    cluster_geometry, geometry_meta = load_cluster_geometry(cluster_geometry_path, stage_id="08")
+    pressure_config = load_pressure_model_config(ROOT / "App" / "config" / "pressure_calibration.json")
+    vertical_depth = float(
+        pressure_config.vertical_depth_m
+        if pressure_config.vertical_depth_m is not None
+        else (trajectory["vertical_depth_m"].max() if not trajectory.empty else 3200.0)
+    )
+    measured_depth = float(
+        pressure_config.measured_depth_m
+        if pressure_config.measured_depth_m is not None
+        else (trajectory["measured_depth_m"].max() if not trajectory.empty else 5200.0)
+    )
+    pressure, pressure_meta = load_stage_pressure_schedule(
+        pressure_path,
+        config=pressure_config,
+        measured_depth_m=measured_depth,
+        vertical_depth_m=vertical_depth,
+    )
+    # Pressure overlap is part of the DAS admission check.  Validate before
+    # aggregation so rejected rows never enter the assimilation target.
+    checked_controls, fiber_quality = validate_cluster_controls(
+        fiber.controls,
+        expected_clusters=6,
+        pressure_times=pressure["time_s"].to_numpy(dtype=float),
+    )
     valid_keys = checked_controls.loc[checked_controls["qc_valid"], ["step", "cluster_id"]].drop_duplicates()
     stage = fiber.stage_info.merge(valid_keys, on=["step", "cluster_id"], how="inner")
     fiber_by_step = (
@@ -157,18 +208,6 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
             cumulative_balance_degree=("cumulative_balance_degree", "mean"),
         )
         .sort_values("step")
-    )
-
-    trajectory = load_well_trajectory(trajectory_path)
-    cluster_geometry_path = ROOT / "App" / "config" / "cluster_geometry.csv"
-    cluster_geometry, geometry_meta = load_cluster_geometry(cluster_geometry_path, stage_id="08")
-    vertical_depth = float(trajectory["vertical_depth_m"].max()) if not trajectory.empty else 3200.0
-    measured_depth = float(trajectory["measured_depth_m"].max()) if not trajectory.empty else 5200.0
-    pressure, pressure_meta = load_stage_pressure_schedule(
-        pressure_path,
-        config=load_pressure_model_config(ROOT / "App" / "config" / "pressure_calibration.json"),
-        measured_depth_m=measured_depth,
-        vertical_depth_m=vertical_depth,
     )
 
     history = _read_csv(history_path).sort_values("time_s").reset_index(drop=True)
@@ -198,6 +237,7 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
         "bottomhole_pressure_mpa": p("bottomhole_pressure_mpa"),
         "observed_bhp_mpa": p("bottomhole_pressure_mpa"),
         "net_pressure_mpa": p("net_pressure_mpa"),
+        "cumulative_liquid_m3": p("cumulative_liquid_m3"),
         "flow_rate_m3_min": p("flow_rate_m3_min"),
         "sand_ratio_percent": p("sand_ratio_percent"),
         "fiber_cumulative_liquid_m3": f("cumulative_liquid_m3"),
@@ -225,6 +265,32 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
         "posterior_pkn_bhp_mpa": d("posterior_pkn_bottomhole_pressure_mpa"),
     }
 
+    # Keep width as a transparent PKN-derived display metric when the DT run
+    # contains the physical parameters needed for the aperture calculation.
+    # This is not a production KPI and is not presented as an independent
+    # fracture-width measurement.
+    required_width_fields = {
+        "posterior_eprime_gpa",
+        "posterior_viscosity_pa_s",
+        "current_total_rate_m3_s",
+        "posterior_total_half_length_m",
+    }
+    if required_width_fields.issubset(set(history.columns)):
+        eprime = np.maximum(np.asarray(d("posterior_eprime_gpa", 32.0), dtype=float) * 1.0e9, 1.0e6)
+        viscosity = np.maximum(np.asarray(d("posterior_viscosity_pa_s", 0.1), dtype=float), 1.0e-6)
+        current_rate = np.maximum(np.asarray(d("current_total_rate_m3_s", 0.0), dtype=float), 0.0)
+        elapsed = np.maximum(timeline.astype(float), 1.0)
+        height_m = 30.0
+        aperture_m = 2.5 * (
+            np.maximum(current_rate, 1.0e-9) ** 3 * viscosity
+            / (eprime * height_m**3)
+        ) ** 0.2 * elapsed**0.2
+        length = np.maximum(np.asarray(d("posterior_total_half_length_m", 0.0), dtype=float), 0.0)
+        arrays["pkn_stage_max_aperture_mm"] = (aperture_m * 1000.0).tolist()
+        arrays["pkn_stage_fracture_volume_m3"] = (
+            aperture_m * length * height_m * np.pi / 2.5
+        ).tolist()
+
     cluster_arrays: dict[str, dict[str, list[float]]] = {}
     for cluster_id, group in clusters.groupby("cluster_id"):
         group = group.sort_values("time_s")
@@ -237,6 +303,17 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
             "posterior_cluster_factor": _interp(group["posterior_cluster_factor"], source, timeline),
             "posterior_sand_transport_factor": _interp(group["posterior_sand_transport_factor"], source, timeline),
         }
+        # In parameterized mode the fiber share is an observation target;
+        # the model prediction is calculated from the inferred allocation
+        # parameters. Keep both series in the APP cache.
+        if "prior_model_liquid_allocation" in group:
+            cluster_arrays[str(int(cluster_id))]["prior_model_liquid_allocation"] = _interp(
+                group["prior_model_liquid_allocation"], source, timeline
+            )
+        if "posterior_model_liquid_allocation" in group:
+            cluster_arrays[str(int(cluster_id))]["posterior_model_liquid_allocation"] = _interp(
+                group["posterior_model_liquid_allocation"], source, timeline
+            )
         if "fiber_liquid_allocation" in group:
             cluster_arrays[str(int(cluster_id))]["fiber_liquid_allocation"] = _interp(
                 group["fiber_liquid_allocation"], source, timeline
@@ -271,9 +348,14 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
     display_trajectory, cluster_positions, display_geometry = _build_deep_display_geometry(trajectory, len(cluster_arrays), cluster_geometry)
     trajectory_records = display_trajectory.to_dict(orient="records")
     cluster_position_records = []
-    for record in cluster_positions.to_dict(orient="records"):
-        # The inversion history uses zero-based cluster IDs.
-        record["cluster_id"] = int(record["cluster_id"]) - 1
+    geometry_records = (
+        cluster_positions.sort_values("cluster_id").to_dict(orient="records")
+        if "cluster_id" in cluster_positions.columns
+        else []
+    )
+    for normalized_id, record in enumerate(geometry_records):
+        # Keep geometry IDs aligned with the zero-based cluster history IDs.
+        record["cluster_id"] = int(normalized_id)
         cluster_position_records.append(record)
     summary = {}
     if summary_path.exists():
@@ -281,9 +363,11 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
         except Exception:
             summary = {}
+    runtime_selection = resolve_runtime_selection().to_dict() if resolve_runtime_selection else {}
+    actual_kg_mode = str(summary.get("metrics", {}).get("knowledge_guided_prior", {}).get("mode", "unknown"))
 
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "generated_at": pd.Timestamp.now().isoformat(timespec="seconds"),
         "alignment": {
             "method": "Each source is converted to elapsed seconds from its own first timestamp; values are linearly interpolated onto a common 1-second axis.",
@@ -311,8 +395,21 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
             "pressure_rows": int(len(pressure)),
             "trajectory_rows": int(len(trajectory)),
             "pressure_layout": pressure_meta.get("layout_assumption", {}),
+            "pressure_formula": pressure_meta.get("pressure_formula", ""),
+            "pressure_fields": pressure_meta.get("pressure_fields", []),
             "pressure_calibration_status": pressure_meta.get("calibration_status", "待校准"),
             "dt_metrics": summary.get("metrics", {}),
+            "runtime_models": {
+                "configured_knowledge_guided_mode": runtime_selection.get("knowledge_guided_mode", "soft_correlated"),
+                "configured_agent_policy": runtime_selection.get("agent_policy", "td3"),
+                "source_run_knowledge_guided_mode": actual_kg_mode,
+                "source_run_is_configured_default": actual_kg_mode == runtime_selection.get("knowledge_guided_mode", "soft_correlated"),
+                "note": (
+                    "数字孪生缓存的实际模式来自注册的 DT run；配置模式不同 only means the cache must be rebuilt."
+                    if actual_kg_mode != runtime_selection.get("knowledge_guided_mode", "soft_correlated")
+                    else "缓存与当前默认 KG-EnKF 模式一致。"
+                ),
+            },
             "display_geometry": display_geometry,
             "cluster_geometry": geometry_meta,
             "observation_quality": fiber_quality.to_dict(),
@@ -321,6 +418,17 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
                 "pkn_length_exponent": 0.6,
                 "error": "sum(abs(posterior_half_length - estimated_half_length)) / sum(estimated_half_length)",
                 "scope": "PKN-consistent equivalent hydraulic estimate; not independent geometric truth",
+            },
+            "allocation_model": {
+                "mode": str(summary.get("metrics", {}).get("allocation_mode", "unknown")),
+                "prediction_source": str(summary.get("metrics", {}).get("fiber_allocation_source", "unknown")),
+                "parameterized_state": bool(summary.get("metrics", {}).get("parameterized_allocation", False)),
+                "parameters": [
+                    "intake_capacity_by_cluster",
+                    "stress_shadow_scale",
+                    "boundary_relief_scale",
+                    "allocation_exponent",
+                ],
             },
         },
         "timeline_s": timeline.astype(int).tolist(),
@@ -340,19 +448,78 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
     das_payload["meta"]["max_time_s"] = das_end
     das_payload["meta"]["scenario_id"] = "das_cluster_observation"
     das_payload["meta"]["observation_mode"] = "pressure_plus_cluster"
+    das_payload["meta"].update({
+        "source_start_s": float(timeline[0]) if len(timeline) else None,
+        "source_end_s": das_end,
+        "observation_vector": [
+            "cumulative_liquid_share_by_cluster",
+            "cumulative_sand_share_by_cluster",
+            "bottomhole_pressure_mpa",
+        ],
+        "cluster_observations": "interpreted_fracmonitor",
+        "cluster_result_status": "interpreted_observation",
+        "hmi_available": True,
+        "calibration_status": pressure_meta.get("calibration_status", "待校准"),
+        "status_note": "FracMonitor 解释后的分簇结果，不等同于原始 DAS 振幅。",
+    })
     no_das_payload = copy.deepcopy(payload)
     no_das_payload["meta"]["scenario_id"] = "no_das_pressure_only"
     no_das_payload["meta"]["observation_mode"] = "pressure_only"
     no_das_payload["meta"]["cluster_observations"] = "not_available"
-    no_das_payload["meta"]["cluster_geometry"] = {"status": "not_used_without_das"}
-    no_das_payload["clusters"] = {}
+    no_das_payload["meta"].update({
+        "source_start_s": float(timeline[0]) if len(timeline) else None,
+        "source_end_s": float(timeline[-1]) if len(timeline) else None,
+        "observation_vector": ["bottomhole_pressure_mpa"],
+        "cluster_result_status": "model_estimate_only",
+        "hmi_available": False,
+        "calibration_status": pressure_meta.get("calibration_status", "待校准"),
+        "status_note": "仅同化井底压力；阶段级 PKN 和假设簇间影响用于形态估计，不作为簇级现场观测。",
+    })
+    no_das_config = _scenario_config("no_das_pressure_only")
     observed = np.asarray(no_das_payload["arrays"]["bottomhole_pressure_mpa"], dtype=float)
     prior = np.asarray(no_das_payload["arrays"].get("prior_bhp_mpa", observed), dtype=float)
-    correction = run_pressure_only_correction(prior, observed, PressureOnlyConfig())
+    correction = run_pressure_only_correction(
+        prior,
+        observed,
+        PressureOnlyConfig.from_pressure_model_config(
+            load_pressure_model_config(ROOT / "App" / "config" / "pressure_calibration.json")
+        ),
+    )
     no_das_payload["arrays"]["prior_bhp_mpa"] = correction["prior_bottomhole_mpa"].tolist()
     no_das_payload["arrays"]["posterior_bhp_mpa"] = correction["posterior_bottomhole_mpa"].tolist()
     no_das_payload["arrays"]["pressure_bias_mpa"] = correction["posterior_bias_mpa"].tolist()
-    no_das_payload["alignment"]["scenario_note"] = "Pressure-only conversion and bounded pressure-bias correction; no cluster values inferred."
+    assumed_positions, assumed_geometry = build_straight_assumed_cluster_positions(
+        int(no_das_config.get("assumed_cluster_count", 6)),
+        float(no_das_config.get("assumed_stage_md_start_m", 3600.0)),
+        float(no_das_config.get("assumed_stage_md_end_m", 5200.0)),
+        vertical_depth,
+    )
+    pressure_only = estimate_pressure_only_multicluster(
+        timeline_s=np.asarray(no_das_payload["timeline_s"], dtype=float),
+        flow_rate_m3_min=np.asarray(no_das_payload["arrays"]["flow_rate_m3_min"], dtype=float),
+        cumulative_liquid_m3=np.asarray(no_das_payload["arrays"]["cumulative_liquid_m3"], dtype=float),
+        corrected_bhp_mpa=np.asarray(no_das_payload["arrays"]["posterior_bhp_mpa"], dtype=float),
+        min_horizontal_stress_mpa=float(
+            no_das_config.get(
+                "minimum_horizontal_stress_mpa",
+                pressure_meta.get("config", {}).get("min_horizontal_stress_mpa", 60.0),
+            )
+        ),
+        cluster_positions=assumed_positions,
+        e_prime_gpa=float(no_das_config.get("pkn_e_prime_gpa", 32.47)),
+        viscosity_pa_s=float(no_das_config.get("pkn_viscosity_pa_s", 0.1015)),
+        fracture_height_m=float(no_das_config.get("pkn_fracture_height_m", 30.0)),
+        interaction_strength=float(no_das_config.get("cluster_interaction_strength", 0.85)),
+        interaction_length_m=float(no_das_config.get("cluster_interaction_length_m", 450.0)),
+    )
+    no_das_payload["cluster_positions"] = assumed_positions
+    no_das_payload["trajectory"] = []
+    no_das_payload["clusters"] = pressure_only["clusters"]
+    no_das_payload["arrays"].update(pressure_only["stage"])
+    no_das_payload["meta"]["cluster_geometry"] = assumed_geometry
+    no_das_payload["meta"]["cluster_estimate"] = pressure_only["metadata"]
+    no_das_payload["alignment"]["scenario_note"] = "Pressure-only conversion and bounded pressure-bias correction; stage PKN and assumed-cluster interaction are model estimates."
+    no_das_payload["meta"]["pressure_bias_filter"] = correction["metadata"]
     payload["scenarios"] = {
         "das_cluster_observation": das_payload,
         "no_das_pressure_only": no_das_payload,
@@ -360,6 +527,174 @@ def build_cache(output: Path, dt_run: str | Path | None = None) -> dict:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     return payload
+
+
+def _build_raw_construction_cache(output: Path, dataset: dict) -> dict:
+    """Build a pressure-only cache from an existing raw_frac segment."""
+
+    calibration_path = ROOT / str(dataset.get("pressure_calibration_source", "App/config/pressure_calibration.json"))
+    header_path = ROOT / str(dataset.get("reference_header_source", "")) if dataset.get("reference_header_source") else None
+    pressure_path = ROOT / str(dataset["pressure_source"])
+    config = load_pressure_model_config(calibration_path)
+    pressure, pressure_meta = load_raw_construction_schedule(
+        pressure_path,
+        reference_header_path=header_path,
+        config=config,
+        measured_depth_m=float(dataset.get("assumed_stage_md_end_m", 5200.0)),
+        vertical_depth_m=float(dataset.get("vertical_depth_m", 3200.0)),
+    )
+    timeline = pressure["time_s"].to_numpy(dtype=float)
+    observed = pressure["bottomhole_pressure_mpa"].to_numpy(dtype=float)
+    count = int(dataset.get("assumed_cluster_count", 6))
+
+    # Do not initialise the PKN prior with the observation itself.  That made
+    # the prior/observation/posterior curves collapse into one line and hid
+    # whether pressure correction had any effect.  Build an independent,
+    # conservative PKN prior from the measured construction rate and the
+    # configured physical defaults, then use the converted BHP only in the
+    # pressure-bias correction step.
+    total_rate = pressure["flow_rate_m3_min"].to_numpy(dtype=float) / 60.0
+    cumulative = np.maximum(
+        pressure["cumulative_liquid_m3"].to_numpy(dtype=float),
+        0.0,
+    )
+    elapsed = np.maximum(timeline, 1.0)
+    average_rate = np.divide(
+        cumulative,
+        elapsed,
+        out=np.zeros_like(cumulative),
+        where=elapsed > 0.0,
+    )
+    pkn_config = PhysicalEnKFConfig(
+        base_eprime_pa=float(dataset.get("pkn_e_prime_gpa", 32.47)) * 1.0e9,
+        base_viscosity_pa_s=float(dataset.get("pkn_viscosity_pa_s", 0.1015)),
+        base_min_stress_mpa=float(config.min_horizontal_stress_mpa),
+        height_m=float(dataset.get("pkn_fracture_height_m", 30.0)),
+    )
+    pkn_state = np.zeros(5, dtype=float)
+    pkn_state[3] = float(config.min_horizontal_stress_mpa)
+    prior_values: list[float] = []
+    for q_average, q_current, time_s in zip(average_rate, total_rate, elapsed):
+        q_base = np.full(count, max(float(q_average), 0.0) / max(count, 1), dtype=float)
+        q_now = np.full(count, max(float(q_current), 0.0) / max(count, 1), dtype=float)
+        result = pkn_with_carter_leakoff(
+            pkn_state,
+            q_base,
+            float(time_s),
+            pkn_config,
+            q_now,
+        )
+        prior_values.append(float(result["bottomhole_pressure_mpa"]))
+    prior = np.asarray(prior_values, dtype=float)
+    correction = run_pressure_only_correction(
+        prior,
+        observed,
+        PressureOnlyConfig.from_pressure_model_config(config),
+    )
+    corrected = correction["posterior_bottomhole_mpa"]
+    positions, geometry_meta = build_straight_assumed_cluster_positions(
+        count,
+        float(dataset.get("assumed_stage_md_start_m", 0.0)),
+        float(dataset.get("assumed_stage_md_end_m", 1600.0)),
+        float(dataset.get("vertical_depth_m", 3200.0)),
+    )
+    estimated = estimate_pressure_only_multicluster(
+        timeline_s=timeline,
+        flow_rate_m3_min=pressure["flow_rate_m3_min"].to_numpy(dtype=float),
+        cumulative_liquid_m3=pressure["cumulative_liquid_m3"].to_numpy(dtype=float),
+        corrected_bhp_mpa=np.asarray(corrected, dtype=float),
+        min_horizontal_stress_mpa=float(config.min_horizontal_stress_mpa),
+        cluster_positions=positions,
+        e_prime_gpa=float(dataset.get("pkn_e_prime_gpa", 32.47)),
+        viscosity_pa_s=float(dataset.get("pkn_viscosity_pa_s", 0.1015)),
+        fracture_height_m=float(dataset.get("pkn_fracture_height_m", 30.0)),
+        interaction_strength=float(dataset.get("cluster_interaction_strength", 0.85)),
+        interaction_length_m=float(dataset.get("cluster_interaction_length_m", 450.0)),
+    )
+    arrays = {
+        "surface_pressure_mpa": pressure["surface_pressure_mpa"].astype(float).tolist(),
+        "bottomhole_pressure_mpa": pressure["bottomhole_pressure_mpa"].astype(float).tolist(),
+        "observed_bhp_mpa": pressure["bottomhole_pressure_mpa"].astype(float).tolist(),
+        "net_pressure_mpa": pressure["net_pressure_mpa"].astype(float).tolist(),
+        "cumulative_liquid_m3": pressure["cumulative_liquid_m3"].astype(float).tolist(),
+        "flow_rate_m3_min": pressure["flow_rate_m3_min"].astype(float).tolist(),
+        "sand_ratio_percent": pressure["sand_ratio_percent"].astype(float).tolist(),
+        "prior_bhp_mpa": correction["prior_bottomhole_mpa"].tolist(),
+        "posterior_bhp_mpa": correction["posterior_bottomhole_mpa"].tolist(),
+        "pressure_bias_mpa": correction["posterior_bias_mpa"].tolist(),
+    }
+    arrays.update(estimated["stage"])
+    payload = {
+        "schema_version": 2,
+        "generated_at": pd.Timestamp.now().isoformat(timespec="seconds"),
+        "alignment": {
+            "method": "raw_frac construction timestamps normalized to elapsed seconds",
+            "common_time_axis": "relative seconds from the first valid construction record",
+            "scenario_note": "Pressure-only conversion and straight assumed-stage PKN estimate; no DAS or trajectory claim.",
+        },
+        "sources": {
+            "pressure": str(pressure_path),
+            "reference_header": str(header_path) if header_path else "",
+            "fiber": "",
+            "trajectory": "",
+            "dt_history": "",
+        },
+        "meta": {
+            "dataset_id": dataset.get("dataset_id"),
+            "well": dataset.get("well_id") or dataset.get("display_name"),
+            "stage": str(dataset.get("stage_id") or "unknown"),
+            "data_scope": dataset.get("data_scope", "single_stage"),
+            "evolution_supported": bool(dataset.get("evolution_supported", True)),
+            "cluster_count": count,
+            "max_time_s": float(timeline[-1]) if len(timeline) else 0.0,
+            "pressure_rows": int(len(pressure)),
+            "fiber_rows": 0,
+            "trajectory_rows": 0,
+            "pressure_layout": pressure_meta.get("layout_assumption", {}),
+            "pressure_formula": pressure_meta.get("pressure_formula", ""),
+            "pressure_fields": pressure_meta.get("pressure_fields", []),
+            "pressure_calibration_status": pressure_meta.get("calibration_status", "待校准"),
+            "observation_mode": "pressure_only",
+            "scenario_id": "no_das_pressure_only",
+            "cluster_observations": "not_available",
+            "hmi_available": bool(
+                dataset.get("hmi_recommendations_source")
+                and (ROOT / str(dataset.get("hmi_recommendations_source"))).exists()
+            ),
+            "cluster_estimate": estimated["metadata"],
+            "cluster_geometry": geometry_meta,
+            "pressure_bias_filter": correction["metadata"],
+            "hmi_recommendations_source": dataset.get("hmi_recommendations_source", ""),
+            "pressure_prior_source": "pkn_default_physical_forward_operator",
+            "pressure_comparison_ready": True,
+            "source_note": dataset.get("source_note", ""),
+            "source_start_s": float(timeline[0]) if len(timeline) else None,
+            "source_end_s": float(timeline[-1]) if len(timeline) else None,
+        },
+        "timeline_s": timeline.astype(float).tolist(),
+        "arrays": arrays,
+        "clusters": estimated["clusters"],
+        "trajectory": [],
+        "cluster_positions": positions,
+    }
+    payload["scenarios"] = {"no_das_pressure_only": copy.deepcopy(payload)}
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return payload
+
+
+def _scenario_config(scenario_id: str) -> dict:
+    try:
+        canonical_path = ROOT / "App" / "config" / "dt_scenario_registry.json"
+        if canonical_path.exists():
+            registry = json.loads(canonical_path.read_text(encoding="utf-8"))
+            value = (registry.get("scenarios", {}) or {}).get(scenario_id, {})
+            if value:
+                return dict(value)
+        registry = json.loads((ROOT / "App" / "config" / "demo_registry.json").read_text(encoding="utf-8"))
+        return ((registry.get("modules", {}).get("dt", {}).get("scenarios", {}) or {}).get(scenario_id, {}) or {})
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return {}
 
 
 if __name__ == "__main__":
@@ -372,6 +707,7 @@ if __name__ == "__main__":
         default=None,
         help="Explicit DT run directory or direct_observation_history.csv; otherwise use the registry path.",
     )
+    parser.add_argument("--dataset", default=None, help="注册的数据集 ID；支持现有 3Dfrac 和自动发现的 raw_frac 井段")
     args = parser.parse_args()
-    data = build_cache(Path(args.output), dt_run=args.dt_run)
+    data = build_cache(Path(args.output), dt_run=args.dt_run, dataset_id=args.dataset)
     print(json.dumps({"output": args.output, "max_time_s": data["meta"]["max_time_s"], "cluster_count": data["meta"]["cluster_count"]}, ensure_ascii=False, indent=2))

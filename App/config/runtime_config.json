@@ -1,5 +1,18 @@
 {
   "mode": "frozen_replay",
+  "enhanced_runtime_enabled": true,
+  "knowledge_guided_mode": "soft_correlated",
+  "agent_policy": "sac",
+  "fallback_policy": "conservative",
+  "policy_model_path": "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/sac/seed_2026/sac_20260818_200628/sac_fracturing_policy.zip",
+  "replay_evaluation_path": "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/sac/seed_2026/sac_20260818_200628/rl_evaluation.csv",
+  "replay_decisions_path": "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/sac/seed_2026/sac_20260818_200628/human_machine_decisions.json",
+  "fallback_replay": {
+    "evaluation_csv": "outputs/hmi/bugfix_validation/ppo_20260812_184048/rl_evaluation.csv",
+    "decisions_json": "outputs/hmi/bugfix_validation/ppo_20260812_184048/human_machine_decisions.json"
+  },
+  "policy_selection_note": "SAC seed_2026 is the deployed replay artifact because the TD3 seed_2026 replay collapsed the sand action to the measured value; aggregate evidence remains reported across seeds 2026/2027/2028.",
+  "kg_selection_note": "soft_correlated is the default for the next DT recomputation. Frozen DT cache provenance is checked separately and is not relabeled.",
   "training_in_app": false,
   "light_validation_output": "outputs/app/runs",
   "protected_roots": ["Data", "artifacts"],

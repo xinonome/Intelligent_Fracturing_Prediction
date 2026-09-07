@@ -456,6 +456,8 @@ TS_errorMessages = [ "Propagation not attempted!",                              
                      "Leak off can't be evaluated!",                                                   #13
                      "fracture fully closed",                                                          #14
                      "iterating more is not leading the iterations on the front position to converge!",#15
-                     "maximum number of elements in the crack reached!"                                #16
+                     "maximum number of elements in the crack reached!",                               #16
+                     "front advanced across more than two cells; reduce the time step",                #17
+                     "front state failed structural consistency checks"                                #18
                     ]
 

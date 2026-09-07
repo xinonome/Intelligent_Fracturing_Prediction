@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+import hashlib
+import json
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -39,7 +42,54 @@ def read_table(path: Path, header: int | None = 0, nrows: int | None = None) -> 
 def load_reference_columns(path: str | None) -> list[str] | None:
     if not path:
         return None
-    return read_table(Path(path), header=0, nrows=0).columns.tolist()
+    reference = Path(path)
+    if not reference.exists():
+        return None
+    try:
+        columns = read_table(reference, header=0, nrows=0).columns.tolist()
+    except Exception:
+        return None
+    return columns if _looks_like_canonical_reference(columns) else None
+
+
+def _looks_like_canonical_reference(columns: Iterable[object] | None) -> bool:
+    values = {str(value).strip().upper() for value in (columns or [])}
+    return {"JTBH", "FDBH", "SGSJ", "SGBY", "PL", "SB"}.issubset(values)
+
+
+def _discover_reference_columns(root: Path) -> list[str] | None:
+    """Find a real canonical raw-frac header when the legacy query file is invalid.
+
+    The historical ``WITHfiltered...`` workbook is sometimes a one-cell SQL
+    export (only ``ID``), not a header workbook.  FDBH26 and the reconstructed
+    note export contain the actual 53-column header, so use them only as a
+    schema source and still load the stage files independently.
+    """
+
+    if not root.exists() or root.is_file():
+        return None
+    candidates = sorted(
+        root.iterdir(),
+        key=lambda path: (
+            0 if path.name.lower().startswith("fdbh26") else
+            1 if "便签数据" in path.name else 2,
+            path.name.lower(),
+        ),
+    )
+    for path in candidates:
+        if path.suffix.lower() not in {".xlsx", ".xls", ".csv"} or path.name.startswith("~$"):
+            continue
+        try:
+            columns = read_table(path, header=0, nrows=0).columns.tolist()
+            if _looks_like_canonical_reference(columns):
+                return columns
+            first_row = read_table(path, header=None, nrows=1)
+            candidate = first_row.iloc[0].tolist() if not first_row.empty else []
+            if _looks_like_canonical_reference(candidate):
+                return [str(value) for value in candidate]
+        except Exception:
+            continue
+    return None
 
 
 def load_frame_with_reference(
@@ -55,6 +105,14 @@ def load_frame_with_reference(
             frame = read_table(path, header=None, nrows=nrows)
             if len(frame.columns) == len(reference_columns):
                 frame.columns = reference_columns
+                # FDBH26 and similar exports include the schema row as the
+                # first data row even though other FDBH files do not.
+                if not frame.empty and all(
+                    str(frame.iloc[0].get(column, "")).strip().upper() == column.upper()
+                    for column in ("JTBH", "FDBH", "SGSJ")
+                    if column in frame.columns
+                ):
+                    frame = frame.iloc[1:].reset_index(drop=True)
                 if required.issubset(frame.columns):
                     return frame
         except Exception:
@@ -79,7 +137,8 @@ def discover_segment_frames(
     root = Path(data_path)
     if not root.exists():
         raise FileNotFoundError(f"Data path not found: {root}")
-    reference_columns = load_reference_columns(reference_header_path)
+    reference_root = root.parent if root.is_file() else root
+    reference_columns = load_reference_columns(reference_header_path) or _discover_reference_columns(reference_root)
     exclude_patterns = tuple(pattern.lower() for pattern in exclude_name_patterns)
     frames: dict[str, pd.DataFrame] = {}
 
@@ -116,6 +175,116 @@ def discover_segment_frames(
             add_frame(path.stem, frame)
     if not frames:
         raise ValueError(f"No usable segment frames found under {root}")
+    return frames
+
+
+def _frame_cache_signature(
+    data_path: str,
+    reference_header_path: str | None,
+    segment_column: str,
+    time_column: str,
+    required_columns: list[str],
+    exclude_name_patterns: Iterable[str],
+    max_files: int,
+    max_rows_per_file: int,
+) -> str:
+    """Build a content-sensitive signature for a local frame cache.
+
+    The cache is only an acceleration layer for repeated same-run experiments;
+    it never becomes part of the release package. File sizes and modification
+    times invalidate it when the source data changes.
+    """
+
+    root = Path(data_path)
+    paths = [root] if root.is_file() else sorted(path for path in root.iterdir() if path.is_file())
+    files = []
+    for path in paths:
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        files.append({"name": str(path), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns})
+    reference = None
+    if reference_header_path:
+        ref = Path(reference_header_path)
+        if ref.exists():
+            stat = ref.stat()
+            reference = {"name": str(ref), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+    payload = {
+        "data_path": str(root.resolve()),
+        "reference": reference,
+        "segment_column": segment_column,
+        "time_column": time_column,
+        "required_columns": sorted(required_columns),
+        "exclude_name_patterns": sorted(str(value).lower() for value in exclude_name_patterns),
+        "max_files": max_files,
+        "max_rows_per_file": max_rows_per_file,
+        "files": files,
+    }
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def load_or_discover_segment_frames(
+    data_path: str,
+    reference_header_path: str | None,
+    segment_column: str,
+    time_column: str,
+    required_columns: list[str],
+    exclude_name_patterns: Iterable[str],
+    max_files: int,
+    max_rows_per_file: int,
+    cache_path: str | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Load frames from a validated local cache or discover them once.
+
+    Reusing the cache is important for multi-seed/model comparisons because
+    otherwise every candidate repeatedly parses the same large Excel files.
+    The cache is keyed by source file metadata and loader settings.
+    """
+
+    if not cache_path:
+        return discover_segment_frames(
+            data_path,
+            reference_header_path,
+            segment_column,
+            time_column,
+            required_columns,
+            exclude_name_patterns,
+            max_files,
+            max_rows_per_file,
+        )
+    path = Path(cache_path)
+    signature = _frame_cache_signature(
+        data_path,
+        reference_header_path,
+        segment_column,
+        time_column,
+        required_columns,
+        exclude_name_patterns,
+        max_files,
+        max_rows_per_file,
+    )
+    if path.exists():
+        try:
+            payload = pickle.loads(path.read_bytes())
+            if payload.get("signature") == signature and isinstance(payload.get("frames"), dict):
+                return payload["frames"]
+        except Exception:
+            pass
+    frames = discover_segment_frames(
+        data_path,
+        reference_header_path,
+        segment_column,
+        time_column,
+        required_columns,
+        exclude_name_patterns,
+        max_files,
+        max_rows_per_file,
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_bytes(pickle.dumps({"signature": signature, "frames": frames}, protocol=pickle.HIGHEST_PROTOCOL))
+    temporary.replace(path)
     return frames
 
 
@@ -200,15 +369,46 @@ def build_dataset(
         frame = sort_frame(raw_frame, time_column)
         if len(frame) < state_points + action_points:
             continue
+        value_columns = set(state_columns + action_columns)
+        # Pump-schedule columns can act as a reference/constraint without
+        # being exposed as neural-network inputs.  This is the safe first
+        # integration step before retraining with --include-schedule-context.
+        value_columns.update(
+            column for column in ("SCHEDULE_FLOW", "SCHEDULE_SAND", "SCHEDULE_PROGRESS")
+            if column in frame.columns
+        )
         values = {
             column: numeric_series(frame, column).to_numpy(dtype=float)
-            for column in set(state_columns + action_columns)
+            for column in value_columns
         }
+        schedule_aligned = (
+            frame.get("SCHEDULE_ALIGNMENT", pd.Series("", index=frame.index))
+            .astype(str)
+            .eq("elapsed_seconds")
+            .to_numpy(dtype=bool)
+        )
         times = frame[time_column].astype(str).to_numpy() if time_column in frame else np.full(len(frame), "")
         labels = frame[label_column].to_numpy(dtype=object) if label_column in frame else np.full(len(frame), "", dtype=object)
         for end in range(state_points - 1, len(frame) - action_points):
             history = slice(end - state_points + 1, end + 1)
             future = slice(end + 1, end + 1 + action_points)
+            future_action_means = [
+                float(np.mean(values[column][future])) for column in action_columns
+            ]
+            schedule_flow = (
+                float(values["SCHEDULE_FLOW"][end])
+                if schedule_aligned[end]
+                and "SCHEDULE_FLOW" in values
+                and np.isfinite(values["SCHEDULE_FLOW"][end])
+                else np.nan
+            )
+            schedule_sand = (
+                float(values["SCHEDULE_SAND"][end])
+                if schedule_aligned[end]
+                and "SCHEDULE_SAND" in values
+                and np.isfinite(values["SCHEDULE_SAND"][end])
+                else np.nan
+            )
             windows = [values[column][history] for column in state_columns]
             stats = [
                 value
@@ -216,17 +416,29 @@ def build_dataset(
                 for value in (window[-1], np.mean(window), np.std(window), _slope(window))
             ]
             x_rows.append(np.concatenate(windows + [np.asarray(stats, dtype=float)]))
-            y_rows.append(np.asarray([np.mean(values[column][future]) for column in action_columns]))
+            y_rows.append(np.asarray(future_action_means))
             future_abnormal, future_sand_plug = _label_flags(labels[future])
             future_pressure = values[state_columns[0]][future]
-            meta_rows.append(
-                {
+            meta = {
                     "segment_id": segment_id,
                     "time_index": end,
                     "time": times[end],
                     "current_pressure": values[state_columns[0]][end],
                     "current_flow": values["PL"][end] if "PL" in values else np.nan,
                     "current_sand_ratio": values["SB"][end] if "SB" in values else np.nan,
+                    # These are weak behavior references for the offline
+                    # advisory task: the learned action is still evaluated by
+                    # the response model and safety projector, but a flat
+                    # segment no longer makes "hold" the only learnable signal.
+                    "reference_flow_m3_min": (
+                        schedule_flow if np.isfinite(schedule_flow) else future_action_means[action_columns.index("PL")]
+                        if "PL" in action_columns else np.nan
+                    ),
+                    "reference_sand_ratio_percent": (
+                        schedule_sand if np.isfinite(schedule_sand) else future_action_means[action_columns.index("SB")]
+                        if "SB" in action_columns else np.nan
+                    ),
+                    "reference_source": "pump_schedule" if np.isfinite(schedule_flow) or np.isfinite(schedule_sand) else "future_measured_action",
                     "state_working_types": _labels(labels[history]),
                     "future_working_types": _labels(labels[future]),
                     "future_pressure_mean": float(np.mean(future_pressure)),
@@ -234,7 +446,19 @@ def build_dataset(
                     "future_abnormal": future_abnormal,
                     "future_sand_plug": future_sand_plug,
                 }
-            )
+            # Optional static pump-schedule context is kept in metadata for
+            # auditability and future reward shaping.  It is only present
+            # when the caller explicitly adds SCHEDULE_* columns to the
+            # state vector.
+            if "SCHEDULE_FLOW" in values:
+                meta["schedule_flow_m3_min"] = float(values["SCHEDULE_FLOW"][end]) if schedule_aligned[end] else np.nan
+            if "SCHEDULE_SAND" in values:
+                meta["schedule_sand_ratio_percent"] = float(values["SCHEDULE_SAND"][end]) if schedule_aligned[end] else np.nan
+            if "SCHEDULE_PROGRESS" in values:
+                meta["schedule_progress"] = float(values["SCHEDULE_PROGRESS"][end]) if schedule_aligned[end] else np.nan
+            if "SCHEDULE_PHASE" in frame.columns:
+                meta["schedule_phase"] = str(frame["SCHEDULE_PHASE"].iloc[end])
+            meta_rows.append(meta)
 
     if not x_rows:
         raise ValueError("No policy samples generated. Check window sizes and columns.")

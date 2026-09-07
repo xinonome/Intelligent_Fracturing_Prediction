@@ -11,6 +11,12 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, r
 
 @dataclass
 class ConstantProbabilityModel:
+    """Backward-compatible reader for pre-v3 one-class joblib artifacts.
+
+    New training never creates this model. ``load`` disables it so a legacy
+    constant prediction cannot be mistaken for a learned risk classifier.
+    """
+
     probability: float
 
     def predict_proba(self, x: np.ndarray) -> np.ndarray:
@@ -30,7 +36,7 @@ class ActionResponseSurrogate:
     This model only learns field-data residual response: pressure and condition risk.
     """
 
-    version = "action_response_surrogate_v2_abnormal_only"
+    version = "action_response_surrogate_v3_safety_gated"
     risk_label_policy = "explicit_abnormal_labels_only"
 
     def __init__(self, feature_names: list[str], action_bounds: dict, seed: int = 2026) -> None:
@@ -43,6 +49,7 @@ class ActionResponseSurrogate:
         self.pressure_max_model = HistGradientBoostingRegressor(loss="absolute_error", **common)
         self.abnormal_model = None
         self.sand_plug_model = None
+        self.label_statistics: dict[str, dict[str, object]] = {}
 
     def _design(self, x: np.ndarray, meta, actions: np.ndarray) -> np.ndarray:
         # build_dataset always appends four statistics per state variable.
@@ -59,7 +66,10 @@ class ActionResponseSurrogate:
     def _fit_classifier(design: np.ndarray, target: np.ndarray, seed: int):
         unique = np.unique(target)
         if len(unique) < 2:
-            return ConstantProbabilityModel(float(np.mean(target)))
+            # A one-class label set cannot support a risk classifier.  Keep the
+            # model unavailable so deployment can explicitly fall back to the
+            # PKN-EnKF/rule path instead of treating a constant as evidence.
+            return None
         model = HistGradientBoostingClassifier(
             max_iter=160, max_leaf_nodes=23, learning_rate=0.06,
             l2_regularization=1.5, class_weight="balanced", random_state=seed,
@@ -71,9 +81,31 @@ class ActionResponseSurrogate:
         current_pressure = np.asarray(meta["current_pressure"], dtype=float)
         self.pressure_mean_model.fit(design, np.asarray(meta["future_pressure_mean"], dtype=float) - current_pressure)
         self.pressure_max_model.fit(design, np.asarray(meta["future_pressure_max"], dtype=float) - current_pressure)
-        self.abnormal_model = self._fit_classifier(design, np.asarray(meta["future_abnormal"], dtype=int), self.seed)
-        self.sand_plug_model = self._fit_classifier(design, np.asarray(meta["future_sand_plug"], dtype=int), self.seed + 1)
+        abnormal_target = np.asarray(meta["future_abnormal"], dtype=int)
+        sand_plug_target = np.asarray(meta["future_sand_plug"], dtype=int)
+        self.abnormal_model = self._fit_classifier(design, abnormal_target, self.seed)
+        self.sand_plug_model = self._fit_classifier(design, sand_plug_target, self.seed + 1)
+        self.label_statistics = {
+            "abnormal": {
+                "positive_count": int(np.sum(abnormal_target == 1)),
+                "negative_count": int(np.sum(abnormal_target == 0)),
+                "available": bool(self.abnormal_model is not None),
+                "reason": None if self.abnormal_model is not None else "one_class_labels",
+            },
+            "sand_plug": {
+                "positive_count": int(np.sum(sand_plug_target == 1)),
+                "negative_count": int(np.sum(sand_plug_target == 0)),
+                "available": bool(self.sand_plug_model is not None),
+                "reason": None if self.sand_plug_model is not None else "one_class_labels",
+            },
+        }
         return self
+
+    @staticmethod
+    def _predict_probability(model, design: np.ndarray) -> np.ndarray:
+        if model is None:
+            return np.full(len(design), np.nan, dtype=float)
+        return model.predict_proba(design)[:, 1]
 
     def predict_batch(self, x: np.ndarray, meta, actions: np.ndarray) -> dict[str, np.ndarray]:
         design = self._design(x, meta, actions)
@@ -81,8 +113,8 @@ class ActionResponseSurrogate:
         return {
             "pressure_mean": current_pressure + self.pressure_mean_model.predict(design),
             "pressure_max": current_pressure + self.pressure_max_model.predict(design),
-            "abnormal_probability": self.abnormal_model.predict_proba(design)[:, 1],
-            "sand_plug_probability": self.sand_plug_model.predict_proba(design)[:, 1],
+            "abnormal_probability": self._predict_probability(self.abnormal_model, design),
+            "sand_plug_probability": self._predict_probability(self.sand_plug_model, design),
         }
 
     def predict_one(self, x: np.ndarray, meta_row, flow: float, sand: float) -> dict[str, float]:
@@ -113,9 +145,15 @@ class ActionResponseSurrogate:
             }
         for name, target_name in (("abnormal_probability", "future_abnormal"), ("sand_plug_probability", "future_sand_plug")):
             target = np.asarray(meta[target_name], dtype=int)
+            available = self.abnormal_model is not None if name == "abnormal_probability" else self.sand_plug_model is not None
             metrics[name] = {
                 "positive_rate": float(np.mean(target)),
-                "roc_auc": float(roc_auc_score(target, pred[name])) if len(np.unique(target)) > 1 else None,
+                "available": bool(available and len(np.unique(target)) > 1),
+                "roc_auc": float(roc_auc_score(target, pred[name]))
+                if available and len(np.unique(target)) > 1 else None,
+                "reason": None
+                if available and len(np.unique(target)) > 1
+                else "one_class_labels_or_model_unavailable",
             }
         return metrics
 
@@ -128,4 +166,13 @@ class ActionResponseSurrogate:
         model = joblib.load(path)
         if not isinstance(model, cls):
             raise TypeError(f"Unexpected surrogate type: {type(model)!r}")
+        # Artifacts produced before v3 used a constant probability model when
+        # labels had only one class.  Keep them loadable, but disable the
+        # constant risk output and force the DT environment to use its guarded
+        # PKN-EnKF/rule path.
+        for name in ("abnormal_model", "sand_plug_model"):
+            if isinstance(getattr(model, name, None), ConstantProbabilityModel):
+                setattr(model, name, None)
+        if not hasattr(model, "label_statistics"):
+            model.label_statistics = {}
         return model

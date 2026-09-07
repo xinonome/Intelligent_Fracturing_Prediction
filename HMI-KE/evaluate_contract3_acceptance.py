@@ -9,13 +9,15 @@ from time import perf_counter
 
 import numpy as np
 import pandas as pd
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, SAC, TD3
 
 
 ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = ROOT.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from decision_engine.integrated_reward import IntegratedRewardConfig
 from decision_engine.pump_schedule_constraints import get_schedule_constraint
@@ -28,13 +30,19 @@ from simulator.contract_acceptance import (
 from simulator.validation_180s import Validation180sConfig, validate_180s
 
 
+POLICY_CLASSES = {"ppo": PPO, "sac": SAC, "td3": TD3}
+
+
 def latest_file(pattern: str) -> Path | None:
     candidates = [path for path in PROJECT_ROOT.glob(pattern) if path.is_file()]
     return max(candidates, key=lambda path: path.stat().st_mtime) if candidates else None
 
 
-def benchmark_online_step(model_path: str | Path, repeats: int = 100) -> dict:
-    model = PPO.load(model_path, device="cpu")
+def benchmark_online_step(model_path: str | Path, algorithm: str = "td3", repeats: int = 100) -> dict:
+    policy_class = POLICY_CLASSES.get(str(algorithm).lower())
+    if policy_class is None:
+        raise ValueError(f"Unsupported benchmark policy: {algorithm}")
+    model = policy_class.load(model_path, device="cpu")
     obs_shape = tuple(int(v) for v in model.observation_space.shape)
     obs = np.zeros(obs_shape, dtype=np.float32)
     policy_times = []
@@ -91,6 +99,8 @@ def benchmark_online_step(model_path: str | Path, repeats: int = 100) -> dict:
     combined = policy + response
     return {
         "scientific_status": "representative_local_online_path_benchmark",
+        "algorithm": str(algorithm).upper(),
+        "model_path": str(Path(model_path).resolve()),
         "repeats": repeats,
         "policy_p95_seconds": float(np.percentile(policy, 95)),
         "pkn_enkf_response_p95_seconds": float(np.percentile(response, 95)),
@@ -107,18 +117,40 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate contract-part-3 acceptance evidence from an existing rollout.")
     parser.add_argument("--evaluation-csv", default=None)
     parser.add_argument("--model", default=None)
+    parser.add_argument(
+        "--algorithm",
+        choices=["ppo", "sac", "td3"],
+        default=None,
+        help="策略类型；缺省读取 APP runtime_config.json，当前默认是 TD3。",
+    )
     parser.add_argument("--warning-predictions-csv", default=None)
     parser.add_argument("--run-dir", default=str(PROJECT_ROOT / "outputs" / "hmi" / "contract3_acceptance"))
     parser.add_argument("--benchmark-repeats", type=int, default=100)
     args = parser.parse_args()
 
+    # Keep model selection consistent with the desktop APP.  An explicit CLI
+    # argument still wins, so the previous PPO/SAC acceptance runs remain
+    # reproducible without changing the default deployment candidate.
+    try:
+        from App.core.model_runtime import resolve_runtime_selection
+
+        runtime_selection = resolve_runtime_selection()
+    except Exception:
+        runtime_selection = None
+    algorithm = str(args.algorithm or (runtime_selection.agent_policy if runtime_selection else "td3")).lower()
+    if algorithm == "conservative":
+        parser.error("conservative is a rule fallback, not an SB3 policy; provide --algorithm ppo/sac/td3")
+    configured_model = Path(runtime_selection.policy_model_path) if runtime_selection and runtime_selection.policy_model_path else None
+    model_path = Path(args.model).resolve() if args.model else configured_model
     evaluation_path = Path(args.evaluation_csv).resolve() if args.evaluation_csv else (
-        latest_file("outputs/hmi/safety_shield_eval/**/rl_evaluation.csv")
+        (model_path.parent / "rl_evaluation.csv" if model_path else None)
+        or latest_file("outputs/hmi/safety_shield_eval/**/rl_evaluation.csv")
         or latest_file("outputs/hmi/**/rl_evaluation.csv")
     )
     if evaluation_path is None or not evaluation_path.exists():
         parser.error("No evaluation CSV found; provide --evaluation-csv")
-    model_path = Path(args.model).resolve() if args.model else evaluation_path.with_name("ppo_fracturing_policy.zip")
+    if model_path is None:
+        model_path = evaluation_path.with_name(f"{algorithm}_fracturing_policy.zip")
     if not model_path.exists():
         parser.error(f"No policy model found: {model_path}; provide --model")
     warning_predictions_path = (
@@ -134,7 +166,7 @@ def main() -> None:
         evaluate_direct_5min_warning(pd.read_csv(warning_predictions_path))
         if warning_predictions_path else {"available": False, "reason": "not_provided"}
     )
-    latency = benchmark_online_step(model_path, args.benchmark_repeats)
+    latency = benchmark_online_step(model_path, algorithm, args.benchmark_repeats)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output = Path(args.run_dir) / timestamp
@@ -172,6 +204,8 @@ def main() -> None:
         "sources": {
             "evaluation_csv": str(evaluation_path),
             "policy_model": str(model_path),
+            "algorithm": algorithm,
+            "runtime_selection": runtime_selection.to_dict() if runtime_selection else None,
             "warning_predictions_csv": str(warning_predictions_path) if warning_predictions_path else None,
         },
         "warning_5min": warning_summary,

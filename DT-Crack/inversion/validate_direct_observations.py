@@ -25,6 +25,7 @@ from inversion import (
     enkf_update,
     physical_values,
     pkn_with_carter_leakoff,
+    parameterized_allocation_state_size,
     state_record,
 )
 from inversion.knowledge_guided_enkf import (
@@ -36,6 +37,30 @@ from inversion.knowledge_guided_enkf import (
 from forward_models.pyfrac_surrogate import PyFracResidualSurrogate
 from inversion.pressure_only_enkf import PressureOnlyConfig, run_pressure_only_correction
 from data_fusion.observation_quality import validate_cluster_controls
+
+
+PARAMETER_CLASS_NAMES = {
+    "pressure_fracture": [
+        "eprime_gpa",
+        "leakoff_m_sqrt_s",
+        "viscosity_pa_s",
+        "min_stress_mpa",
+        "fracture_toughness_pa_sqrt_m",
+    ],
+    "cluster_intake": [
+        "intake_capacity_factor_c1",
+        "intake_capacity_factor_c2",
+        "intake_capacity_factor_c3",
+        "intake_capacity_factor_c4",
+        "intake_capacity_factor_c5",
+        "intake_capacity_factor_c6",
+    ],
+    "interaction_allocation": [
+        "stress_shadow_scale",
+        "boundary_relief_scale",
+        "allocation_exponent",
+    ],
+}
 
 
 def configure_font() -> None:
@@ -92,10 +117,15 @@ def predicted_observation(
     cumulative_sand: np.ndarray | None = None,
     sand_transport_exponent: float = 1.0,
 ) -> tuple[np.ndarray, np.ndarray]:
-    if bool(forward.get("measured_allocation_used", False)) and cumulative_liquid is None:
-        # The liquid allocation has already been observed and supplied as a PKN
-        # boundary condition.  Do not ask EnKF to infer this same allocation
-        # from a second latent state.
+    if (
+        bool(forward.get("measured_allocation_used", False))
+        or bool(forward.get("allocation_parameterized", False))
+    ) and cumulative_liquid is None:
+        # In the measured-boundary baseline this is the supplied boundary
+        # condition. In the new parameterized mode it is the model-computed
+        # nominal allocation before leakoff; the fiber share observation
+        # represents injected intake allocation, not post-leakoff effective
+        # volume. Both paths therefore compare the right physical quantity.
         liquid_share = normalize_positive(np.asarray(forward["cluster_allocation"], dtype=float))
     else:
         liquid_values = (
@@ -274,17 +304,39 @@ def clip_augmented_state(
     state: np.ndarray,
     n_clusters: int,
     log_cluster_factor_state: bool = False,
+    parameter_bound_mode: str = "constrained",
 ) -> np.ndarray:
-    """Clip the five physical EnKF parameters.
+    """Apply the selected state policy.
 
-    The legacy arguments remain in the signature so old command lines do not
-    fail, but no per-cluster factor is clipped or updated in the new state.
+    ``constrained`` is the normal production-compatible policy.  The
+    ``unbounded_control`` policy deliberately removes the absolute bounds for
+    all 14 state coordinates and does not apply a one-step delta limiter.  It
+    is an experiment/control group, not the APP default.  It still refuses
+    non-finite states: allowing NaN/Inf to flow through an EnKF update would
+    make the pressure comparison meaningless rather than demonstrate model
+    capacity.
     """
     out = np.asarray(state, dtype=float).copy()
+    if parameter_bound_mode == "unbounded_control":
+        if not np.all(np.isfinite(out)):
+            raise FloatingPointError("unbounded_control produced a non-finite EnKF state")
+        return out
+    if parameter_bound_mode != "constrained":
+        raise ValueError(f"unknown parameter_bound_mode: {parameter_bound_mode}")
+    out = np.nan_to_num(out, nan=0.0, posinf=6.0, neginf=-6.0)
     out[..., 0] = np.clip(out[..., 0], np.log(0.45), np.log(2.2))
     out[..., 1] = np.clip(out[..., 1], np.log(0.1), np.log(8.0))
     out[..., 2] = np.clip(out[..., 2], np.log(0.2), np.log(5.0))
     out[..., 3] = np.clip(out[..., 3], 35.0, 90.0)
+    parameterized_size = parameterized_allocation_state_size(n_clusters)
+    if out.shape[-1] == parameterized_size:
+        # Absolute domain guards only; there is no comparison with the
+        # previous state and therefore no single-step delta restriction.
+        out[..., 5 : 5 + n_clusters] = np.clip(out[..., 5 : 5 + n_clusters], -6.0, 6.0)
+        out[..., 5 + n_clusters : 8 + n_clusters] = np.clip(
+            out[..., 5 + n_clusters : 8 + n_clusters], -4.0, 4.0
+        )
+        return out
     if out.shape[-1] >= 5:
         out[..., 4] = np.clip(out[..., 4], np.log(0.25), np.log(4.0))
     return out
@@ -294,19 +346,76 @@ def total_variation(predicted: np.ndarray, observed: np.ndarray) -> float:
     return float(0.5 * np.abs(np.asarray(predicted) - np.asarray(observed)).sum())
 
 
-def build_physical_localization(n_clusters: int) -> np.ndarray:
+def build_physical_localization(n_clusters: int, state_size: int = 5, parameterized_allocation: bool = False) -> np.ndarray:
     """Map each observation primarily to parameters with a physical pathway."""
 
-    state_size = 5
     obs_size = 2 * (n_clusters - 1) + 1
     pressure_col = obs_size - 1
     weights = np.zeros((state_size, obs_size), dtype=float)
-    # Fiber allocation is now an observed PKN boundary condition.  Share
-    # residuals are retained for validation, but they must not update a second
-    # hidden allocation state.  Only the pressure channel updates global PKN
-    # parameters in the reduced EnKF state.
     weights[:5, pressure_col] = [0.75, 0.25, 0.65, 1.00, 0.35]
+    if parameterized_allocation and state_size >= 5 + n_clusters:
+        # Composition observations identify relative intake parameters.  Give
+        # both liquid and sand shares access to the allocation block; the
+        # sum-to-one constraint is handled by the observation operator.
+        weights[5 : 5 + n_clusters, : 2 * (n_clusters - 1)] = 1.0
+    # In the old mode cluster shares remain measured boundary conditions and
+    # therefore do not update hidden allocation states.
     return weights
+
+
+def ensemble_parameter_statistics(
+    ensemble: np.ndarray,
+    cfg: PhysicalEnKFConfig,
+    n_clusters: int,
+    prefix: str,
+) -> dict[str, float]:
+    """Return physical-unit spread statistics for the full state ensemble.
+
+    The state is stored partly in log coordinates.  Reporting only the raw
+    log-state would hide the magnitude of an unconstrained E'/viscosity
+    excursion, so this function converts every member back to the displayed
+    physical units before calculating statistics.
+    """
+
+    records = [state_record("member", member, cfg, n_clusters) for member in np.asarray(ensemble)]
+    result: dict[str, float] = {}
+    for names in PARAMETER_CLASS_NAMES.values():
+        for name in names:
+            key = f"member_{name}"
+            values = np.asarray([record[key] for record in records], dtype=float)
+            result[f"{prefix}_{name}_std"] = float(np.std(values, ddof=0))
+            result[f"{prefix}_{name}_min"] = float(np.min(values))
+            result[f"{prefix}_{name}_max"] = float(np.max(values))
+            result[f"{prefix}_{name}_p05"] = float(np.quantile(values, 0.05))
+            result[f"{prefix}_{name}_p95"] = float(np.quantile(values, 0.95))
+    return result
+
+
+def summarize_parameter_trajectory(history: pd.DataFrame) -> dict[str, object]:
+    """Summarize full-process posterior movement by parameter and class."""
+
+    summary: dict[str, object] = {}
+    for class_name, names in PARAMETER_CLASS_NAMES.items():
+        class_items: dict[str, object] = {}
+        for name in names:
+            column = f"posterior_{name}"
+            if column not in history or history.empty:
+                continue
+            values = history[column].to_numpy(dtype=float)
+            deltas = np.diff(values)
+            class_items[name] = {
+                "start": float(values[0]),
+                "end": float(values[-1]),
+                "min": float(np.min(values)),
+                "max": float(np.max(values)),
+                "range": float(np.max(values) - np.min(values)),
+                "mean": float(np.mean(values)),
+                "std": float(np.std(values, ddof=0)),
+                "max_abs_step_change": float(np.max(np.abs(deltas))) if deltas.size else 0.0,
+                "p95_abs_step_change": float(np.quantile(np.abs(deltas), 0.95)) if deltas.size else 0.0,
+            }
+        summary[class_name] = class_items
+    return summary
 
 
 def batch_calibrate_state(
@@ -323,11 +432,13 @@ def batch_calibrate_state(
 
     This is a MAP-style initialization, not a replacement for online EnKF.
     Static physical parameters are estimated from all available calibration
-    observations, then EnKF continues to track time-varying cluster factors.
+    observations, then EnKF continues to track time-varying pressure and
+    allocation parameters.
     A small Gaussian prior penalty keeps the inverse problem from selecting a
     numerically convenient but physically implausible equivalent solution.  The
-    inverse state is limited to five global PKN parameters; fiber liquid
-    allocation is supplied directly to the forward operator.
+    In parameterized mode, fiber liquid/sand allocation is a target and the
+    forward operator computes cluster rates from the appended allocation
+    state block.
     """
 
     if not args.batch_calibrate:
@@ -340,7 +451,12 @@ def batch_calibrate_state(
     calibration_steps = source_steps[:calibration_count]
 
     def residual(state: np.ndarray) -> np.ndarray:
-        state = clip_augmented_state(state, n_clusters, args.log_cluster_factor_state)
+        state = clip_augmented_state(
+            state,
+            n_clusters,
+            args.log_cluster_factor_state,
+            args.parameter_bound_mode,
+        )
         residuals: list[float] = []
         for source_step in calibration_steps:
             step_controls = controls_for_step(controls, int(source_step))
@@ -348,10 +464,13 @@ def batch_calibrate_state(
             total_cumulative = float(step_controls["cumulative_liquid_volume_m3"].sum())
             total_rate = max(total_cumulative / t_seconds, 1e-8)
             current_total_rate = max(float(step_controls["flow_rate_m3_min"].sum()) / 60.0, 1e-8)
+            parameterized = args.allocation_mode == "parameterized" and n_clusters > 1
             cumulative_allocation, _ = observed_cluster_shares(step_controls)
-            q_base = total_rate * cumulative_allocation
+            q_base_allocation = np.full(n_clusters, 1.0 / n_clusters) if parameterized else cumulative_allocation
+            q_base = total_rate * q_base_allocation
             q_current_allocation = fiber_liquid_allocation(step_controls, smoothing=args.fiber_allocation_smoothing)
-            q_current = current_total_rate * q_current_allocation
+            q_current_input = np.full(n_clusters, 1.0 / n_clusters) if parameterized else q_current_allocation
+            q_current = current_total_rate * q_current_input
             observed_liquid, observed_sand = observed_cluster_shares(step_controls)
             observed_bhp = float(pressure_for_step(pressure, int(source_step))["bottomhole_pressure_mpa"])
             forward = pkn_with_carter_leakoff(
@@ -360,8 +479,10 @@ def batch_calibrate_state(
                 t_seconds,
                 cfg,
                 q_current,
-                cluster_allocation=cumulative_allocation,
-                cluster_current_allocation=q_current_allocation,
+                **({} if parameterized else {
+                    "cluster_allocation": cumulative_allocation,
+                    "cluster_current_allocation": q_current_allocation,
+                }),
             )
             predicted, _ = predicted_observation(
                 forward,
@@ -380,13 +501,27 @@ def batch_calibrate_state(
             (state[3] - args.base_min_stress_mpa) / 8.0,
             state[4] / 0.35,
         ]
+        if args.allocation_mode == "parameterized" and n_clusters > 1 and len(state) == parameterized_allocation_state_size(n_clusters):
+            regularization = np.r_[
+                regularization,
+                state[5 : 5 + n_clusters] / max(float(args.allocation_factor_spread), 1.0e-6),
+                state[5 + n_clusters] / max(float(args.interaction_parameter_spread), 1.0e-6),
+                state[6 + n_clusters] / max(float(args.interaction_parameter_spread), 1.0e-6),
+                state[7 + n_clusters] / max(float(args.interaction_parameter_spread), 1.0e-6),
+            ]
         residuals.extend((0.12 * regularization).tolist())
         return np.asarray(residuals, dtype=float)
 
     lower = np.full_like(prior_mean, -np.inf, dtype=float)
     upper = np.full_like(prior_mean, np.inf, dtype=float)
-    lower[:4] = [np.log(0.45), np.log(0.1), np.log(0.2), 35.0]
-    upper[:5] = [np.log(2.2), np.log(8.0), np.log(5.0), 90.0, np.log(4.0)]
+    if args.parameter_bound_mode == "constrained":
+        lower[:4] = [np.log(0.45), np.log(0.1), np.log(0.2), 35.0]
+        upper[:5] = [np.log(2.2), np.log(8.0), np.log(5.0), 90.0, np.log(4.0)]
+        if args.allocation_mode == "parameterized" and n_clusters > 1 and len(prior_mean) == parameterized_allocation_state_size(n_clusters):
+            lower[5 : 5 + n_clusters] = -6.0
+            upper[5 : 5 + n_clusters] = 6.0
+            lower[5 + n_clusters : 8 + n_clusters] = -4.0
+            upper[5 + n_clusters : 8 + n_clusters] = 4.0
     start = time.perf_counter()
     initial_cost = float(0.5 * np.sum(residual(prior_mean) ** 2))
     result = least_squares(
@@ -401,7 +536,12 @@ def batch_calibrate_state(
         ftol=1e-5,
         gtol=1e-5,
     )
-    center = clip_augmented_state(result.x, n_clusters, args.log_cluster_factor_state)
+    center = clip_augmented_state(
+        result.x,
+        n_clusters,
+        args.log_cluster_factor_state,
+        args.parameter_bound_mode,
+    )
     return center, {
         "enabled": True,
         "success": bool(result.success),
@@ -414,13 +554,94 @@ def batch_calibrate_state(
     }
 
 
+def select_replay_steps(
+    available_steps: np.ndarray,
+    args: argparse.Namespace,
+) -> tuple[np.ndarray, dict[str, object]]:
+    """Select observation arrivals for normal or wall-clock replay.
+
+    ``--realtime-budget-s`` models a field clock rather than forcing one
+    update for every source row.  The measured/assumed cost of one update is
+    accumulated on that clock; source rows that arrive while the model is
+    busy are intentionally skipped.  This is a scheduling approximation for
+    a real-time acceptance replay, not a claim that missing observations were
+    reconstructed.
+    """
+
+    available_steps = np.asarray(sorted(set(int(value) for value in available_steps if int(value) >= 1)), dtype=int)
+    if available_steps.size == 0:
+        raise ValueError("No positive elapsed-second observation steps are available")
+    final_time = float(available_steps[-1])
+    budget = args.realtime_budget_s
+    if budget is None:
+        count = min(max(int(args.max_steps), 2), len(available_steps))
+        if count == len(available_steps):
+            selected = available_steps.copy()
+        else:
+            indices = np.linspace(0, len(available_steps) - 1, count).round().astype(int)
+            selected = np.unique(available_steps[indices])
+        return selected, {
+            "enabled": False,
+            "budget_s": None,
+            "step_cost_s": None,
+            "available_source_steps": int(len(available_steps)),
+            "scheduled_updates": int(len(selected)),
+            "skipped_source_steps": int(len(available_steps) - len(selected)),
+            "coverage_end_s": float(selected[-1]),
+        }
+
+    budget = min(max(float(budget), 1.0), final_time)
+    step_cost = max(float(args.realtime_step_cost_s), 1.0e-6)
+    selected: list[int] = []
+    wall_clock = float(available_steps[0])
+    while wall_clock <= budget + 1.0e-9:
+        latest_index = int(np.searchsorted(available_steps, np.floor(wall_clock), side="right") - 1)
+        if latest_index >= 0:
+            candidate = int(available_steps[latest_index])
+            if not selected or candidate > selected[-1]:
+                selected.append(candidate)
+        wall_clock += step_cost
+    if not selected:
+        selected = [int(available_steps[0])]
+    return np.asarray(selected, dtype=int), {
+        "enabled": True,
+        "budget_s": float(budget),
+        "step_cost_s": float(step_cost),
+        "available_source_steps": int(len(available_steps)),
+        "scheduled_updates": int(len(selected)),
+        "skipped_source_steps": int(len(available_steps) - len(selected)),
+        "coverage_end_s": float(selected[-1]),
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Direct-observation PKN-EnKF calibration and held-out validation.")
     parser.add_argument("--frac-monitor-text", required=False)
     parser.add_argument("--construction-pressure-xls", required=True)
     parser.add_argument("--pressure-calibration-config", default=None)
     parser.add_argument("--observation-mode", choices=["pressure_only", "pressure_plus_cluster"], default="pressure_plus_cluster")
+    parser.add_argument(
+        "--allocation-mode",
+        choices=["parameterized", "measured_boundary"],
+        default="parameterized",
+        help=(
+            "parameterized infers six-cluster intake/interaction parameters from fiber shares; "
+            "measured_boundary keeps the historical direct-fiber boundary-condition baseline."
+        ),
+    )
     parser.add_argument("--max-steps", type=int, default=60)
+    parser.add_argument(
+        "--realtime-budget-s",
+        type=float,
+        default=None,
+        help="Use a wall-clock replay budget; source points arriving during an update are skipped.",
+    )
+    parser.add_argument(
+        "--realtime-step-cost-s",
+        type=float,
+        default=1.32,
+        help="Assumed single-update wall-clock cost used to schedule real-time source points.",
+    )
     parser.add_argument("--calibration-ratio", type=float, default=0.70)
     # 300 members materially reduce seed sensitivity while remaining far below
     # the 15-second online update budget on the current six-cluster problem.
@@ -436,14 +657,51 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-leakoff-fraction", type=float, default=0.50)
     parser.add_argument("--hydraulic-coupling-mode", choices=["legacy", "coupled"], default="coupled")
     parser.add_argument("--conductance-exponent", type=float, default=0.45)
-    parser.add_argument("--measured-depth-m", type=float, default=5218.0)
-    parser.add_argument("--vertical-depth-m", type=float, default=3196.94)
+    parser.add_argument("--boundary-relief-strength", type=float, default=0.05)
+    parser.add_argument("--allocation-factor-spread", type=float, default=0.35)
+    parser.add_argument("--allocation-process-std", type=float, default=0.08)
+    parser.add_argument("--interaction-parameter-spread", type=float, default=0.30)
+    parser.add_argument("--interaction-process-std", type=float, default=0.06)
+    parser.add_argument(
+        "--measured-depth-m",
+        type=float,
+        default=None,
+        help="Override the measured depth from the pressure calibration config.",
+    )
+    parser.add_argument(
+        "--vertical-depth-m",
+        type=float,
+        default=None,
+        help="Override the vertical depth from the pressure calibration config.",
+    )
     parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument(
+        "--parameter-bound-mode",
+        choices=["constrained", "unbounded_control"],
+        default="constrained",
+        help=(
+            "constrained keeps the normal engineering domain guards; "
+            "unbounded_control removes all absolute parameter bounds and all "
+            "one-step change limits for the matched control experiment."
+        ),
+    )
     parser.add_argument("--validation-mode", choices=["frozen", "online"], default="online")
     parser.add_argument("--filter-method", choices=["stochastic", "denkf"], default="stochastic")
     parser.add_argument("--assimilation-iterations", type=int, default=1)
     parser.add_argument("--covariance-inflation", type=float, default=1.012)
     parser.add_argument("--robust-innovation-threshold", type=float, default=4.0)
+    parser.add_argument(
+        "--pressure-fit-priority",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Give pressure the primary EnKF weight in the parameterized two-block update.",
+    )
+    parser.add_argument(
+        "--pressure-observation-scale",
+        type=float,
+        default=0.25,
+        help="Observation-noise multiplier used only when --pressure-fit-priority is enabled.",
+    )
     parser.add_argument("--cluster-process-std", type=float, default=0.06)
     parser.add_argument("--sand-process-std", type=float, default=0.06)
     parser.add_argument("--pressure-bias-process-std", type=float, default=1.5)
@@ -552,8 +810,18 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     pressure_cfg = load_pressure_model_config(args.pressure_calibration_config)
     if args.pressure_calibration_config is None:
         pressure_cfg = type(pressure_cfg)(**{**asdict(pressure_cfg), "min_horizontal_stress_mpa": args.base_min_stress_mpa})
+    measured_depth_m = float(
+        args.measured_depth_m
+        if args.measured_depth_m is not None
+        else getattr(pressure_cfg, "measured_depth_m", None) or 5218.0
+    )
+    vertical_depth_m = float(
+        args.vertical_depth_m
+        if args.vertical_depth_m is not None
+        else getattr(pressure_cfg, "vertical_depth_m", None) or 3196.94
+    )
     pressure, pressure_meta = load_stage_pressure_schedule(
-        args.construction_pressure_xls, pressure_cfg, args.measured_depth_m, args.vertical_depth_m
+        args.construction_pressure_xls, pressure_cfg, measured_depth_m, vertical_depth_m
     )
     quality_meta: dict[str, object] = {}
     if args.observation_mode == "pressure_only":
@@ -594,9 +862,11 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         if n_clusters != 6 or controls.empty:
             raise ValueError("DAS/FracMonitor data has no valid six-cluster observation steps")
     available_steps = np.asarray(sorted(controls["step"].unique()), dtype=int)
-    count = min(max(args.max_steps, 2), len(available_steps))
-    indices = np.linspace(0, len(available_steps) - 1, count).round().astype(int)
-    source_steps = np.unique(available_steps[indices])
+    # The source adapters retain a zero-origin bookkeeping row, while the
+    # field replay contract is explicitly 1 s through the final elapsed
+    # second. Remove that duplicate origin before selecting replay nodes.
+    available_steps = available_steps[available_steps >= 1]
+    source_steps, realtime_meta = select_replay_steps(available_steps, args)
     calibration_count = max(1, min(len(source_steps) - 1, int(round(len(source_steps) * args.calibration_ratio))))
 
     cfg = PhysicalEnKFConfig(
@@ -608,6 +878,7 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         height_m=args.height_m,
         pressure_proxy_scale=args.pressure_proxy_scale,
         max_leakoff_fraction=args.max_leakoff_fraction,
+        boundary_relief_strength=args.boundary_relief_strength,
         hydraulic_coupling_mode=args.hydraulic_coupling_mode,
         conductance_exponent=args.conductance_exponent,
         stress_shadow_feedback=args.stress_shadow_feedback,
@@ -632,27 +903,47 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
             )
         else:
             surrogate_gate["online_enabled"] = True
-    prior_mean = np.r_[
+    parameterized_allocation = args.allocation_mode == "parameterized" and args.observation_mode == "pressure_plus_cluster" and n_clusters > 1
+    pressure_prior_mean = np.r_[
         0.0,
         0.0,
         0.0,
         args.base_min_stress_mpa,
         0.0,
     ]
-    spread = np.r_[
+    pressure_spread = np.r_[
         0.18,
         0.45,
         0.30,
         5.0,
         0.25,
     ]
-    process = np.r_[
+    pressure_process = np.r_[
         0.012,
         0.020,
         0.015,
         0.20,
         0.012,
     ]
+    if parameterized_allocation:
+        # Zero-centered log capacity gives an equal-rate prior.  The three
+        # scalar terms are inferred from share innovations, not read from the
+        # fiber file.
+        prior_mean = np.r_[pressure_prior_mean, np.zeros(n_clusters + 3)]
+        spread = np.r_[
+            pressure_spread,
+            np.full(n_clusters, args.allocation_factor_spread),
+            np.full(3, args.interaction_parameter_spread),
+        ]
+        process = np.r_[
+            pressure_process,
+            np.full(n_clusters, args.allocation_process_std),
+            np.full(3, args.interaction_process_std),
+        ]
+    else:
+        prior_mean = pressure_prior_mean
+        spread = pressure_spread
+        process = pressure_process
     calibration_center, batch_calibration = batch_calibrate_state(
         args,
         source_steps,
@@ -669,13 +960,16 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         # Preserve the command line used by the original uncertainty-only
         # experiment while allowing the new modes to be selected explicitly.
         kg_mode = "uncertainty_only"
+    # The knowledge-guided bridge is defined for the pressure block.  The
+    # allocation block receives an independent, zero-centered ensemble prior
+    # and is identified only by cluster-share observations.
     kg_distribution = build_knowledge_guided_prior(
         controls,
         pressure,
         source_steps[:calibration_count],
-        calibration_center,
-        initial_spread,
-        process,
+        calibration_center[:5],
+        initial_spread[:5],
+        process[:5],
         KnowledgeGuidedPriorConfig(
             enabled=kg_mode != "off",
             strength=float(args.knowledge_guided_strength),
@@ -687,11 +981,25 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
             max_update_scale=float(args.knowledge_guided_max_update_scale),
         ),
     )
-    kg_spread = np.asarray(kg_distribution["spread"], dtype=float)
-    kg_process_covariance = np.asarray(kg_distribution["process_covariance"], dtype=float)
+    kg_spread_pressure = np.asarray(kg_distribution["spread"], dtype=float)
+    kg_process_covariance_pressure = np.asarray(kg_distribution["process_covariance"], dtype=float)
     kg_prior = dict(kg_distribution["meta"])
-    kg_prior_mean = np.asarray(kg_distribution["mean"], dtype=float)
-    kg_prior_covariance = np.asarray(kg_distribution["covariance"], dtype=float)
+    kg_prior_mean_pressure = np.asarray(kg_distribution["mean"], dtype=float)
+    kg_prior_covariance_pressure = np.asarray(kg_distribution["covariance"], dtype=float)
+    if parameterized_allocation:
+        kg_prior_mean = np.r_[kg_prior_mean_pressure, np.zeros(n_clusters + 3)]
+        kg_prior_covariance = np.zeros((len(kg_prior_mean), len(kg_prior_mean)), dtype=float)
+        kg_prior_covariance[:5, :5] = kg_prior_covariance_pressure
+        kg_prior_covariance[5:, 5:] = np.diag(initial_spread[5:] ** 2)
+        kg_process_covariance = np.zeros_like(kg_prior_covariance)
+        kg_process_covariance[:5, :5] = kg_process_covariance_pressure
+        kg_process_covariance[5:, 5:] = np.diag(process[5:] ** 2)
+        kg_spread = np.r_[kg_spread_pressure, initial_spread[5:]]
+    else:
+        kg_prior_mean = kg_prior_mean_pressure
+        kg_prior_covariance = kg_prior_covariance_pressure
+        kg_process_covariance = kg_process_covariance_pressure
+        kg_spread = kg_spread_pressure
     ensemble = rng.multivariate_normal(
         kg_prior_mean,
         kg_prior_covariance,
@@ -702,10 +1010,15 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         ensemble,
         n_clusters,
         args.log_cluster_factor_state,
+        args.parameter_bound_mode,
     )
     rows: list[dict] = []
     cluster_rows: list[dict] = []
-    localization = build_physical_localization(n_clusters)
+    localization = build_physical_localization(
+        n_clusters,
+        state_size=len(prior_mean),
+        parameterized_allocation=parameterized_allocation,
+    )
     cumulative_liquid_memory = np.zeros((args.ensemble_size, n_clusters), dtype=float)
     cumulative_sand_memory = np.zeros((args.ensemble_size, n_clusters), dtype=float)
     previous_time_seconds: float | None = None
@@ -720,18 +1033,24 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         total_rate = max(total_cumulative / t_seconds, 1e-8)
         current_total_rate = max(float(step_controls["flow_rate_m3_min"].sum()) / 60.0, 1e-8)
         observed_liquid, observed_sand = observed_cluster_shares(step_controls)
-        # Cumulative fiber liquid shares control historical PKN growth.  The
-        # incremental fiber allocation controls current-rate/aperture physics;
-        # both are measured inputs, not EnKF latent cluster factors.
-        q_base_allocation = observed_liquid
+        # In the new mode the fiber shares are observations only.  The forward
+        # model starts from an equal nominal split and computes the actual six
+        # cluster rates from the inferred allocation state.  The old mode is
+        # retained as an explicit baseline for ablation.
         fiber_allocation = fiber_liquid_allocation(
             step_controls,
             previous=previous_fiber_allocation,
             smoothing=args.fiber_allocation_smoothing,
         )
         previous_fiber_allocation = fiber_allocation
+        if parameterized_allocation:
+            q_base_allocation = np.full(n_clusters, 1.0 / n_clusters)
+            q_current_allocation = np.full(n_clusters, 1.0 / n_clusters)
+        else:
+            q_base_allocation = observed_liquid
+            q_current_allocation = fiber_allocation
         q_base = total_rate * q_base_allocation
-        q_current = current_total_rate * fiber_allocation
+        q_current = current_total_rate * q_current_allocation
         observed_bhp = float(pressure_for_step(pressure, int(source_step))["bottomhole_pressure_mpa"])
         dt_seconds = t_seconds if previous_time_seconds is None else max(t_seconds - previous_time_seconds, 1.0)
 
@@ -747,6 +1066,7 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
                 ensemble + process_noise,
                 n_clusters,
                 args.log_cluster_factor_state,
+                args.parameter_bound_mode,
             )
         observed_obs = np.r_[observed_liquid[: n_clusters - 1], observed_sand[: n_clusters - 1], observed_bhp]
         obs_std = adaptive_observation_std(args, observed_liquid, observed_sand, observed_bhp)
@@ -767,8 +1087,10 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
                     t_seconds,
                     cfg,
                     q_current,
-                    cluster_allocation=q_base_allocation,
-                    cluster_current_allocation=fiber_allocation,
+                    **({} if parameterized_allocation else {
+                        "cluster_allocation": q_base_allocation,
+                        "cluster_current_allocation": q_current_allocation,
+                    }),
                 )
                 if surrogate is not None:
                     item = apply_residual_surrogate(
@@ -805,6 +1127,7 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
             ensemble, cumulative_liquid_memory, cumulative_sand_memory
         )
 
+        prior_ensemble_snapshot = ensemble.copy()
         prior_state = ensemble.mean(axis=0)
         prior = pkn_with_carter_leakoff(
             prior_state,
@@ -812,8 +1135,10 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
             t_seconds,
             cfg,
             q_current,
-            cluster_allocation=q_base_allocation,
-            cluster_current_allocation=fiber_allocation,
+            **({} if parameterized_allocation else {
+                "cluster_allocation": q_base_allocation,
+                "cluster_current_allocation": q_current_allocation,
+            }),
         )
         if surrogate is not None:
             prior = apply_residual_surrogate(
@@ -836,12 +1161,13 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
                 n_clusters,
                 sand_transport_exponent=args.sand_transport_exponent,
             )
-        if args.observation_memory_mode == "instantaneous":
+        if args.observation_memory_mode == "instantaneous" and not parameterized_allocation:
             prior_shares[:n_clusters] = observed_liquid
-        if args.sand_observation_memory_mode == "cumulative":
+        if args.sand_observation_memory_mode == "cumulative" and not parameterized_allocation:
             prior_shares[n_clusters:] = normalize_positive(forecast_sand.mean(axis=0))
         gain_mean = 0.0
         inflation_values = []
+        allocation_preconditioner_delta = np.zeros(n_clusters, dtype=float)
         if should_update:
             assimilation_reference = ensemble.copy()
             gain_values = []
@@ -851,48 +1177,162 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
                     predicted_obs_rows, _, _ = evaluate_ensemble(
                         ensemble, cumulative_liquid_memory, cumulative_sand_memory
                     )
-                innovation = observed_obs - predicted_obs_rows.mean(axis=0)
-                robust_scale = np.ones_like(obs_std)
-                # Cluster-share imbalance is the signal that identifies intake
-                # parameters and must not be suppressed as an outlier. Robust
-                # down-weighting is reserved for the pressure channel, where
-                # gauge spikes and unmodelled near-wellbore losses are plausible.
-                robust_scale[-1] = max(
-                    1.0,
-                    abs(float(innovation[-1]))
-                    / max(args.robust_innovation_threshold * float(obs_std[-1]), 1.0e-9),
-                )
-                # Tempering prevents repeated nonlinear updates from counting the
-                # same observation more than once in likelihood terms.
-                iteration_std = obs_std * np.sqrt(iteration_count) * robust_scale
-                inflation = adaptive_covariance_inflation(args, innovation, iteration_std)
-                if args.filter_method == "denkf":
-                    ensemble, gain = denkf_update(
-                        ensemble,
-                        predicted_obs_rows,
-                        observed_obs,
-                        iteration_std,
-                        covariance_inflation=inflation,
-                        localization=localization,
+                def apply_stage_update(
+                    current_ensemble: np.ndarray,
+                    stage_predictions: np.ndarray,
+                    stage_observation: np.ndarray,
+                    stage_std: np.ndarray,
+                    stage_localization: np.ndarray,
+                ) -> tuple[np.ndarray, np.ndarray, float]:
+                    stage_innovation = stage_observation - stage_predictions.mean(axis=0)
+                    stage_inflation = adaptive_covariance_inflation(args, stage_innovation, stage_std)
+                    if args.filter_method == "denkf":
+                        updated, stage_gain = denkf_update(
+                            current_ensemble,
+                            stage_predictions,
+                            stage_observation,
+                            stage_std,
+                            covariance_inflation=stage_inflation,
+                            localization=stage_localization,
+                        )
+                    else:
+                        updated, stage_gain = enkf_update(
+                            current_ensemble,
+                            stage_predictions,
+                            stage_observation,
+                            stage_std,
+                            rng,
+                            localization=stage_localization,
+                        )
+                    return updated, stage_gain, stage_inflation
+
+                # Explicit two-block assimilation:
+                #   1) pressure observation -> pressure parameters only;
+                #   2) liquid/sand shares -> allocation/interference parameters.
+                # No parameter-delta limiter is applied between the two blocks.
+                if parameterized_allocation:
+                    pressure_predictions = predicted_obs_rows[:, -1:]
+                    pressure_observation = observed_obs[-1:]
+                    pressure_innovation = pressure_observation - pressure_predictions.mean(axis=0)
+                    pressure_scale = max(
+                        1.0,
+                        abs(float(pressure_innovation[0]))
+                        / max(args.robust_innovation_threshold * float(obs_std[-1]), 1.0e-9),
                     )
+                    if args.pressure_fit_priority:
+                        # The control experiment deliberately removes the
+                        # robust-inflation down-weighting of a large pressure
+                        # innovation.  Pressure is the target metric here;
+                        # cluster-share fit is still reported separately.
+                        pressure_std = np.asarray([
+                            max(float(obs_std[-1]) * float(args.pressure_observation_scale), 1.0e-6)
+                        ])
+                    else:
+                        pressure_std = np.asarray([obs_std[-1] * np.sqrt(iteration_count) * pressure_scale])
+                    pressure_localization = np.zeros((len(prior_mean), 1), dtype=float)
+                    pressure_localization[:5, 0] = 1.0 if args.pressure_fit_priority else [0.75, 0.25, 0.65, 1.00, 0.35]
+                    ensemble, pressure_gain, pressure_inflation = apply_stage_update(
+                        ensemble,
+                        pressure_predictions,
+                        pressure_observation,
+                        pressure_std,
+                        pressure_localization,
+                    )
+                    predicted_obs_rows, _, _ = evaluate_ensemble(
+                        ensemble, cumulative_liquid_memory, cumulative_sand_memory
+                    )
+                    allocation_size = 2 * (n_clusters - 1)
+                    allocation_predictions = predicted_obs_rows[:, :allocation_size]
+                    allocation_observation = observed_obs[:allocation_size]
+                    allocation_std = obs_std[:allocation_size] * np.sqrt(iteration_count)
+                    allocation_localization = localization[:, :allocation_size]
+                    ensemble, allocation_gain, allocation_inflation = apply_stage_update(
+                        ensemble,
+                        allocation_predictions,
+                        allocation_observation,
+                        allocation_std,
+                        allocation_localization,
+                    )
+                    # EnKF covariance can collapse when a previously unseen
+                    # dominant cluster appears in the held-out window.  Use a
+                    # parameter-space Gauss-Newton preconditioner after the
+                    # stochastic update: it changes log intake capacity, not
+                    # the observed share or fracture length directly.  The
+                    # next forward evaluation still computes the conserved
+                    # six-cluster rates from the updated parameters.
+                    predicted_after_allocation, _, _ = evaluate_ensemble(
+                        ensemble, cumulative_liquid_memory, cumulative_sand_memory
+                    )
+                    predicted_mean = predicted_after_allocation.mean(axis=0)
+                    predicted_liquid = normalize_positive(
+                        np.r_[predicted_mean[: n_clusters - 1], 1.0 - float(np.sum(predicted_mean[: n_clusters - 1]))]
+                    )
+                    posterior_parameter_mean = ensemble.mean(axis=0)
+                    allocation_exponent = max(
+                        float(np.exp(posterior_parameter_mean[7 + n_clusters])),
+                        1.0e-4,
+                    )
+                    liquid_log_residual = np.log(
+                        np.maximum(observed_liquid, 1.0e-8)
+                        / np.maximum(predicted_liquid, 1.0e-8)
+                    )
+                    # Liquid allocation is the primary intake observation. Sand
+                    # transport has its own lag/settling operator and is used
+                    # for the EnKF observation update, but is not allowed to
+                    # distort the hydraulic intake inversion in this correction.
+                    allocation_preconditioner_delta = liquid_log_residual / allocation_exponent
+                    allocation_preconditioner_delta -= float(np.mean(allocation_preconditioner_delta))
+                    # Deliberately no per-step delta clipping. The only later
+                    # guard is the finite log-domain guard in
+                    # clip_augmented_state.
+                    ensemble[:, 5 : 5 + n_clusters] += allocation_preconditioner_delta.reshape(1, -1)
+                    gain_values.extend([
+                        float(np.mean(np.abs(pressure_gain))),
+                        float(np.mean(np.abs(allocation_gain))),
+                    ])
+                    inflation_values.extend([pressure_inflation, allocation_inflation])
                 else:
-                    ensemble, gain = enkf_update(
-                        ensemble,
-                        predicted_obs_rows,
-                        observed_obs,
-                        iteration_std,
-                        rng,
-                        localization=localization if args.use_localization else None,
+                    innovation = observed_obs - predicted_obs_rows.mean(axis=0)
+                    robust_scale = np.ones_like(obs_std)
+                    robust_scale[-1] = max(
+                        1.0,
+                        abs(float(innovation[-1]))
+                        / max(args.robust_innovation_threshold * float(obs_std[-1]), 1.0e-9),
                     )
-                ensemble = project_knowledge_guided_update(
+                    iteration_std = obs_std * np.sqrt(iteration_count) * robust_scale
+                    inflation = adaptive_covariance_inflation(args, innovation, iteration_std)
+                    if args.filter_method == "denkf":
+                        ensemble, gain = denkf_update(
+                            ensemble,
+                            predicted_obs_rows,
+                            observed_obs,
+                            iteration_std,
+                            covariance_inflation=inflation,
+                            localization=localization,
+                        )
+                    else:
+                        ensemble, gain = enkf_update(
+                            ensemble,
+                            predicted_obs_rows,
+                            observed_obs,
+                            iteration_std,
+                            rng,
+                            localization=localization if args.use_localization else None,
+                        )
+                    ensemble = project_knowledge_guided_update(
+                        ensemble,
+                        assimilation_reference,
+                        kg_spread,
+                        kg_prior,
+                    )
+                    gain_values.append(float(np.mean(np.abs(gain))))
+                    inflation_values.append(inflation)
+                ensemble = clip_augmented_state(
                     ensemble,
-                    assimilation_reference,
-                    kg_spread,
-                    kg_prior,
+                    n_clusters,
+                    args.log_cluster_factor_state,
+                    args.parameter_bound_mode,
                 )
-                ensemble = clip_augmented_state(ensemble, n_clusters, args.log_cluster_factor_state)
-                gain_values.append(float(np.mean(np.abs(gain))))
-                inflation_values.append(inflation)
             gain_mean = float(np.mean(gain_values))
         posterior_state = ensemble.mean(axis=0)
         posterior = pkn_with_carter_leakoff(
@@ -901,8 +1341,10 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
             t_seconds,
             cfg,
             q_current,
-            cluster_allocation=q_base_allocation,
-            cluster_current_allocation=fiber_allocation,
+            **({} if parameterized_allocation else {
+                "cluster_allocation": q_base_allocation,
+                "cluster_current_allocation": q_current_allocation,
+            }),
         )
         if surrogate is not None:
             posterior = apply_residual_surrogate(
@@ -928,14 +1370,14 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
                 n_clusters,
                 sand_transport_exponent=args.sand_transport_exponent,
             )
-        if args.observation_memory_mode == "instantaneous":
+        if args.observation_memory_mode == "instantaneous" and not parameterized_allocation:
             posterior_shares[:n_clusters] = observed_liquid
-        if args.sand_observation_memory_mode == "cumulative":
+        if args.sand_observation_memory_mode == "cumulative" and not parameterized_allocation:
             posterior_shares[n_clusters:] = normalize_positive(posterior_sand_memory.mean(axis=0))
 
-        # Carry the posterior process state into the next timestamp. The
-        # filtered physical parameters are still the only EnKF state variables;
-        # cumulative memories are deterministic process-model bookkeeping.
+        # Carry the posterior process state into the next timestamp. In the
+        # parameterized mode both pressure and allocation parameters are
+        # filtered; cumulative memories remain deterministic bookkeeping.
         cumulative_liquid_memory = posterior_liquid_memory
         cumulative_sand_memory = posterior_sand_memory
         previous_time_seconds = t_seconds
@@ -972,8 +1414,32 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
             "posterior_rate_conservation_error": float(posterior["rate_conservation_error"]),
             "prior_total_half_length_m": float(np.asarray(prior["half_length_m"], dtype=float).sum()),
             "posterior_total_half_length_m": float(np.asarray(posterior["half_length_m"], dtype=float).sum()),
+            "allocation_mode": args.allocation_mode,
+            "parameterized_allocation": bool(parameterized_allocation),
+            "prior_total_rate_model_m3_s": float(np.asarray(prior["q_nominal_m3_s"], dtype=float).sum()),
+            "posterior_total_rate_model_m3_s": float(np.asarray(posterior["q_nominal_m3_s"], dtype=float).sum()),
+            "prior_allocation_exponent": float(prior["allocation_exponent"]),
+            "posterior_allocation_exponent": float(posterior["allocation_exponent"]),
+            "prior_stress_shadow_scale": float(prior["stress_shadow_scale"]),
+            "posterior_stress_shadow_scale": float(posterior["stress_shadow_scale"]),
+            "prior_boundary_relief_scale": float(prior["boundary_relief_scale"]),
+            "posterior_boundary_relief_scale": float(posterior["boundary_relief_scale"]),
+            "allocation_parameter_preconditioner_delta_abs_mean": float(np.mean(np.abs(allocation_preconditioner_delta))),
+            "allocation_parameter_preconditioner_delta_abs_max": float(np.max(np.abs(allocation_preconditioner_delta))),
             **state_record("prior", prior_state, cfg, n_clusters),
             **state_record("posterior", posterior_state, cfg, n_clusters),
+            **ensemble_parameter_statistics(
+                prior_ensemble_snapshot,
+                cfg,
+                n_clusters,
+                "prior_ensemble",
+            ),
+            **ensemble_parameter_statistics(
+                ensemble,
+                cfg,
+                n_clusters,
+                "posterior_ensemble",
+            ),
         }
         row["posterior_all_observations_within_15_percent"] = bool(
             row["posterior_liquid_tvd"] <= 0.15 and row["posterior_sand_tvd"] <= 0.15 and row["posterior_bhp_relative_error"] <= 0.15
@@ -988,24 +1454,38 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
                 "prior_half_length_m": float(np.asarray(prior["half_length_m"], dtype=float)[idx]),
                 "posterior_half_length_m": float(np.asarray(posterior["half_length_m"])[idx]),
                 "fiber_liquid_allocation": float(fiber_allocation[idx]),
-                "posterior_cluster_factor": 1.0,
+                "observed_fiber_liquid_allocation": float(fiber_allocation[idx]),
+                "prior_model_liquid_allocation": float(np.asarray(prior["cluster_allocation"])[idx]),
+                "posterior_model_liquid_allocation": float(np.asarray(posterior["cluster_allocation"])[idx]),
+                "posterior_cluster_factor": float(np.asarray(posterior["cluster_factors"])[idx]),
                 "posterior_sand_transport_factor": 1.0,
-                "allocation_source": "fiber_incremental_liquid_weight",
+                "allocation_source": (
+                    "enkf_inferred_intake_interaction_parameters"
+                    if parameterized_allocation
+                    else "fiber_incremental_liquid_weight"
+                ),
             })
 
     history = pd.DataFrame(rows)
     clusters = pd.DataFrame(cluster_rows)
     pressure_bias_meta: dict[str, object] = {"enabled": False, "observation_mode": args.observation_mode}
     if args.observation_mode == "pressure_only" and not history.empty:
+        pressure_only_config = PressureOnlyConfig.from_pressure_model_config(pressure_cfg)
+        # Ensemble size and seed are execution settings, not physical
+        # calibration constants. Keep the physical bounds/noise in the shared
+        # pressure config while allowing a run to choose its reproducibility.
+        pressure_only_config = PressureOnlyConfig(
+            process_std_mpa=pressure_only_config.process_std_mpa,
+            observation_std_mpa=pressure_only_config.observation_std_mpa,
+            ensemble_size=max(40, min(int(args.ensemble_size), 400)),
+            seed=int(args.seed),
+            bias_lower_mpa=pressure_only_config.bias_lower_mpa,
+            bias_upper_mpa=pressure_only_config.bias_upper_mpa,
+        )
         correction = run_pressure_only_correction(
             history["prior_pkn_bottomhole_pressure_mpa"].to_numpy(dtype=float),
             history["observed_bottomhole_pressure_mpa"].to_numpy(dtype=float),
-            PressureOnlyConfig(
-                process_std_mpa=float(args.pressure_bias_process_std),
-                observation_std_mpa=float(args.bottomhole_pressure_noise_mpa),
-                ensemble_size=max(40, min(int(args.ensemble_size), 400)),
-                seed=int(args.seed),
-            ),
+            pressure_only_config,
         )
         history["prior_near_wellbore_pressure_bias_mpa"] = correction["prior_bias_mpa"]
         history["posterior_near_wellbore_pressure_bias_mpa"] = correction["posterior_bias_mpa"]
@@ -1039,7 +1519,8 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     shrink_gt_5 = length_change_array < -0.05 if length_change_array.size else np.array([], dtype=bool)
     allocation_step_changes = []
     for _, group in clusters.groupby("cluster_id"):
-        values = group.sort_values("time_s")["fiber_liquid_allocation"].to_numpy(dtype=float)
+        allocation_column = "posterior_model_liquid_allocation" if parameterized_allocation else "fiber_liquid_allocation"
+        values = group.sort_values("time_s")[allocation_column].to_numpy(dtype=float)
         if len(values) > 1:
             allocation_step_changes.extend(np.abs(np.diff(values)).tolist())
     metrics = {
@@ -1051,6 +1532,33 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         "validation_prior_liquid_tvd_mean": float(validation["prior_liquid_tvd"].mean()),
         "validation_prior_sand_tvd_mean": float(validation["prior_sand_tvd"].mean()),
         "validation_prior_bhp_relative_error_mean": float(validation["prior_bhp_relative_error"].mean()),
+        "all_steps_bhp_mae_mpa": float(
+            np.mean(
+                np.abs(
+                    history["posterior_bottomhole_pressure_mpa"]
+                    - history["observed_bottomhole_pressure_mpa"]
+                )
+            )
+        ),
+        "all_steps_bhp_rmse_mpa": float(
+            np.sqrt(
+                np.mean(
+                    (
+                        history["posterior_bottomhole_pressure_mpa"]
+                        - history["observed_bottomhole_pressure_mpa"]
+                    )
+                    ** 2
+                )
+            )
+        ),
+        "validation_bhp_mae_mpa": float(
+            np.mean(
+                np.abs(
+                    validation["posterior_bottomhole_pressure_mpa"]
+                    - validation["observed_bottomhole_pressure_mpa"]
+                )
+            )
+        ),
         "all_steps_compute_p50_ms": float(history["step_compute_ms"].quantile(0.50)),
         "all_steps_compute_p95_ms": float(history["step_compute_ms"].quantile(0.95)),
         "all_steps_under_15_seconds_rate": float((history["step_compute_ms"] < 15000.0).mean()),
@@ -1062,6 +1570,8 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
             and validation["posterior_sand_tvd"].mean() <= 0.15
             and validation["posterior_bhp_relative_error"].mean() <= 0.15
         ),
+        "allocation_mode": args.allocation_mode,
+        "parameterized_allocation": bool(parameterized_allocation),
         "filter_method": args.filter_method,
         "assimilation_iterations": int(args.assimilation_iterations),
         "covariance_inflation": float(args.covariance_inflation),
@@ -1077,15 +1587,27 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         "adaptive_inflation": bool(args.adaptive_inflation),
         "ensemble_size": int(args.ensemble_size),
         "batch_calibrate": bool(args.batch_calibrate),
+        "parameter_bound_mode": args.parameter_bound_mode,
+        "pressure_fit_priority": bool(args.pressure_fit_priority),
+        "pressure_observation_scale": float(args.pressure_observation_scale),
+        "parameter_classes": PARAMETER_CLASS_NAMES,
+        "parameter_trajectory_summary": summarize_parameter_trajectory(history),
         "knowledge_guided_prior": kg_prior,
-        "state_dimension": 5,
-        "state_vector": ["E_prime", "C_L", "mu", "sigma_min", "K_IC"],
+        "state_dimension": int(len(prior_mean)),
+        "state_vector": (
+            ["E_prime", "C_L", "mu", "sigma_min", "K_IC"]
+            + ([f"log_intake_capacity_C{i}" for i in range(1, n_clusters + 1)] + ["log_stress_shadow_scale", "log_boundary_relief_scale", "log_allocation_exponent"] if parameterized_allocation else [])
+        ),
         "observation_mode": args.observation_mode,
         "observation_vector": (["bottomhole_pressure_mpa"] if args.observation_mode == "pressure_only" else ["cumulative_liquid_share_by_cluster", "cumulative_sand_share_by_cluster", "bottomhole_pressure_mpa"]),
         "pressure_bias_update": pressure_bias_meta,
         "observation_quality": quality_meta,
         "pyfrac_residual_surrogate": surrogate_gate,
-        "fiber_allocation_source": "incremental_liquid_volume_from_fiber",
+        "fiber_allocation_source": (
+            "observation_target_only; model allocation inferred from EnKF parameters"
+            if parameterized_allocation
+            else "incremental_liquid_volume_from_fiber"
+        ),
         "fiber_allocation_smoothing_previous_weight": float(args.fiber_allocation_smoothing),
         "max_fiber_allocation_step_change": float(max(allocation_step_changes, default=0.0)),
         "length_shrink_gt_5_percent_count": int(shrink_gt_5.sum()),
@@ -1103,6 +1625,15 @@ def run(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
                 for _, group in clusters.groupby("cluster_id")
             )
         ),
+        "realtime_mode": bool(realtime_meta.get("enabled", False)),
+        "realtime_budget_s": realtime_meta.get("budget_s"),
+        "realtime_schedule_step_cost_s": realtime_meta.get("step_cost_s"),
+        "realtime_available_source_steps": realtime_meta.get("available_source_steps"),
+        "realtime_scheduled_update_count": realtime_meta.get("scheduled_updates"),
+        "realtime_skipped_source_steps": realtime_meta.get("skipped_source_steps"),
+        "realtime_coverage_end_s": realtime_meta.get("coverage_end_s"),
+        "realtime_actual_compute_total_s": float(history["step_compute_ms"].sum() / 1000.0),
+        "realtime_actual_compute_rate_hz": float(len(history) / max(history["step_compute_ms"].sum() / 1000.0, 1.0e-9)),
     }
     return history, clusters, {
         "metrics": metrics,
@@ -1142,31 +1673,69 @@ def main() -> None:
     configure_font(); args = build_parser().parse_args()
     output = Path(args.run_dir).resolve() / time.strftime("%Y%m%d_%H%M%S"); output.mkdir(parents=True, exist_ok=True)
     history, clusters, result = run(args)
+    parameterized_allocation = bool(result["metrics"].get("parameterized_allocation", False))
+    n_clusters = int(clusters["cluster_id"].nunique()) if not clusters.empty else 1
     history.to_csv(output / "direct_observation_history.csv", index=False, encoding="utf-8-sig")
     clusters.to_csv(output / "cluster_share_history.csv", index=False, encoding="utf-8-sig")
+    parameter_columns = ["sequence_index", "source_step", "time_s", "phase"]
+    for names in PARAMETER_CLASS_NAMES.values():
+        for name in names:
+            parameter_columns.extend(
+                [
+                    f"prior_{name}",
+                    f"posterior_{name}",
+                    f"prior_ensemble_{name}_std",
+                    f"prior_ensemble_{name}_min",
+                    f"prior_ensemble_{name}_max",
+                    f"posterior_ensemble_{name}_std",
+                    f"posterior_ensemble_{name}_min",
+                    f"posterior_ensemble_{name}_max",
+                ]
+            )
+    parameter_columns.extend(
+        [
+            "observed_bottomhole_pressure_mpa",
+            "prior_bottomhole_pressure_mpa",
+            "posterior_bottomhole_pressure_mpa",
+            "prior_bhp_relative_error",
+            "posterior_bhp_relative_error",
+        ]
+    )
+    parameter_columns = [column for column in parameter_columns if column in history.columns]
+    history.loc[:, parameter_columns].to_csv(
+        output / "parameter_trajectory.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
     plot_results(history, output / "direct_observation_validation.png")
     summary = {
         "demo": "direct_observable_space_pkn_enkf_heldout_validation",
         "scientific_status": "engineering validation prototype",
         "observation_mode": args.observation_mode,
-        "state_vector": [
-            "E'",
-            "C_L",
-            "mu",
-            "sigma_min",
-            "K_IC",
-        ],
+        "state_vector": (
+            ["E'", "C_L", "mu", "sigma_min", "K_IC"]
+            + ([f"log_intake_capacity_C{i}" for i in range(1, n_clusters + 1)] + ["log_stress_shadow_scale", "log_boundary_relief_scale", "log_allocation_exponent"] if parameterized_allocation else [])
+        ),
         "observations": (["bottom-hole pressure converted from wellhead pressure"] if args.observation_mode == "pressure_only" else ["cumulative liquid share by cluster", "cumulative sand share by cluster", "bottom-hole pressure"]),
         "anti_circularity_design": (
-            "Fiber cumulative liquid shares drive historical PKN cluster rates and smoothed incremental fiber liquid "
-            "allocation drives current-rate/aperture inputs; EnKF does not contain a free cluster growth/intake factor."
+            "Fiber/FracMonitor liquid and sand shares are observation targets only. In parameterized mode the forward "
+            "operator starts from an equal nominal split and computes six-cluster rates from intake capacity, stress "
+            "shadow, boundary relief and allocation exponent parameters."
+            if parameterized_allocation
+            else "Fiber incremental liquid allocation is supplied as the measured boundary-condition baseline."
         ),
-        "allocation_method": "fiber incremental liquid allocation with light EMA smoothing and nonnegative conservation normalization",
+        "allocation_method": (
+            "two-block EnKF: pressure block updates pressure parameters; cluster-share block updates inferred intake/interaction parameters"
+            if parameterized_allocation
+            else "fiber incremental liquid allocation with light EMA smoothing and nonnegative conservation normalization"
+        ),
         "validation_design": (
             "First 70% calibrates the state. Online validation scores each held-out step before update, then "
             "assimilates the arriving observation and scores the posterior; frozen mode does not update held-out steps."
         ),
         "validation_mode": args.validation_mode,
+        "parameter_bound_mode": args.parameter_bound_mode,
+        "pressure_fit_priority": bool(args.pressure_fit_priority),
         "metrics": result["metrics"],
         "batch_calibration": result["batch_calibration"],
         "calibration_center_state": result["calibration_center"],
@@ -1176,11 +1745,29 @@ def main() -> None:
             "The sand transport observation operator is a cumulative, mean-preserving sublinear q_effective*aperture capacity proxy; it is not a full particle-transport solver.",
             "Pressure friction defaults require client calibration before field interpretation.",
             "The 50% cumulative leakoff cap is an engineering prior and must be recalibrated when formation leakoff measurements are available.",
-            "The EnKF state is intentionally limited to E', C_L, mu, sigma_min and K_IC; cluster allocation is measured input, not a free state.",
+            "The parameterized allocation state is an engineering reduced-order representation; it is not a direct measurement of per-cluster fracture geometry.",
+            "No single-assimilation-step parameter delta limiter is applied. Absolute finite-domain guards remain only to prevent numerical overflow and NaN.",
         ],
-        "outputs": {"history": str(output / "direct_observation_history.csv"), "clusters": str(output / "cluster_share_history.csv"), "figure": str(output / "direct_observation_validation.png")},
+        "outputs": {
+            "history": str(output / "direct_observation_history.csv"),
+            "clusters": str(output / "cluster_share_history.csv"),
+            "parameter_trajectory": str(output / "parameter_trajectory.csv"),
+            "figure": str(output / "direct_observation_validation.png"),
+        },
     }
     (output / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    (output / "parameter_variation_summary.json").write_text(
+        json.dumps(
+            {
+                "parameter_bound_mode": args.parameter_bound_mode,
+                "pressure_fit_priority": bool(args.pressure_fit_priority),
+                "classes": result["metrics"].get("parameter_trajectory_summary", {}),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     print(json.dumps({"run_root": str(output), "metrics": summary["metrics"]}, ensure_ascii=False, indent=2))
 
 

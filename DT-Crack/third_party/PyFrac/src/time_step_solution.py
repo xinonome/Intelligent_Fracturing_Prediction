@@ -22,6 +22,70 @@ from labels import TS_errorMessages
 from explicit_RKL import solve_width_pressure_RKL2
 from postprocess_fracture import append_to_json_file
 
+
+def _limit_leakoff_increment_to_available_volume(fracture, leakoff, qin, time_step,
+                                                  fracture_volume):
+    """Keep the Carter leak-off increment inside the available fluid ledger.
+
+    The legacy solver evaluates Carter leak-off cell by cell.  After a large
+    regrid, that local estimate can temporarily exceed the fluid injected in
+    the current history, even though each individual cell value is finite.
+    Carrying that increment forward makes ``LkOffTotal > injectedVol`` and
+    destabilises any subsequent restart or volume-balance correction.  Leak-off
+    is an extensive volume, so the physically conservative repair is to scale
+    the *new increment* (never the historical ledger) to the volume still
+    available after the trial fracture opening has been formed.
+
+    This is a ledger guard, not a pressure or front-state correction.  It is
+    intentionally applied immediately before accepting a time step and keeps
+    all three legacy stepping paths consistent.
+    """
+    increment = np.asarray(leakoff, dtype=np.float64).reshape(-1).copy()
+    increment[~np.isfinite(increment)] = 0.0
+    increment = np.maximum(increment, 0.0)
+
+    previous_total = float(np.nansum(np.asarray(
+        getattr(fracture, 'LkOffTotal', 0.0), dtype=np.float64)))
+    injected_next = float(getattr(fracture, 'injectedVol', 0.0)) + max(
+        float(np.nansum(np.asarray(qin, dtype=np.float64))) * float(time_step), 0.0)
+    opening_volume = max(float(fracture_volume), 0.0)
+    available = max(injected_next - previous_total - opening_volume, 0.0)
+    requested = float(np.nansum(increment))
+    if requested > available and requested > 0.0:
+        increment *= available / requested
+    return increment
+
+
+def _safe_tip_arrival_times(fracture, tip_cells, distances, velocities, time_step):
+    """Return finite zero-vertex arrival times for the trial tip cells.
+
+    The legacy remeshing path can introduce a new tip cell whose arrival
+    metadata is NaN.  Passing that value into Carter leak-off evaluation makes
+    the whole time step fail with status 13 even though the front geometry and
+    pressure solve are otherwise valid.  For a newly entered cell, infer the
+    arrival time from the current tip distance and velocity.  If a velocity is
+    unavailable, starting leak-off at the current state time is the
+    conservative fallback (zero elapsed tip time), and the accepted fracture
+    stores the same value for future steps.
+    """
+
+    tip_cells = np.asarray(tip_cells, dtype=int).reshape(-1)
+    distances = np.asarray(distances, dtype=float).reshape(-1)
+    velocities = np.asarray(velocities, dtype=float).reshape(-1)
+    if tip_cells.size != distances.size or tip_cells.size != velocities.size:
+        raise ValueError("tip arrival metadata arrays must have the same length")
+
+    existing = np.asarray(fracture.TarrvlZrVrtx, dtype=float)[tip_cells].copy()
+    safe_velocity = np.maximum(np.abs(velocities), 1.0e-12)
+    inferred = float(fracture.time) + float(time_step) - distances / safe_velocity
+    inferred = np.where(np.isfinite(inferred), inferred, float(fracture.time))
+    # A tip cannot have an arrival after the trial state.  Do not impose a
+    # lower bound: an old cell may legitimately have entered before the
+    # current time step.
+    inferred = np.minimum(inferred, float(fracture.time) + float(time_step))
+    return np.where(np.isfinite(existing), existing, inferred)
+
+
 def attempt_time_step(Frac, C, mat_properties, fluid_properties, sim_properties, inj_properties,
                       timeStep, perfNode=None):
     """
@@ -177,9 +241,29 @@ def attempt_time_step(Frac, C, mat_properties, fluid_properties, sim_properties,
                                                           perfNode_extFront)
 
         if exitstatus == 1:
-            # norm is evaluated by dividing the difference in the area of the tip cells between two successive
-            # iterations with the number of tip cells.
-            norm = abs((sum(Fr_k.FillF) - sum(fill_frac_last)) / len(Fr_k.FillF))
+            # Norm is evaluated from the filling-fraction state of two successive
+            # front reconstructions.  An empty state is not a converged state: it
+            # means that the remeshing/front reconstruction path lost the ribbon
+            # metadata.  The old code divided by len(Fr_k.FillF) unconditionally,
+            # which turned that numerical/state failure into an uncaught
+            # ZeroDivisionError and bypassed the controller rollback path.
+            fill_frac_current = np.asarray(getattr(Fr_k, 'FillF', []), dtype=float).reshape(-1)
+            fill_frac_previous = np.asarray(fill_frac_last, dtype=float).reshape(-1)
+            if (fill_frac_current.size == 0 or
+                    fill_frac_previous.size == 0 or
+                    not np.all(np.isfinite(fill_frac_current)) or
+                    not np.all(np.isfinite(fill_frac_previous))):
+                log.warning(
+                    'Front reconstruction produced an invalid filling-fraction state '
+                    '(current=%d, previous=%d); rolling back this time step.',
+                    fill_frac_current.size,
+                    fill_frac_previous.size)
+                exitstatus = 6
+                norm = np.nan
+            else:
+                # Norm is normalized by the current number of tip cells.
+                norm = abs((np.sum(fill_frac_current) - np.sum(fill_frac_previous)) /
+                           fill_frac_current.size)
         else:
             norm = np.nan
 
@@ -253,10 +337,17 @@ def injection_same_footprint(Fr_lstTmStp, C, timeStep, Qin, mat_properties, flui
     LkOff = np.zeros((Fr_lstTmStp.mesh.NumberOfElts,), dtype=np.float64)
     if sum(mat_properties.Cprime[Fr_lstTmStp.EltCrack]) > 0.:
         # the tip cells are assumed to be stagnant in same footprint evaluation
+        tip_arrival = _safe_tip_arrival_times(
+            Fr_lstTmStp,
+            Fr_lstTmStp.EltTip,
+            Fr_lstTmStp.l,
+            Fr_lstTmStp.v,
+            timeStep,
+        )
         LkOff[Fr_lstTmStp.EltTip] = leak_off_stagnant_tip(Fr_lstTmStp.EltTip,
                                                           Fr_lstTmStp.l,
                                                           Fr_lstTmStp.alpha,
-                                                          Fr_lstTmStp.TarrvlZrVrtx[Fr_lstTmStp.EltTip],
+                                                          tip_arrival,
                                                           Fr_lstTmStp.time + timeStep,
                                                           mat_properties.Cprime,
                                                           timeStep,
@@ -333,6 +424,8 @@ def injection_same_footprint(Fr_lstTmStp, C, timeStep, Qin, mat_properties, flui
     Fr_kplus1.v = np.zeros((len(Fr_kplus1.EltTip), ), dtype=np.float64)
     Fr_kplus1.timeStep_last = timeStep
     Fr_kplus1.FractureVolume = np.sum(Fr_kplus1.w) * Fr_kplus1.mesh.EltArea
+    LkOff = _limit_leakoff_increment_to_available_volume(
+        Fr_lstTmStp, LkOff, Qin, timeStep, Fr_kplus1.FractureVolume)
     Fr_kplus1.LkOff = LkOff
     Fr_kplus1.LkOffTotal += LkOff
     Fr_kplus1.injectedVol += sum(Qin) * timeStep
@@ -855,6 +948,13 @@ def injection_extended_footprint(w_k, Fr_lstTmStp, C, timeStep, Qin, mat_propert
         # todo close tip width instrumentation
 
     LkOff = np.zeros((Fr_lstTmStp.mesh.NumberOfElts,), dtype=np.float64)
+    tip_arrival = _safe_tip_arrival_times(
+        Fr_lstTmStp,
+        EltsTipNew,
+        l_k,
+        Vel_k,
+        timeStep,
+    )
     if sum(mat_properties.Cprime[EltsTipNew]) > 0:
         # Calculate leak-off term for the tip cell
         LkOff[EltsTipNew] = 2 * mat_properties.Cprime[EltsTipNew] * Integral_over_cell(EltsTipNew,
@@ -867,8 +967,7 @@ def injection_extended_footprint(w_k, Fr_lstTmStp, C, timeStep, Qin, mat_propert
                                                                                        Vel=Vel_k,
                                                                                        dt=timeStep,
                                                                                        arrival_t=
-                                                                                       Fr_lstTmStp.TarrvlZrVrtx[
-                                                                                           EltsTipNew])
+                                                                                       tip_arrival)
 
     if sum(mat_properties.Cprime[Fr_lstTmStp.EltChannel]) > 0:
         # todo: no need to evaluate on each iteration. Need to decide. Evaluating here for now for better readability
@@ -881,7 +980,7 @@ def injection_extended_footprint(w_k, Fr_lstTmStp, C, timeStep, Qin, mat_propert
             LkOff[EltsTipNew[stagnant]] = leak_off_stagnant_tip(EltsTipNew[stagnant],
                                                                 l_k[stagnant],
                                                                 alpha_k[stagnant],
-                                                                Fr_lstTmStp.TarrvlZrVrtx[EltsTipNew[stagnant]],
+                                                                tip_arrival[stagnant],
                                                                 Fr_lstTmStp.time + timeStep,
                                                                 mat_properties.Cprime,
                                                                 timeStep,
@@ -891,6 +990,17 @@ def injection_extended_footprint(w_k, Fr_lstTmStp, C, timeStep, Qin, mat_propert
     LkOff[Fr_lstTmStp.pFluid <= mat_properties.porePressure] = 0.
 
     if np.isnan(LkOff[EltsTipNew]).any():
+        bad = np.flatnonzero(~np.isfinite(LkOff[EltsTipNew]))
+        log.warning(
+            "leak-off NaN at trial tips: cells=%s, l=%s, alpha=%s, velocity=%s, "
+            "arrival=%s, Cprime=%s",
+            EltsTipNew[bad[:8]].tolist(),
+            l_k[bad[:8]].tolist(),
+            alpha_k[bad[:8]].tolist(),
+            Vel_k[bad[:8]].tolist(),
+            tip_arrival[bad[:8]].tolist(),
+            mat_properties.Cprime[EltsTipNew[bad[:8]]].tolist(),
+        )
         exitstatus = 13
         return exitstatus, None
     if sim_properties.doublefracture and fronts_dictionary['number_of_fronts'] == 2:
@@ -983,6 +1093,7 @@ def injection_extended_footprint(w_k, Fr_lstTmStp, C, timeStep, Qin, mat_propert
 
     Fr_kplus1.FractureVolume = np.sum(Fr_kplus1.w) * Fr_kplus1.mesh.EltArea
     Fr_kplus1.Tarrival = Tarrival_k
+    Fr_kplus1.TarrvlZrVrtx[EltsTipNew] = tip_arrival
     new_tip = np.where(np.isnan(Fr_kplus1.TarrvlZrVrtx[Fr_kplus1.EltTip]))[0]
     Fr_kplus1.TarrvlZrVrtx[Fr_kplus1.EltTip[new_tip]] = Fr_kplus1.time - Fr_kplus1.l[new_tip] / Fr_kplus1.v[new_tip]
     Fr_kplus1.wHist = np.maximum(Fr_kplus1.w, Fr_lstTmStp.wHist)
@@ -993,10 +1104,14 @@ def injection_extended_footprint(w_k, Fr_lstTmStp, C, timeStep, Qin, mat_propert
         if corr_ribbon[i] in Fr_kplus1.closed and elem not in Fr_kplus1.closed:
             tip_neg_rib = np.append(tip_neg_rib, elem)
     Fr_kplus1.closed = np.append(Fr_kplus1.closed, tip_neg_rib)
+    LkOff = _limit_leakoff_increment_to_available_volume(
+        Fr_lstTmStp, LkOff, Qin, timeStep, Fr_kplus1.FractureVolume)
     Fr_kplus1.LkOff = LkOff
-    Fr_kplus1.LkOffTotal += np.sum(LkOff)
+    # LkOffTotal is an extensive per-cell ledger.  Adding the scalar sum to
+    # every cell double-counts leak-off when the final field is summed.
+    Fr_kplus1.LkOffTotal += LkOff
     Fr_kplus1.injectedVol += sum(Qin) * timeStep
-    Fr_kplus1.efficiency = (Fr_kplus1.injectedVol - Fr_kplus1.LkOffTotal) / Fr_kplus1.injectedVol
+    Fr_kplus1.efficiency = (Fr_kplus1.injectedVol - np.sum(Fr_kplus1.LkOffTotal)) / Fr_kplus1.injectedVol
 
     if sim_properties.saveRegime:
         Fr_kplus1.update_tip_regime(mat_properties, fluid_properties, timeStep)
@@ -1476,11 +1591,43 @@ def solve_width_pressure(Fr_lstTmStp, sim_properties, fluid_properties, mat_prop
                                              perf_node=perfNode_widthConstrItr)
 
             elif sim_properties.elastohydrSolver == 'RKL2':
+                # ``explicit_RKL`` predates the current solver API and still
+                # accepts a flat 23-item argument list.  Passing the modern
+                # 17-item ``arg`` tuple directly used to fail before the
+                # first native step with ``expected 23, got 17``.  Build the
+                # legacy view explicitly; the unused historical entries are
+                # retained as placeholders so the experimental solver can be
+                # benchmarked without changing the implicit path.
+                rkl_args = (
+                    to_solve_k,
+                    to_impose_k,
+                    Fr_lstTmStp.w,
+                    Fr_lstTmStp.pFluid,
+                    imposed_val_k,
+                    EltCrack_k,
+                    Fr_lstTmStp.mesh,
+                    timeStep,
+                    Qin,
+                    C,
+                    fluid_properties.muPrime,
+                    fluid_properties.density,
+                    InCrack,
+                    LkOff,
+                    mat_properties.SigmaO,
+                    fluid_properties.turbulence,
+                    None,
+                    sim_properties.gravity,
+                    neg,
+                    wc_to_impose,
+                    None,
+                    None,
+                    corr_nei,
+                )
                 sol, data_nonLinSolve = solve_width_pressure_RKL2(mat_properties.Eprime,
                                                           sim_properties.enableGPU,
                                                           sim_properties.nThreads,
                                                           perfNode_widthConstrItr,
-                                                          *arg)
+                                                          *rkl_args)
             else:
                 raise SystemExit("The given elasto-hydrodynamic solver is not supported!")
 
@@ -1667,6 +1814,50 @@ def turbulence_check_tip(vel, Fr, fluid, return_ReyNumb=False):
 # -----------------------------------------------------------------------------------------------------------------------
 
 
+def _align_tip_velocity_with_front(fracture):
+    """Keep the explicit-front velocity vector aligned with ``EltTip``.
+
+    The legacy continuous-front reconstruction can remove a fully traversed
+    tip cell while leaving the velocity vector from the previous front
+    untouched.  The next Eikonal update then fails before it can return a
+    controlled PyFrac status because the two vectors have different lengths.
+    This helper repairs only front bookkeeping: it never changes pressure,
+    width, volume, or the front cell list.
+    """
+    tips = np.asarray(getattr(fracture, 'EltTip', []), dtype=int).reshape(-1)
+    velocity = np.asarray(getattr(fracture, 'v', []), dtype=float).reshape(-1)
+    if velocity.size == tips.size:
+        return velocity
+    if tips.size == 0:
+        fracture.v = np.asarray([], dtype=float)
+        return fracture.v
+
+    old_tips = getattr(fracture, 'EltTipBefore', None)
+    old_tips = np.asarray(old_tips, dtype=int).reshape(-1) if old_tips is not None else np.asarray([], dtype=int)
+    finite = np.abs(velocity[np.isfinite(velocity)])
+    default = float(np.nanmedian(finite)) if finite.size else 1.0e-9
+    default = max(default, 1.0e-9)
+
+    # Prefer cell-id matching when the legacy state exposes the preceding tip
+    # list.  Otherwise preserve the deterministic front ordering and trim or
+    # pad only the bookkeeping vector.
+    if old_tips.size == velocity.size and old_tips.size:
+        by_cell = {int(cell): float(value) for cell, value in zip(old_tips, velocity)}
+        aligned = np.asarray([by_cell.get(int(cell), default) for cell in tips], dtype=float)
+    else:
+        aligned = np.full(tips.size, default, dtype=float)
+        copied = min(tips.size, velocity.size)
+        if copied:
+            aligned[:copied] = velocity[:copied]
+
+    aligned[~np.isfinite(aligned)] = default
+    aligned = np.maximum(aligned, 0.0)
+    fracture.v = aligned
+    logging.getLogger('PyFrac.time_step_explicit_front').warning(
+        'aligned tip velocity metadata from %d to %d entries', velocity.size, tips.size)
+    return aligned
+
+
 def time_step_explicit_front(Fr_lstTmStp, C, timeStep, Qin, mat_properties, fluid_properties, sim_properties,
                              inj_properties, perfNode=None):
     """
@@ -1709,6 +1900,11 @@ def time_step_explicit_front(Fr_lstTmStp, C, timeStep, Qin, mat_properties, flui
 
     """
     log = logging.getLogger('PyFrac.time_step_explicit_front')
+    # Continuous-front reconstruction in the legacy solver may change the
+    # active tip list without resizing the previous velocity vector.  Repair
+    # that bookkeeping before the signed-distance update so the solver can
+    # continue and its normal health gate can evaluate the returned state.
+    _align_tip_velocity_with_front(Fr_lstTmStp)
     sgndDist_k = 1e50 * np.ones((Fr_lstTmStp.mesh.NumberOfElts,), float)  # Initializing the cells with maximum
                                                                           # float value. (algorithm requires inf)
     sgndDist_k[Fr_lstTmStp.EltChannel] = 0  # for cells inside the fracture
@@ -2018,7 +2214,7 @@ def time_step_explicit_front(Fr_lstTmStp, C, timeStep, Qin, mat_properties, flui
                                                                                        arrival_t=
                                                                                        Fr_lstTmStp.TarrvlZrVrtx[
                                                                                            EltsTipNew])
-        if np.isnan(LkOff[EltsTipNew]).any():
+        if not np.isfinite(LkOff[EltsTipNew]).all():
             exitstatus = 13
             return exitstatus, None
 
@@ -2027,7 +2223,7 @@ def time_step_explicit_front(Fr_lstTmStp, C, timeStep, Qin, mat_properties, flui
         t_since_arrival[t_since_arrival < 0.] = 0.
         LkOff[Fr_lstTmStp.EltChannel] = 2 * mat_properties.Cprime[Fr_lstTmStp.EltChannel] * ((t_since_arrival
                                                                                               + timeStep) ** 0.5 - t_since_arrival ** 0.5) * Fr_lstTmStp.mesh.EltArea
-        if np.isnan(LkOff[Fr_lstTmStp.EltChannel]).any():
+        if not np.isfinite(LkOff[Fr_lstTmStp.EltChannel]).all():
             exitstatus = 13
             return exitstatus, None
 
@@ -2280,10 +2476,12 @@ def time_step_explicit_front(Fr_lstTmStp, C, timeStep, Qin, mat_properties, flui
     Fr_kplus1.timeStep_last = timeStep
     new_tip = np.where(np.isnan(Fr_kplus1.TarrvlZrVrtx[Fr_kplus1.EltTip]))[0]
     Fr_kplus1.TarrvlZrVrtx[Fr_kplus1.EltTip[new_tip]] = Fr_kplus1.time - Fr_kplus1.l[new_tip] / Fr_kplus1.v[new_tip]
+    LkOff = _limit_leakoff_increment_to_available_volume(
+        Fr_lstTmStp, LkOff, Qin, timeStep, Fr_kplus1.FractureVolume)
     Fr_kplus1.LkOff = LkOff
-    Fr_kplus1.LkOffTotal += np.sum(LkOff)
+    Fr_kplus1.LkOffTotal += LkOff
     Fr_kplus1.injectedVol += sum(Qin) * timeStep
-    Fr_kplus1.efficiency = (Fr_kplus1.injectedVol - Fr_kplus1.LkOffTotal) / Fr_kplus1.injectedVol
+    Fr_kplus1.efficiency = (Fr_kplus1.injectedVol - np.sum(Fr_kplus1.LkOffTotal)) / Fr_kplus1.injectedVol
 
     if sim_properties.saveRegime:
         Fr_kplus1.update_tip_regime(mat_properties, fluid_properties, timeStep)

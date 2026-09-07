@@ -20,7 +20,34 @@ from fluid_model import friction_factor_vector, friction_factor_MDR
 from properties import instrument_start, instrument_close
 
 
-def finiteDiff_operator_laminar(w, EltCrack, muPrime, Mesh, InCrack, neiInCrack, simProp):
+def _solve_linear_system(A, b, *, allow_lstsq=False):
+    """Solve one EHL linear system with explicit finite-value checks.
+
+    The legacy solver lets non-finite matrix entries flow into NumPy and only
+    discovers the problem several iterations later as an invalid pressure
+    field.  Keep the normal direct solve as the default; an optional
+    least-squares fallback is useful for the nearly singular re-opening
+    systems produced by the legacy closure path, but it is deliberately
+    opt-in from the adapter.
+    """
+    A = np.asarray(A, dtype=float)
+    b = np.asarray(b, dtype=float)
+    if not (np.all(np.isfinite(A)) and np.all(np.isfinite(b))):
+        raise ValueError("non-finite EHL linear system")
+    try:
+        solution = np.linalg.solve(A, b)
+    except np.linalg.LinAlgError:
+        if not allow_lstsq:
+            raise
+        solution, *_ = np.linalg.lstsq(A, b, rcond=None)
+    if not np.all(np.isfinite(solution)):
+        raise ValueError("non-finite EHL linear solution")
+    return solution
+
+
+def finiteDiff_operator_laminar(
+        w, EltCrack, muPrime, Mesh, InCrack, neiInCrack, simProp=None,
+        sparse_flag=None):
     """
     The function evaluate the finite difference 5 point stencil matrix, i.e. the A matrix in the ElastoHydrodynamic
     equations in e.g. Dontsov and Peirce 2008. The matrix is evaluated with the laminar flow assumption.
@@ -35,13 +62,21 @@ def finiteDiff_operator_laminar(w, EltCrack, muPrime, Mesh, InCrack, neiInCrack,
         neiInCrack (ndarray):   -- an ndarray giving indices of the neighbours of all the cells in the crack, in the
                                    EltCrack list.
         simProp (object):       -- An object of the SimulationProperties class.
+        sparse_flag (bool):     -- legacy compatibility keyword used by the
+                                   original RKL2 implementation; when set it
+                                   overrides ``simProp.solveSparse``.
 
     Returns:
         FinDiffOprtr (ndarray): -- the finite difference matrix.
 
     """
 
-    if simProp.solveSparse:
+    use_sparse = (
+        bool(sparse_flag)
+        if sparse_flag is not None
+        else bool(getattr(simProp, "solveSparse", False))
+    )
+    if use_sparse:
         FinDiffOprtr = sparse.lil_matrix((len(EltCrack), len(EltCrack)+1), dtype=np.float64)
     else:
         FinDiffOprtr = np.zeros((len(EltCrack), len(EltCrack)+1), dtype=np.float64)
@@ -1610,15 +1645,19 @@ def Picard_Newton(Res_fun, sys_fun, guess, TypValue, interItr_init, sim_prop, *a
             Fx, interItr, indices = Elastohydrodynamic_ResidualFun(solk, sys_fun, interItr, *args)
             Jac = Jacobian(Elastohydrodynamic_ResidualFun, sys_fun, solk, TypValue, interItr, *args)
             # Jac = nd.Jacobian(Elastohydrodynamic_ResidualFun)(solk, sys_fun, interItr, interItr_o, indices, *args)
-            dx = np.linalg.solve(Jac, -Fx)
+            dx = _solve_linear_system(Jac, -Fx)
             solk = solkm1 + dx
             newton += 1
         else:
             try:
                 A, b, interItr, indices = sys_fun(solk, interItr, *args)
                 perfNode_linSolve = instrument_start("linear system solve", perf_node)
-                solk = relax * solkm1 + (1 - relax) * np.linalg.solve(A, b)
-            except np.linalg.linalg.LinAlgError:
+                solk = relax * solkm1 + (1 - relax) * _solve_linear_system(
+                    A,
+                    b,
+                    allow_lstsq=getattr(sim_prop, "allowLeastSquaresLinearFallback", False),
+                )
+            except (np.linalg.linalg.LinAlgError, ValueError):
                 log.error('singular matrix!')
                 solk = np.full((len(solk),), np.nan, dtype=np.float64)
                 if perf_node is not None:
@@ -1699,25 +1738,35 @@ def check_covergance(solk, solkm1, indices, tol):
          - norm (float)     -- the evaluated norm which is checked against tolerance
     """
 
+    # Legacy PyFrac divides by the norm of the previous pressure solution
+    # without checking whether it is zero or non-finite.  During closure and
+    # re-opening that normalization can be exactly zero, turning a finite
+    # iterate into ``inf``/``nan`` and forcing an unnecessary rollback.
+    # Keep one consistent, finite-safe relative-change definition for all
+    # blocks in the nonlinear state.
+    def relative_change(current, previous):
+        current = np.asarray(current, dtype=float)
+        previous = np.asarray(previous, dtype=float)
+        if current.size == 0:
+            return 0.0
+        if not (np.all(np.isfinite(current)) and np.all(np.isfinite(previous))):
+            return np.inf
+        previous_norm = float(np.linalg.norm(previous))
+        difference_norm = float(np.linalg.norm(current - previous))
+        if previous_norm <= 1.0e-14:
+            return difference_norm
+        return difference_norm / previous_norm
+
     cnt = 0
-    w_normalization = np.linalg.norm(solkm1[indices[0]])
-    if w_normalization > 0.:
-        norm_w = np.linalg.norm(abs(solk[indices[0]] - solkm1[indices[0]]) / w_normalization)
-    else:
-        norm_w = np.linalg.norm(abs(solk[indices[0]] - solkm1[indices[0]]))
+    norm_w = relative_change(solk[indices[0]], solkm1[indices[0]])
     cnt += 1
 
-    p_normalization = np.linalg.norm(solkm1[indices[1]])
-    norm_p = np.linalg.norm(abs(solk[indices[1]] - solkm1[indices[1]]) / p_normalization)
+    norm_p = relative_change(solk[indices[1]], solkm1[indices[1]])
 
     cnt += 1
 
     if len(indices[2]) > 0: #these are the cells with the active width constraints
-        tr_normalization = np.linalg.norm(solkm1[indices[2]])
-        if tr_normalization > 0.:
-            norm_tr = np.linalg.norm(abs(solk[indices[2]] - solkm1[indices[2]]) / tr_normalization)
-        else:
-            norm_tr = np.linalg.norm(abs(solk[indices[2]] - solkm1[indices[2]]))
+        norm_tr = relative_change(solk[indices[2]], solkm1[indices[2]])
         cnt += 1
     else:
         norm_tr = 0.
@@ -1725,28 +1774,26 @@ def check_covergance(solk, solkm1, indices, tol):
 
     if len(indices) > 3:
         if len(indices[3]) > 0:
-            if abs(solkm1[indices[3]]) > 0:
-                norm_pil = abs(solk[indices[3]] - solkm1[indices[3]]) / abs(solkm1[indices[3]])
+            previous_pil = np.asarray(solkm1[indices[3]], dtype=float)
+            if np.all(np.isfinite(previous_pil)) and np.any(np.abs(previous_pil) > 1.0e-14):
+                norm_pil = float(np.max(
+                    np.abs(solk[indices[3]] - solkm1[indices[3]])
+                    / np.maximum(np.abs(previous_pil), 1.0e-14)
+                ))
+            else:
+                norm_pil = relative_change(solk[indices[3]], solkm1[indices[3]])
             cnt += 1
         else:
             norm_pil = 0.
 
         if len(indices[4]) > 0:  # these are the cells with the active width constraints
-            Q_ch_normalization = np.linalg.norm(solkm1[indices[4]])
-            if Q_ch_normalization > 0.:
-                norm_Q_ch = np.linalg.norm(abs(solk[indices[4]] - solkm1[indices[4]]) / Q_ch_normalization)
-            else:
-                norm_Q_ch = np.linalg.norm(abs(solk[indices[4]] - solkm1[indices[4]]))
+            norm_Q_ch = relative_change(solk[indices[4]], solkm1[indices[4]])
             cnt += 1
         else:
             norm_Q_ch = 0.
 
         if len(indices[5]) > 0:  # these are the cells with the active width constraints
-            Q_act_normalization = np.linalg.norm(solkm1[indices[5]])
-            if Q_act_normalization > 0.:
-                norm_Q_act = np.linalg.norm(abs(solk[indices[5]] - solkm1[indices[5]]) / Q_act_normalization)
-            else:
-                norm_Q_act = np.linalg.norm(abs(solk[indices[5]] - solkm1[indices[5]]))
+            norm_Q_act = relative_change(solk[indices[5]], solkm1[indices[5]])
             cnt += 1
         else:
             norm_Q_act = 0.
@@ -1756,6 +1803,8 @@ def check_covergance(solk, solkm1, indices, tol):
         norm_Q_act = 0.
 
     norm = (norm_w + norm_p + norm_tr + norm_pil + norm_Q_ch + norm_Q_act) / cnt
+    if not np.isfinite(norm):
+        norm = np.inf
     # print("w " + repr(norm_w) + " p " + repr(norm_p) + " act " + repr(norm_tr) +
           # " pil " + repr(norm_pil) + " Qch " + repr(norm_Q_ch) + " Qact " + repr(norm_Q_act))
 
@@ -1958,7 +2007,11 @@ def Anderson(sys_fun, guess, interItr_init, sim_prop, *args, perf_node=None):
         xks[0, ::] = np.array([guess])                                       # xo
         (A, b, interItr, indices) = sys_fun(xks[0, ::], interItr, *args)     # assembling A and b
 
-        Gks[0, ::] = np.linalg.solve(A, b)
+        Gks[0, ::] = _solve_linear_system(
+            A,
+            b,
+            allow_lstsq=getattr(sim_prop, "allowLeastSquaresLinearFallback", False),
+        )
         Fks[0, ::] = Gks[0, ::] - xks[0, ::]
         xks[1, ::] = Gks[0, ::]                                               # x1
     except np.linalg.linalg.LinAlgError:
@@ -1983,7 +2036,11 @@ def Anderson(sys_fun, guess, interItr_init, sim_prop, *args, perf_node=None):
             perfNode_linSolve = instrument_start("linear system solve", perf_node)
 
 
-            Gks[mk + 1, ::] = np.linalg.solve(A, b)
+            Gks[mk + 1, ::] = _solve_linear_system(
+                A,
+                b,
+                allow_lstsq=getattr(sim_prop, "allowLeastSquaresLinearFallback", False),
+            )
             Fks[mk + 1, ::] = Gks[mk + 1, ::] - xks[mk + 1, ::]
 
             ## Setting up the Least square problem of Anderson
@@ -2003,7 +2060,7 @@ def Anderson(sys_fun, guess, interItr_init, sim_prop, *args, perf_node=None):
             xks[mk + 2, ::] = (1-relax) * np.sum(np.transpose(np.multiply(np.transpose(xks[:mk+2,::]), omega_s)),axis=0)\
                  + relax * np.sum(np.transpose(np.multiply(np.transpose(Gks[:mk+2,::]), omega_s)),axis=0)
 
-        except np.linalg.linalg.LinAlgError:
+        except (np.linalg.linalg.LinAlgError, ValueError):
             log.error('singular matrix!')
             solk = np.full((len(xks[mk]),), np.nan, dtype=np.float64)
             if perf_node is not None:

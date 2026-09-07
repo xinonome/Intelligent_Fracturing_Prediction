@@ -7,20 +7,24 @@
   },
   "modules": {
     "fsl": {
-      "display_name": "第一部分：专家知识与小样本学习",
+      "display_name": "第一部分：参数预测与风险预警",
       "run_id": "20260625_170004",
       "status": "validated",
       "summary": "artifacts/fsl/two_stage_model/summary.json",
       "supporting_summaries": {
-        "transfer": "artifacts/fsl/transfer_learning/transfer_metrics.json"
+        "transfer": "artifacts/fsl/transfer_learning/transfer_metrics.json",
+        "risk_prediction": "artifacts/fsl/risk_prediction/summary.json"
       },
       "figures": [
         "artifacts/fsl/two_stage_model/window_4/test_grouped_two_stage_confusion.png"
       ],
       "tables": [],
-      "html": "FSL-Expert/knowledge_graph/full_book_qwen_output/index_full_book_qwen.html",
-      "source_data": ["Data/raw_frac"],
-      "metrics_scope": "段级测试集与两阶段分类实验",
+      "html": "FSL-Expert/knowledge_graph/full_book_qwen_output/index_app_knowledge_graph.html",
+      "timeline_source": null,
+      "timeline_source_directory": "Data/raw_frac",
+      "timeline_header_source": "Data/raw_frac/FDBH26.xlsx",
+      "source_data": ["Data/raw_frac/*.xlsx（独立井段施工表）"],
+      "metrics_scope": "施工参数预测、未来风险评估、跨井迁移实验与知识规则展示",
       "limitations": [
         "少数类指标受段级分布和标签稀疏性影响",
         "知识图谱展示与分类模型是可联动但相互独立的产物"
@@ -29,19 +33,31 @@
     },
     "dt": {
       "display_name": "第二部分：光纤驱动裂缝数字孪生",
-      "run_id": "20260806_082250",
+      "run_id": "20260824_004357",
       "status": "engineering_validation",
-      "summary": "outputs/dt/fiber_allocation_parameter_enkf/20260806_082250/summary.json",
+      "summary": "outputs/dt/second_part_kg_enkf_20260824/20260824_004357/summary.json",
       "figures": [
-        "outputs/dt/fiber_allocation_parameter_enkf/20260806_082250/direct_observation_validation.png"
+        "outputs/dt/second_part_kg_enkf_20260824/20260824_004357/direct_observation_validation.png"
       ],
       "tables": [
-        "outputs/dt/fiber_allocation_parameter_enkf/20260806_082250/direct_observation_history.csv",
-        "outputs/dt/fiber_allocation_parameter_enkf/20260806_082250/cluster_share_history.csv"
+        "outputs/dt/second_part_kg_enkf_20260824/20260824_004357/direct_observation_history.csv",
+        "outputs/dt/second_part_kg_enkf_20260824/20260824_004357/cluster_share_history.csv"
       ],
       "html": "outputs/app/dt_realtime_3d.html",
+      "html_by_scenario": {
+        "das_cluster_observation": "outputs/app/dt_realtime_3d.html",
+        "no_das_pressure_only": "outputs/app/dt_realtime_3d_no_das.html"
+      },
       "html_required": false,
+      "dataset_registry": "App/config/dt_dataset_registry.json",
       "frame_source": "outputs/app/dt_realtime_cache.json",
+      "active_model": "kg_parameterized_pkn_enkf",
+      "knowledge_guided_mode": "soft_correlated",
+      "frozen_cache_mode": "soft_correlated",
+      "frozen_cache_note": "当前 APP 缓存由 14 维参数化 PKN+EnKF 的 KG-EnKF soft_correlated 实验生成；缓存同时保留实际更新点数与源数据覆盖范围。",
+      "allocation_mode": "parameterized",
+      "state_dimension": 14,
+      "model_role": "PKN+EnKF 在线状态估计；分簇排量由进液能力、应力干扰、边界效应和分配指数计算",
       "default_scenario": "das_cluster_observation",
       "scenarios": {
         "no_das_pressure_only": {
@@ -50,8 +66,17 @@
           "pressure_source": "Data/3Dfrac/JY84-Z1-stage08-f1.xls",
           "pressure_calibration_source": "App/config/pressure_calibration.json",
           "fiber_source": null,
-          "trajectory_source": "Data/3Dfrac/JY84-Z1HF-1011.csv",
-          "cluster_geometry_source": "App/config/cluster_geometry.csv",
+          "trajectory_source": null,
+          "cluster_geometry_source": null,
+          "assumed_cluster_count": 6,
+          "assumed_stage_md_start_m": 3600.0,
+          "assumed_stage_md_end_m": 5200.0,
+          "pkn_e_prime_gpa": 32.47,
+          "pkn_viscosity_pa_s": 0.1015,
+          "pkn_fracture_height_m": 30.0,
+          "cluster_interaction_model": "stress_shadow_plus_flow_competition",
+          "cluster_interaction_strength": 0.85,
+          "cluster_interaction_length_m": 450.0,
           "well_id": "JY84-Z1",
           "stage_id": "08",
           "source_start_s": 1,
@@ -75,7 +100,6 @@
       },
       "frame_count": 7331,
       "html_embedded": true,
-      "metrics_scope": "observation_space",
       "timeline": {
         "start_s": 1,
         "end_s": 7331,
@@ -87,36 +111,38 @@
         "Data/3Dfrac/JY84-Z1-stage08-f1.xls",
         "Data/3Dfrac/JY84-Z1HF-1011.csv"
       ],
-      "metrics_scope": "第8段光纤分簇液砂份额与井底压力的观测空间留出验证",
+      "metrics_scope": "1–4435秒共同观测范围内的参数化分簇 PKN+EnKF KG-EnKF 留出实验：240个实际更新点；APP时间轴为展示插值轴",
       "limitations": [
         "当前没有独立真实裂缝半长真值；缝长误差采用PKN输出与光纤液量/砂量等效分配估计的差异",
         "缝长误差采用与PKN幂律一致的液量^0.6等效水力估计，不等同于独立几何真值",
-        "液量分配为PKN边界输入，液量误差是输入一致性校验；砂量误差来自累计携砂容量代理",
+        "光纤/FracMonitor液量和砂量份额只作为观测目标；模型从六簇进液能力、应力干扰、边界效应和分配指数计算分簇排量",
+        "砂量观测算子是累计携砂能力代理，不等同于完整颗粒输运求解",
+        "本次实验实际完成240个更新点，未将展示插值点冒充同化点；留出压力相对误差12.56%，液量/砂量份额误差9.30%/7.45%",
         "压力摩阻参数仍需甲方现场参数校准"
       ],
-      "reproduce_command": "python run_project.py dt validate"
+      "reproduce_command": "python DT-Crack/inversion/validate_direct_observations.py --frac-monitor-text Data/3Dfrac/光纤本井监测08.txt --construction-pressure-xls Data/3Dfrac/JY84-Z1-stage08-f1.xls --pressure-calibration-config App/config/pressure_calibration.json --max-steps 240 --ensemble-size 200 --calibration-ratio 0.70 --physics-profile enhanced --validation-mode online --seed 20260824 --allocation-mode parameterized --knowledge-guided-mode soft_correlated --run-dir outputs/dt/second_part_kg_enkf_20260824"
     },
     "hmi": {
       "display_name": "第三部分：知识嵌入智能体与人机协同",
-      "run_id": "ppo_20260812_184048",
+      "run_id": "td3_20260818_205159",
       "status": "development_only",
-      "summary": "outputs/hmi/bugfix_validation/ppo_20260812_184048/summary.json",
+      "summary": "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/td3/seed_2026/td3_20260818_205159/summary.json",
       "figures": [
-        "outputs/hmi/bugfix_validation/ppo_20260812_184048/rl_vs_historical_reward.png",
-        "outputs/hmi/bugfix_validation/ppo_20260812_184048/scenario_180s_safety.png"
+        "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/td3/seed_2026/td3_20260818_205159/rl_vs_historical_reward.png",
+        "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/td3/seed_2026/td3_20260818_205159/scenario_180s_safety.png"
       ],
       "tables": [
-        "outputs/hmi/bugfix_validation/ppo_20260812_184048/rl_180s_validation.csv",
-        "outputs/hmi/bugfix_validation/ppo_20260812_184048/warning_5min_validation.csv",
-        "outputs/hmi/bugfix_validation/ppo_20260812_184048/human_machine_decisions.json"
+        "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/td3/seed_2026/td3_20260818_205159/rl_180s_validation.csv",
+        "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/td3/seed_2026/td3_20260818_205159/warning_5min_validation.csv",
+        "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/td3/seed_2026/td3_20260818_205159/human_machine_decisions.json"
       ],
       "files": {
         "tables": [
-          {"path": "outputs/hmi/bugfix_validation/ppo_20260812_184048/rl_evaluation.csv"}
+          {"path": "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/td3/seed_2026/td3_20260818_205159/rl_evaluation.csv"}
         ]
       },
       "html": null,
-      "frame_source": "outputs/hmi/bugfix_validation/ppo_20260812_184048/rl_evaluation.csv",
+      "frame_source": "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/sac/seed_2026/sac_20260818_200628/rl_evaluation.csv",
       "frame_count": 240,
       "timeline": {
         "start_s": 1,
@@ -125,15 +151,18 @@
         "alignment": "normalized_progress"
       },
       "html_embedded": false,
-      "metrics_scope": "observation_space",
-      "source_data": ["Data/raw_frac"],
+      "metrics_scope": "SAC seed_2026 回放：当前/推荐砂比保留为独立动作字段；TD3 seed_2026 因砂比动作塌缩为保持当前值，暂不作为 APP 展示回放",
+      "source_data": ["Data/raw_frac/FDBH*.xlsx（独立井段施工表）"],
       "metrics_scope": "真实历史分段回放、离线响应代理和180秒验证",
       "limitations": [
         "当前 scientific_status=demo_only，内部回放门禁通过不等同于现场验收通过",
         "动作响应模型为离线代理，尚未完成现场在线闭环",
         "当前历史回放没有完整5分钟事件样本，严格提前5分钟召回率不可判定"
       ],
-      "reproduce_command": "python run_project.py hmi acceptance"
+      "active_policy": "SAC",
+      "policy_model": "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/sac/seed_2026/sac_20260818_200628/sac_fracturing_policy.zip",
+      "aggregate_comparison": "outputs/hmi/model_comparison_formal_v3_20260818/aggregate_v2/20260818_214604/model_comparison.csv",
+      "reproduce_command": "python HMI-KE/evaluate_contract3_acceptance.py --algorithm sac --model outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/sac/seed_2026/sac_20260818_200628/sac_fracturing_policy.zip --evaluation-csv outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/sac/seed_2026/sac_20260818_200628/rl_evaluation.csv"
     }
   }
 }
