@@ -23,7 +23,7 @@ class AppCoreTests(unittest.TestCase):
             ["工况与风险", "裂缝与参数", "智能调控", "资源中心"],
         )
         self.assertEqual([page[0] for page in fsl["pages"]], ["fsl"])
-        self.assertEqual([page[0] for page in dt_hmi["pages"]], ["dt", "hmi", "integrated"])
+        self.assertEqual([page[0] for page in dt_hmi["pages"]], ["dt", "hmi"])
         self.assertNotEqual(fsl["window_title"], dt_hmi["window_title"])
 
     def test_registered_statuses_are_explicit(self) -> None:

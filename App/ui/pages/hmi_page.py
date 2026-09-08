@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+import sys
 
 from ...services.operator_decisions import DEFAULT_LOG, append_decision, load_decisions, rollback_decision
 from ...data.hmi_loader import dataset_agent_evaluation_path, discover_agent_models
@@ -13,11 +14,12 @@ from ..widgets.chart_panel import build_chart
 from ..widgets.status_card import Panel
 from ..widgets.timeline_control import create_timeline_control
 from ..widgets.risk_timeline_panel import create_risk_timeline
+from ..widgets.knowledge_advisory_panel import build_knowledge_advisory_panel
 
 
 def build_hmi_page(controller, registry):
     """Operator-facing advisory review and confirmation workbench."""
-    from PySide6.QtCore import QProcess, Qt
+    from PySide6.QtCore import QProcess, QTimer, Qt
     from PySide6.QtWidgets import (
         QComboBox, QDoubleSpinBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QPushButton,
         QScrollArea, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget,
@@ -90,10 +92,10 @@ def build_hmi_page(controller, registry):
     prediction_dataset_id = None
     prediction_model_id = None
     prediction_cancelled = False
-    task_status = _label("本次任务：未启动。模型回放/已有缓存不代表新计算。", "muted")
+    prediction_phase = None
+    task_status = _label("缓存状态：待检查", "muted")
     task_status.setObjectName("hmiTaskStatus")
     layout.addWidget(task_status)
-    layout.addWidget(_label("人工审核仅写入本地记录，不下发现场；撤销仅针对选中确认记录。", "muted"))
 
     tabs = QTabWidget()
     tabs.setObjectName("hmiWorkbenchTabs")
@@ -115,6 +117,8 @@ def build_hmi_page(controller, registry):
     risk_timeline.setMinimumHeight(150)
     review_layout.addWidget(risk_timeline)
     review_layout.addWidget(risk_detail)
+    knowledge_advisory = build_knowledge_advisory_panel(registry)
+    review_layout.addWidget(knowledge_advisory)
     pressure_chart = build_chart("压力响应 · 观测 / PKN先验 / EnKF后验", 230, y_min=0.0)
     flow_chart = build_chart("排量 · 当前 / 建议", 230, y_min=0.0)
     sand_chart = build_chart("砂比 · 当前 / 建议", 230, y_min=0.0)
@@ -202,13 +206,13 @@ def build_hmi_page(controller, registry):
             row["_reversed"] = row.get("record_id") in reversed_ids
             row_values = (
                 str(row.get("record_id", "旧版无编号"))[:10],
-                row.get("recorded_at", "--"), _seconds(row.get("time_s")), row.get("decision", "--"),
+                row.get("recorded_at", ""), _seconds(row.get("time_s")), row.get("decision", ""),
                 _value(row.get("flow_m3_min")), _value(row.get("sand_ratio_pct")),
-                "已撤销 · 未下发现场" if row["_reversed"] else row.get("execution_state", "仅记录"),
+                "已撤销" if row["_reversed"] else row.get("execution_state", "已记录"),
             )
             for column, value in enumerate(row_values):
                 item = QTableWidgetItem(str(value))
-                item.setToolTip(f"井段：{dataset_id} / 模型：{model_id}\n记录：{row.get('record_id', '--')}\n关联确认：{row.get('rollback_of', '--')}")
+                item.setToolTip(f"井段：{dataset_id} / 模型：{model_id}\n记录：{row.get('record_id', '')}\n关联确认：{row.get('rollback_of', '')}")
                 history.setItem(row_index, column, item)
 
     def recommendation(frame):
@@ -226,10 +230,6 @@ def build_hmi_page(controller, registry):
                 or controller.frames is not snapshot["frames"]):
             feedback.setText("井段、模型或施工时刻已变化，请重新审核当前建议。")
             update(controller.current or {})
-            return
-        if timeline.is_playing():
-            timeline.pause()
-            feedback.setText("已暂停播放，请核对当前建议后再次记录。")
             return
         frame = snapshot["frame"]
         recommended_flow, recommended_sand, action = recommendation(frame)
@@ -254,12 +254,12 @@ def build_hmi_page(controller, registry):
             "advisory_source": ((frame.get("hmi") or {}).get("quality") or {}).get("source")
                 or (frame.get("alignment") or {}).get("hmi_source") or frame.get("hmi_model_source"),
             "advisory_mode": snapshot["mode"], "risk": frame.get("decision", {}),
-            "advisory_action": action, "execution_state": "人工已记录，未下发现场",
+            "advisory_action": action, "execution_state": "已记录",
             })
         except (OSError, ValueError, TypeError) as exc:
             feedback.setText(f"记录未保存：{exc}")
             return
-        feedback.setText(f"已记录：{decision} · {saved['record_id'][:10]}（未下发现场）")
+        feedback.setText(f"已记录：{decision} · {saved['record_id'][:10]}")
         refresh_history()
 
     def selected_history_record():
@@ -284,7 +284,7 @@ def build_hmi_page(controller, registry):
         except (OSError, ValueError) as exc:
             feedback.setText(f"未撤销：{exc}")
             return
-        feedback.setText(f"已撤销确认记录 {row['record_id'][:10]}；原记录保留，未执行现场回滚。")
+        feedback.setText(f"已撤销确认记录 {row['record_id'][:10]}；原记录保留。")
         refresh_history()
 
     def export_log():
@@ -305,8 +305,9 @@ def build_hmi_page(controller, registry):
         dataset = registry.dataset(dataset_id) if dataset_id else {}
         source = registry.path(dataset.get("pressure_source"))
         cache = registry.path(dataset.get("cache_source"))
-        ready = bool(source and source.exists() and cache and cache.exists())
-        return (dataset_id, dataset, ready) if dataset_id else None
+        source_ready = bool(source and source.exists())
+        cache_ready = bool(cache and cache.exists())
+        return (dataset_id, dataset, source_ready, cache_ready) if dataset_id else None
 
     def update_data_controls():
         entry = selected_dataset_entry()
@@ -316,7 +317,7 @@ def build_hmi_page(controller, registry):
             data_status.setText("暂无可用井段")
             predict_data.setEnabled(False)
             return
-        dataset_id, dataset, ready = entry
+        dataset_id, dataset, source_ready, cache_ready = entry
         cached = dataset_agent_evaluation_path(registry, dataset_id, model_id)
         data_label.setText(str(dataset.get("display_name") or dataset.get("stage_id") or dataset_id))
         if dataset.get("adapter") == "raw_frac_construction":
@@ -324,22 +325,26 @@ def build_hmi_page(controller, registry):
                 data_status.setText(f"{model_id.upper()} 预测已缓存")
             else:
                 data_status.setText(f"尚未生成 {model_id.upper()} 预测")
-            predict_data.setEnabled(bool(ready and model_id and not busy))
-            predict_data.setToolTip("使用当前模型对所选单井段运行本地推理，并将结果写入该井段缓存。")
+            predict_data.setEnabled(bool(source_ready and model_id and not busy))
+            predict_data.setToolTip(
+                "先生成当前井段数字孪生缓存，再使用所选模型推理并写入建议缓存。"
+                if not cache_ready else
+                "使用当前模型对所选单井段运行本地推理，并将结果写入该井段缓存。"
+            )
         else:
             data_status.setText(f"{model_id.upper()} 回放已加载")
             predict_data.setEnabled(False)
             predict_data.setToolTip("当前实时预测脚本仅支持无 DAS 单井段；有 DAS 井段使用独立登记回放。")
 
     def start_realtime_prediction():
-        nonlocal prediction_dataset_id, prediction_model_id, prediction_cancelled
+        nonlocal prediction_dataset_id, prediction_model_id, prediction_cancelled, prediction_phase
         entry = selected_dataset_entry()
         model_id = str(model_selector.currentData() or "").lower()
         if not entry or not model_id:
             return
-        dataset_id, dataset, ready = entry
-        if dataset.get("adapter") != "raw_frac_construction" or not ready:
-            data_status.setText("实时预测仅支持已准备好的无 DAS 单井段")
+        dataset_id, dataset, source_ready, cache_ready = entry
+        if dataset.get("adapter") != "raw_frac_construction" or not source_ready:
+            data_status.setText("当前井段没有可读取的施工表")
             return
         if prediction_runner.process.state() != QProcess.NotRunning:
             return
@@ -352,23 +357,23 @@ def build_hmi_page(controller, registry):
             return
         model_selector.setEnabled(False)
         predict_data.setEnabled(False)
-        data_status.setText(f"正在对 {dataset.get('display_name', dataset_id)} 运行 {model_id.upper()} 实时预测…")
-        prediction_runner.start(
-            ml_python,
-            [
-                str(PATHS.app / "build_no_das_agent_cache.py"),
-                "--dataset-id",
-                dataset_id,
-                "--algorithm",
-                model_id,
-            ],
-            PATHS.root,
-            environment={
-                "PYTHONUTF8": "1",
-                "PYTHONIOENCODING": "utf-8",
-                "TF_CPP_MIN_LOG_LEVEL": "2",
-            },
-        )
+        prediction_phase = "hmi" if cache_ready else "dt"
+        if prediction_phase == "dt":
+            data_status.setText(f"正在为 {dataset.get('display_name', dataset_id)} 生成数字孪生缓存…")
+            prediction_runner.start(
+                str(Path(sys.executable)),
+                [str(PATHS.app / "build_selected_dt_view.py"), "--dataset-id", dataset_id],
+                PATHS.root,
+                environment={"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},
+            )
+        else:
+            data_status.setText(f"正在对 {dataset.get('display_name', dataset_id)} 运行 {model_id.upper()} 预测…")
+            prediction_runner.start(
+                ml_python,
+                [str(PATHS.app / "build_no_das_agent_cache.py"), "--dataset-id", dataset_id, "--algorithm", model_id],
+                PATHS.root,
+                environment={"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8", "TF_CPP_MIN_LOG_LEVEL": "2"},
+            )
         stop_prediction.setEnabled(True)
 
     def cancel_realtime_prediction():
@@ -424,26 +429,61 @@ def build_hmi_page(controller, registry):
             data_status.setText(output.splitlines()[-1][:500])
 
     def prediction_finished(exit_code, _exit_status):
-        nonlocal prediction_dataset_id, prediction_model_id, prediction_cancelled
+        nonlocal prediction_dataset_id, prediction_model_id, prediction_cancelled, prediction_phase
         dataset_id = prediction_dataset_id
         model_id = prediction_model_id
-        prediction_dataset_id = None
-        prediction_model_id = None
-        stop_prediction.setEnabled(False)
-        model_selector.setEnabled(True)
         if prediction_cancelled:
             prediction_cancelled = False
+            prediction_phase = None
+            prediction_dataset_id = None
+            prediction_model_id = None
+            stop_prediction.setEnabled(False)
+            model_selector.setEnabled(True)
             data_status.setText("计算已停止；没有把未完成结果载入当前页面。")
             update_data_controls()
             return
         if (dataset_id, str(model_id or "").lower()) != current_context():
+            prediction_phase = None
+            prediction_dataset_id = None
+            prediction_model_id = None
+            stop_prediction.setEnabled(False)
+            model_selector.setEnabled(True)
             data_status.setText("后台计算已完成，但当前井段或模型已切换；结果未自动载入。")
             update_data_controls()
             return
         if exit_code != 0:
+            prediction_phase = None
+            prediction_dataset_id = None
+            prediction_model_id = None
+            stop_prediction.setEnabled(False)
+            model_selector.setEnabled(True)
             data_status.setText(f"{model_id.upper() if model_id else '当前模型'} 预测失败（返回码 {exit_code}）")
             update_data_controls()
             return
+        if prediction_phase == "dt" and dataset_id and model_id:
+            prediction_phase = "hmi"
+            data_status.setText(f"数字孪生缓存已生成，正在运行 {model_id.upper()} 预测…")
+            ml_python, runtime_note = resolve_ml_python()
+            if not ml_python:
+                prediction_phase = None
+                prediction_dataset_id = None
+                prediction_model_id = None
+                stop_prediction.setEnabled(False)
+                model_selector.setEnabled(True)
+                data_status.setText(f"策略预测无法启动：{runtime_note}")
+                return
+            QTimer.singleShot(0, lambda: prediction_runner.start(
+                ml_python,
+                [str(PATHS.app / "build_no_das_agent_cache.py"), "--dataset-id", dataset_id, "--algorithm", model_id],
+                PATHS.root,
+                environment={"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8", "TF_CPP_MIN_LOG_LEVEL": "2"},
+            ))
+            return
+        prediction_phase = None
+        prediction_dataset_id = None
+        prediction_model_id = None
+        stop_prediction.setEnabled(False)
+        model_selector.setEnabled(True)
         if dataset_id and hasattr(registry, "refresh_catalog"):
             registry.refresh_catalog()
         try:
@@ -465,6 +505,7 @@ def build_hmi_page(controller, registry):
         for chart in (pressure_chart, flow_chart, sand_chart):
             chart.set_index(controller.index)
         risk_timeline.set_index(controller.index)
+        knowledge_advisory.update_frame(frame or {})
         active_model = (frame or {}).get("hmi_model_id")
         if active_model:
             active_index = model_selector.findData(active_model)
@@ -479,9 +520,9 @@ def build_hmi_page(controller, registry):
         available = flow is not None or sand is not None
         for button in (accept, reject, modify):
             button.setEnabled(available)
-        if flow is not None:
+        if flow is not None and not flow_value.hasFocus():
             flow_value.setValue(flow)
-        if sand is not None:
+        if sand is not None and not sand_value.hasFocus():
             sand_value.setValue(sand)
         if available:
             reason.setText(str(action or "调整控制量"))
@@ -517,7 +558,7 @@ def build_hmi_page(controller, registry):
             else (
                 f"风险区间：{interval.get('start_s', 0):.0f}–{interval.get('end_s', 0):.0f} s　|　"
                 f"状态：{_risk_name(interval.get('level'))}　|　工况：{interval.get('condition', '未标注')}　|　"
-                f"触发原因：{interval.get('reason', '--')}　|　对建议的影响：{interval.get('recommendation', '--')}"
+                f"触发原因：{interval.get('reason', '')}　|　对建议的影响：{interval.get('recommendation', '')}"
             )
         )
     )
@@ -590,16 +631,16 @@ def _number(value):
 
 def _value(value):
     numeric = _number(value)
-    return "--" if numeric is None else f"{numeric:.2f}"
+    return "" if numeric is None else f"{numeric:.2f}"
 
 
 def _seconds(value):
     numeric = _number(value)
-    return "t=-- s" if numeric is None else f"t={numeric:.0f} s"
+    return "" if numeric is None else f"t={numeric:.0f} s"
 
 
 def _risk_name(value):
-    return {"normal": "正常", "attention": "关注", "high": "高风险"}.get(str(value), "--")
+    return {"normal": "正常", "attention": "关注", "high": "高风险"}.get(str(value), "")
 
 
 def _label(text, name=None):

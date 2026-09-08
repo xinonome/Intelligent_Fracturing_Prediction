@@ -327,10 +327,13 @@ def response_metric_snapshot(
     observed = _normalise(cumulative, fallback=target)
     metrics["observed_liquid_share"] = observed
     event_steps = pd.to_numeric(metrics["first_response_step"], errors="coerce").to_numpy(dtype=float)
-    available = metrics["response_status"].eq("valid").to_numpy(dtype=bool)
+    # Some pandas backends expose the result of ``to_numpy`` as a read-only
+    # view.  ``available`` is intentionally narrowed in place below, so make
+    # an owned writable array instead of mutating the DataFrame-backed view.
+    available = metrics["response_status"].eq("valid").to_numpy(dtype=bool, copy=True)
     if as_of_step is not None:
         available &= np.isfinite(event_steps) & (event_steps <= float(as_of_step))
-    efficiency = metrics["volume_normalized_response_efficiency_m_per_m3"].to_numpy(dtype=float)
+    efficiency = metrics["volume_normalized_response_efficiency_m_per_m3"].to_numpy(dtype=float, copy=True)
     efficiency[~available] = np.nan
     metrics["response_available_as_of_step"] = available
     metrics["control_score"] = _control_score(efficiency, observed, target)

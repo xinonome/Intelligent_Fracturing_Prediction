@@ -19,6 +19,7 @@ def create_parameter_panel(
     heading.setObjectName("sectionTitle")
     layout.addWidget(heading)
     labels = {}
+    captions = {}
 
     if columns:
         body = QHBoxLayout()
@@ -35,7 +36,8 @@ def create_parameter_panel(
                     key_label = QLabel(caption)
                     key_label.setObjectName("muted")
                     column.addWidget(key_label)
-                value = QLabel("--")
+                    captions[key] = key_label
+                value = QLabel("")
                 value.setObjectName("value")
                 value.setWordWrap(True)
                 value.setTextInteractionFlags(value.textInteractionFlags())
@@ -59,14 +61,16 @@ def create_parameter_panel(
         for key, caption in fields or []:
             key_label = QLabel(caption)
             key_label.setObjectName("key")
-            value = QLabel("--")
+            value = QLabel("")
             value.setObjectName("value")
             value.setWordWrap(True)
             value.setTextInteractionFlags(value.textInteractionFlags())
             form.addRow(key_label, value)
             labels[key] = value
+            captions[key] = key_label
         layout.addLayout(form)
     panel._value_labels = labels
+    panel._caption_labels = captions
     return panel
 
 
@@ -75,10 +79,26 @@ def update_parameter_panel(panel, values: dict, formats: dict[str, str] | None =
     for key, label in getattr(panel, "_value_labels", {}).items():
         value = values.get(key)
         if value is None:
-            label.setText("缺失 · 未接入")
+            label.clear()
+            label.setVisible(False)
+            caption = getattr(panel, "_caption_labels", {}).get(key)
+            if caption is not None:
+                caption.setVisible(False)
         elif key in formats:
+            label.setVisible(True)
+            caption = getattr(panel, "_caption_labels", {}).get(key)
+            if caption is not None:
+                caption.setVisible(True)
             label.setText(formats[key].format(value))
         elif isinstance(value, float):
+            label.setVisible(True)
+            caption = getattr(panel, "_caption_labels", {}).get(key)
+            if caption is not None:
+                caption.setVisible(True)
             label.setText(f"{value:.3f}")
         else:
+            label.setVisible(True)
+            caption = getattr(panel, "_caption_labels", {}).get(key)
+            if caption is not None:
+                caption.setVisible(True)
             label.setText(str(value))

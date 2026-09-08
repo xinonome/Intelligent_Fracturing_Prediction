@@ -1,0 +1,6 @@
+stage_order,stage_id,response_class,planned_liquid_m3,requested_delta_fraction,actual_liquid_m3,flow_rate_m3_s,pressure_mpa,sand_ratio_pct,data_quality_valid,uncertainty_high,safety_ok
+1,stage-01,fast,100,-0.10,90,1.0,80,5.0,True,False,True
+2,stage-02,slow,100,0.10,110,1.0,82,5.0,True,False,True
+3,stage-03,neutral,100,0.00,100,1.0,83,5.0,True,False,True
+4,stage-04,fast,100,-0.05,95,1.0,84,5.0,True,False,True
+5,stage-05,slow,100,0.05,105,1.0,85,5.0,True,False,True

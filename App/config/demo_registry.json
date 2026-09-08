@@ -15,6 +15,13 @@
         "transfer": "artifacts/fsl/transfer_learning/transfer_metrics.json",
         "risk_prediction": "artifacts/fsl/risk_prediction/summary.json"
       },
+      "risk_model_registry": "App/config/fsl_risk_models.json",
+      "risk_model_weights": [
+        "artifacts/fsl/risk_prediction/models/Z6HF_knowledge_risk_level_gnn.pt",
+        "artifacts/fsl/risk_prediction/models/Z7HF_finetuned_risk_level_gnn.pt",
+        "artifacts/fsl/risk_prediction/models/Z6HF_knowledge_risk_level_gnn.npz",
+        "artifacts/fsl/risk_prediction/models/Z7HF_finetuned_risk_level_gnn.npz"
+      ],
       "figures": [
         "artifacts/fsl/two_stage_model/window_4/test_grouped_two_stage_confusion.png"
       ],

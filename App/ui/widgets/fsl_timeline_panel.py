@@ -28,6 +28,11 @@ def _label_color(label: str) -> str:
         "滤失过大": "#D97835",
         "压力异常": "#D1495B",
         "砂堵": "#C0392B",
+        "砂堵迹象": "#F2A93B",
+        "砂堵风险": "#D1495B",
+        "绿色": "#48A868",
+        "黄色": "#F2A93B",
+        "红色": "#D1495B",
         "其他": "#78909C",
     }.get(label, PALETTE["muted"])
 
@@ -113,7 +118,7 @@ class FSLTimelineChart:
             def _copy_data(self):
                 if not self.stage_data:
                     return
-                rows = [["井段", self.stage_data.get("stage_id", "--")], ["时间(s)", *self.stage_data.get("time_s", [])]]
+                rows = [["井段", self.stage_data.get("stage_id", "")], ["时间(s)", *self.stage_data.get("time_s", [])]]
                 for key, title in (
                     ("pressure_mpa", "施工泵压实测(MPa)"),
                     ("predicted_pressure_mpa", "施工泵压趋势基线(MPa)"),
@@ -126,7 +131,12 @@ class FSLTimelineChart:
                 rows.append(["实际工况区间", json.dumps(self.stage_data.get("actual_condition_intervals", []), ensure_ascii=False)])
                 rows.append(["预测工况区间", json.dumps(self.stage_data.get("predicted_condition_intervals", []), ensure_ascii=False)])
                 rows.append(["规则检测区间", json.dumps(self.stage_data.get("rule_condition_intervals", []), ensure_ascii=False)])
-                rows.append(["预测方法", self.stage_data.get("point_prediction_source", "未接入")])
+                rows.append(["风险等级", *self.stage_data.get("risk_level", [])])
+                rows.append(["风险概率", *["" if value is None else f"{float(value):.6g}" for value in self.stage_data.get("risk_probability", [])]])
+                rows.append(["风险模型", self.stage_data.get("risk_model_source", "")])
+                prediction_source = self.stage_data.get("point_prediction_source")
+                if prediction_source:
+                    rows.append(["预测方法", prediction_source])
                 QApplication.clipboard().setText("\n".join("\t".join(str(item) for item in row) for row in rows))
 
             def paintEvent(self, _event):
@@ -138,16 +148,15 @@ class FSLTimelineChart:
                     painter.drawText(18, 28, "暂无工况时序数据")
                     return
 
-                stage_id = self.stage_data.get("stage_id", "--")
+                stage_id = self.stage_data.get("stage_id", "")
                 duration = max(float(self.stage_data.get("duration_s") or 0.0), 1.0)
                 time_axis = self._time_axis()
                 interruptions = time_axis["interruptions"]
                 painter.setPen(QColor(PALETTE["text"]))
-                chart_title = self.stage_data.get("chart_title") or "施工工况与逐点预测"
-                painter.drawText(16, 26, display_text(f"{chart_title} · 井段 {stage_id}"))
+                painter.drawText(16, 26, display_text(f"井段 {stage_id}"))
                 painter.setPen(QColor(PALETTE["muted"]))
                 interruption_note = f"   |   已压缩 {len(interruptions)} 段施工中断" if interruptions else ""
-                painter.drawText(16, 47, f"{self.stage_data.get('start_time', '--')} — {self.stage_data.get('end_time', '--')}   |   {int(duration)} s / {self.stage_data.get('sample_count', 0)} 点{interruption_note}")
+                painter.drawText(16, 47, f"{self.stage_data.get('start_time', '')} — {self.stage_data.get('end_time', '')}   |   {int(duration)} s / {self.stage_data.get('sample_count', 0)} 点{interruption_note}")
 
                 # Solid lines are measured values; dashed lines are only
                 # listed when a real point-prediction series exists.  This
@@ -160,63 +169,82 @@ class FSLTimelineChart:
                 predicted_flow = self.stage_data.get("predicted_flow_m3_min", [])
                 predicted_sand = self.stage_data.get("predicted_sand_ratio_pct", [])
 
+                # Engineering-plot palette: pressure is blue, rate is green,
+                # and sand ratio is red.  Keep these colors independent from
+                # the light/dark UI accent so the meaning of each curve stays
+                # stable across themes.
+                pressure_color = "#173FDB"
+                flow_color = "#2F8F55"
+                sand_color = "#E33B3B"
+                pressure_pred_color = "#7489E8"
+                flow_pred_color = "#78B895"
+                sand_pred_color = "#EE9292"
+
                 def has_values(values):
                     return any(_finite(value) for value in values)
 
                 legend = []
                 if has_values(pressure):
-                    legend.append(("压力实测", PALETTE["blue"], Qt.SolidLine))
+                    legend.append(("施工压力 / MPa", pressure_color, Qt.SolidLine))
                 if has_values(predicted_pressure):
-                    legend.append(("压力基线", "#C084FC", Qt.DashLine))
+                    legend.append(("压力预测", pressure_pred_color, Qt.DashLine))
                 if has_values(flow):
-                    legend.append(("排量实测", PALETTE["cyan"], Qt.SolidLine))
+                    legend.append(("排量 / m³/min", flow_color, Qt.SolidLine))
                 if has_values(predicted_flow):
-                    legend.append(("排量基线", "#76E6A7", Qt.DashLine))
+                    legend.append(("排量预测", flow_pred_color, Qt.DashLine))
                 if has_values(sand):
-                    legend.append(("砂比实测", PALETTE["orange"], Qt.SolidLine))
+                    legend.append(("砂比 / %", sand_color, Qt.SolidLine))
                 if has_values(predicted_sand):
-                    legend.append(("砂比基线", "#E8B87B", Qt.DashLine))
+                    legend.append(("砂比预测", sand_pred_color, Qt.DashLine))
                 x_legend = 16
                 for name, color, style in legend:
                     painter.setPen(QPen(QColor(color), 3, style))
                     painter.drawLine(x_legend, 64, x_legend + 16, 64)
                     painter.setPen(QColor(color))
                     painter.drawText(x_legend + 22, 68, name)
-                    x_legend += 92
+                    x_legend += painter.fontMetrics().horizontalAdvance(name) + 38
                 plot = self._plot_rect()
                 p_max = _nice_axis_max(pressure + predicted_pressure)
                 q_max = _nice_axis_max(flow + predicted_flow)
                 s_max = _nice_axis_max(sand + predicted_sand)
 
+                # Keep the plotting surface clean and paper-like, matching
+                # the construction engineering charts used for review.
+                painter.fillRect(plot, QColor(PALETTE["chart_bg"]))
+                painter.setPen(QPen(QColor(PALETTE["border"]), 1))
+                painter.drawRect(plot)
                 self._draw_intervals(painter, plot, duration)
                 painter.setPen(QPen(QColor(PALETTE["border"]), 1))
                 for tick in range(6):
                     ratio = tick / 5.0
                     y = plot.bottom() - plot.height() * ratio
                     painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
-                    painter.setPen(QColor(PALETTE["blue"]))
-                    painter.drawText(10, int(y + 4), f"{p_max * ratio:.0f}")
-                    painter.setPen(QColor(PALETTE["cyan"]))
+                    painter.setPen(QColor(pressure_color))
+                    painter.drawText(int(plot.left() - 48), int(y + 4), f"{p_max * ratio:.0f}")
+                    painter.setPen(QColor(flow_color))
                     painter.drawText(int(plot.right() + 10), int(y + 4), f"{q_max * ratio:.1f}")
-                    painter.setPen(QColor(PALETTE["orange"]))
+                    painter.setPen(QColor(sand_color))
                     painter.drawText(int(plot.right() + 92), int(y + 4), f"{s_max * ratio:.1f}")
                     painter.setPen(QPen(QColor(PALETTE["border"]), 1))
+                    x = plot.left() + plot.width() * ratio
+                    painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
                 axis_title_y = int(plot.top() - 24)
-                painter.setPen(QColor(PALETTE["blue"]))
-                painter.drawText(10, axis_title_y, "压力 / MPa")
-                painter.setPen(QColor(PALETTE["cyan"]))
+                painter.setPen(QColor(pressure_color))
+                painter.drawText(int(plot.left() - 48), axis_title_y, "压力")
+                painter.drawText(int(plot.left() - 48), axis_title_y + 16, "MPa")
+                painter.setPen(QColor(flow_color))
                 painter.drawText(int(plot.right() + 10), axis_title_y, "排量")
                 painter.drawText(int(plot.right() + 10), axis_title_y + 16, "m³/min")
-                painter.setPen(QColor(PALETTE["orange"]))
+                painter.setPen(QColor(sand_color))
                 painter.drawText(int(plot.right() + 92), axis_title_y, "砂比")
                 painter.drawText(int(plot.right() + 92), axis_title_y + 16, "%")
 
-                self._draw_series(painter, plot, pressure, p_max, PALETTE["blue"])
-                self._draw_series(painter, plot, predicted_pressure, p_max, "#C084FC", Qt.DashLine)
-                self._draw_series(painter, plot, flow, q_max, PALETTE["cyan"])
-                self._draw_series(painter, plot, predicted_flow, q_max, "#76E6A7", Qt.DashLine)
-                self._draw_series(painter, plot, sand, s_max, PALETTE["orange"])
-                self._draw_series(painter, plot, predicted_sand, s_max, "#E8B87B", Qt.DashLine)
+                self._draw_series(painter, plot, pressure, p_max, pressure_color)
+                self._draw_series(painter, plot, predicted_pressure, p_max, pressure_pred_color, Qt.DashLine)
+                self._draw_series(painter, plot, flow, q_max, flow_color)
+                self._draw_series(painter, plot, predicted_flow, q_max, flow_pred_color, Qt.DashLine)
+                self._draw_series(painter, plot, sand, s_max, sand_color)
+                self._draw_series(painter, plot, predicted_sand, s_max, sand_pred_color, Qt.DashLine)
                 self._draw_interruptions(painter, plot, interruptions)
 
                 times = self.stage_data.get("time_s", [])
@@ -226,9 +254,17 @@ class FSLTimelineChart:
                     painter.drawLine(QPointF(marker_x, plot.top()), QPointF(marker_x, plot.bottom()))
 
                 painter.setPen(QColor(PALETTE["muted"]))
-                painter.drawText(int(plot.left()), self.height() - 16, "t=0 s")
-                end_text = f"t={int(duration)} s"
-                painter.drawText(int(plot.right() - painter.fontMetrics().horizontalAdvance(end_text)), self.height() - 16, end_text)
+                for tick in range(6):
+                    ratio = tick / 5.0
+                    x = plot.left() + plot.width() * ratio
+                    label = f"{int(duration * ratio)} s"
+                    label_width = painter.fontMetrics().horizontalAdvance(label)
+                    label_x = x - label_width / 2.0
+                    if tick == 0:
+                        label_x = plot.left()
+                    elif tick == 5:
+                        label_x = plot.right() - label_width
+                    painter.drawText(int(label_x), self.height() - 16, label)
 
             def _plot_rect(self):
                 return self.rect().adjusted(78, 108, -172, -42)
@@ -415,6 +451,8 @@ class FSLTimelineChart:
                     color.setAlpha(110 if selected else (45 if kind == "actual" else 95))
                     if kind == "actual":
                         band_top, band_height = plot.top(), plot.height()
+                    elif kind == "rule":
+                        band_top, band_height = plot.bottom() - 44, 22
                     else:
                         band_top, band_height = plot.bottom() - 22, 22
                     painter.fillRect(int(start), int(band_top), max(2, int(end - start)), int(band_height), color)
@@ -471,9 +509,9 @@ def build_stage_table(rows):
         stageSelected = Signal(str)
 
         def __init__(self):
-            super().__init__(0, 6)
+            super().__init__(0, 4)
             self.setObjectName("fslStageTable")
-            self.setHorizontalHeaderLabels(["井段", "源表工况", "源表提示", "源表概率/置信度", "时间", "峰值 P / Q / S"])
+            self.setHorizontalHeaderLabels(["井段", "源表工况", "源表提示", "最高风险概率"])
             self.setSelectionBehavior(QAbstractItemView.SelectRows)
             self.setSelectionMode(QAbstractItemView.SingleSelection)
             self.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -486,8 +524,6 @@ def build_stage_table(rows):
             self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
             self.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
             self.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-            self.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-            self.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
             self.itemSelectionChanged.connect(self._emit_selection)
             self.setMinimumHeight(540)
 
@@ -496,20 +532,18 @@ def build_stage_table(rows):
             self.setRowCount(0)
             for row_index, row in enumerate(stage_rows):
                 self.insertRow(row_index)
-                risk = _fmt(row.get("risk_max_pct"), "%", 0) if row.get("risk_max_pct") is not None else "未接入"
+                risk = _fmt(row.get("risk_max_pct"), "%", 0) if row.get("risk_max_pct") is not None else "\\"
                 condition_labels = row.get("source_condition_labels") or []
                 condition_text = "、".join(
                     display_text(label) for label in condition_labels if str(label).strip()
                 ) or "\\"
                 suggestion_text = str(row.get("suggestion") or "").strip() or "\\"
-                risk_text = risk if risk != "未接入" else "\\"
+                risk_text = risk
                 values = [
-                    f"{row.get('stage_id', '--')}",
+                    f"{row.get('stage_id', '')}",
                     condition_text,
                     suggestion_text,
                     risk_text,
-                    f"{int(row.get('duration_s') or 0)} s" if row.get("duration_s") is not None else "\\",
-                    f"{_fmt(row.get('pressure_max'), '', 1)} / {_fmt(row.get('flow_max'), '', 1)} / {_fmt(row.get('sand_max'), '', 1)}".replace("—", "\\"),
                 ]
                 for column, value in enumerate(values):
                     item = QTableWidgetItem(value)

@@ -37,7 +37,8 @@ def main() -> int:
     # Reproduce the real user path: all lazy pages have been opened before
     # the global selector is changed.  This exercises the WebEngine-backed
     # DT/HMI views during a dataset commit instead of testing only page 0.
-    for page_index in range(window.navigation.count()):
+    requested_page_count = int(sys.argv[2]) if len(sys.argv) > 2 else window.navigation.count()
+    for page_index in range(min(window.navigation.count(), requested_page_count)):
         window.navigation.setCurrentRow(page_index)
         app.processEvents()
     window.navigation.setCurrentRow(0)
@@ -50,7 +51,11 @@ def main() -> int:
         if dataset.get("adapter") == "raw_frac_construction" and registry.dataset_source_ready(dataset_id):
             candidates.append(str(dataset_id))
     requested_target = str(sys.argv[1]).strip() if len(sys.argv) > 1 else ""
-    target = requested_target if requested_target in candidates else next((item for item in candidates if item != registry.dataset_id), "")
+    target = (
+        requested_target
+        if requested_target
+        else next((item for item in candidates if item != registry.dataset_id), "")
+    )
     state = {"polls": 0}
 
     def fail(message: str) -> None:

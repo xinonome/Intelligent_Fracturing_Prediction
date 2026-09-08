@@ -142,12 +142,6 @@ def _policy(selection, algorithm: str | None = None, model_path: str | Path | No
 
 def _run_policy(features: np.ndarray, meta: pd.DataFrame, model, algorithm: str) -> list[dict]:
     expected_shape = getattr(getattr(model, "observation_space", None), "shape", None)
-    if expected_shape and int(np.prod(expected_shape)) != int(features.shape[1]):
-        raise RuntimeError(
-            "策略模型与当前特征维度不一致："
-            f"模型需要 {expected_shape}，当前输入为 {features.shape[1]}。"
-            "若启用 --include-schedule-context，必须使用同样特征重新训练的模型。"
-        )
     action_encoding = "centered_delta" if algorithm == "td3" else "legacy"
     rows: list[dict] = []
     target = 0
@@ -180,6 +174,13 @@ def _run_policy(features: np.ndarray, meta: pd.DataFrame, model, algorithm: str)
             seed=2026 + target,
             random_start=False,
         )
+        actual_shape = tuple(env.observation_space.shape)
+        if expected_shape and tuple(expected_shape) != actual_shape:
+            raise RuntimeError(
+                "策略模型与当前完整观测维度不一致："
+                f"模型需要 {tuple(expected_shape)}，当前环境生成 {actual_shape}。"
+                "请使用与当前状态窗口和上下文配置一致的模型。"
+            )
         obs, _ = env.reset(options={"start_index": 0})
         block_steps = 0
         for _ in range(block_size):

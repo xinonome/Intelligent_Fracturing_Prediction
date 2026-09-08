@@ -14,6 +14,10 @@ class KnowledgeGraphViewTests(unittest.TestCase):
         html = path.read_text(encoding="utf-8")
         self.assertIn("核心风险链", html)
         self.assertIn("逐步展开", html)
+        self.assertIn('addEventListener("pointerdown"', html)
+        self.assertIn('addEventListener("pointermove"', html)
+        self.assertIn('addEventListener("wheel"', html)
+        self.assertIn("zoomScale = 1", html)
         self.assertNotIn("unpkg.com/vis-network", html)
         self.assertNotIn("cdnjs.cloudflare.com", html)
 

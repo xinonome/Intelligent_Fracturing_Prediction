@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "default_model": "rule_84",
+  "models": {
+    "auto": {
+      "display_name": "自动（Z7HF迁移模型优先）",
+      "type": "hybrid",
+      "fallback": "rule_84"
+    },
+    "rule_84": {
+      "display_name": "8.4因果规则",
+      "type": "causal_rule",
+      "source": "8.4RULE.py",
+      "inputs": ["SGBY", "PL", "SB", "SGSJ"]
+    },
+    "z6_source": {
+      "display_name": "Z6HF风险等级GNN（实验）",
+      "type": "knowledge_temporal_gnn",
+      "path": "artifacts/fsl/risk_prediction/models/Z6HF_knowledge_risk_level_gnn.npz",
+      "training_checkpoint": "artifacts/fsl/risk_prediction/models/Z6HF_knowledge_risk_level_gnn.pt",
+      "window_size": 6,
+      "prior_strength": 1.0,
+      "preprocessing": "stage_adaptive_reconstruction"
+    },
+    "z7_transfer": {
+      "display_name": "Z7HF迁移风险GNN（实验）",
+      "type": "knowledge_temporal_gnn",
+      "path": "artifacts/fsl/risk_prediction/models/Z7HF_finetuned_risk_level_gnn.npz",
+      "training_checkpoint": "artifacts/fsl/risk_prediction/models/Z7HF_finetuned_risk_level_gnn.pt",
+      "window_size": 6,
+      "prior_strength": 1.0,
+      "preprocessing": "stage_adaptive_reconstruction"
+    }
+  }
+}

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from ...core.paths import PATHS
-from ...data.hmi_loader import discover_agent_models
+from ...data.resource_catalog import collect_resource_inventory
 
 
 def show_workspace_sources(parent, registry, controller, *, edition: str = "integrated") -> None:
@@ -33,7 +33,7 @@ def show_workspace_sources(parent, registry, controller, *, edition: str = "inte
         cache = registry.path(value.get("cache_source"))
         datasets.append([
             dataset_id,
-            str(value.get("well_id") or value.get("stage_id") or value.get("display_name") or "--"),
+            str(value.get("well_id") or value.get("stage_id") or value.get("display_name") or ""),
             "有 DAS" if value.get("fiber_source") else "无 DAS",
             "原始数据可用" if source and source.exists() else "缺少原始数据",
             "已有孪生缓存" if cache and cache.exists() else "等待计算",
@@ -42,19 +42,20 @@ def show_workspace_sources(parent, registry, controller, *, edition: str = "inte
     dataset_table = _table(["数据集", "井/段", "场景", "数据状态", "结果状态", "来源路径"], datasets)
     tabs.addTab(dataset_table, "数据")
 
-    models = []
-    if edition != "fsl":
-        for item in discover_agent_models(registry):
-            models.append([
-                str(item.get("display_name") or item.get("model_id") or "--"),
-                "可回放" if item.get("ready") else "不可用",
-                str(item.get("policy_path") or "未登记策略文件"),
-                str(item.get("evaluation_path") or ""),
-            ])
-    runtime = registry.runtime_selection() if hasattr(registry, "runtime_selection") else {}
-    if edition != "fsl":
-        models.insert(0, ["KG-EnKF / PKN", "当前配置", str(runtime.get("enkf_run_dir") or "项目注册表"), "数字孪生"])
-    model_table = _table(["模型", "状态", "模型/运行来源", "用途"], models)
+    inventory = collect_resource_inventory(registry)
+    models = [
+        [
+            str(item.get("kind") or ""),
+            str(item.get("name") or ""),
+            str(item.get("status") or ""),
+            str(item.get("purpose") or ""),
+            str(item.get("context") or ""),
+            str(item.get("size") or ""),
+            str(item.get("path") or ""),
+        ]
+        for item in inventory
+    ]
+    model_table = _table(["类型", "模型 / 运行", "状态", "用途", "算法 / 场景", "大小", "文件 / 运行来源"], models)
     tabs.addTab(model_table, "模型")
 
     run_rows = []

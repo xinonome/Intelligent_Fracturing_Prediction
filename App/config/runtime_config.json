@@ -4,6 +4,7 @@
   "knowledge_guided_mode": "soft_correlated",
   "agent_policy": "sac",
   "fallback_policy": "conservative",
+  "fsl_risk_model": "rule_84",
   "policy_model_path": "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/sac/seed_2026/sac_20260818_200628/sac_fracturing_policy.zip",
   "replay_evaluation_path": "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/sac/seed_2026/sac_20260818_200628/rl_evaluation.csv",
   "replay_decisions_path": "outputs/hmi/model_comparison_formal_v3_20260818/20260818_192543/sac/seed_2026/sac_20260818_200628/human_machine_decisions.json",

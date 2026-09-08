@@ -303,6 +303,7 @@ def build_integrated_page(controller, registry, html_path: Path | None, on_datas
         if request_id != scenario_request_id:
             return
         scenario_pending = False
+        model._dataset_switch_pending = False
         scenario_box.setEnabled(True)
         if scenario_was_playing and getattr(timeline, "resume", None):
             timeline.resume()
@@ -344,15 +345,21 @@ def build_integrated_page(controller, registry, html_path: Path | None, on_datas
         if scenario_html and getattr(model, "set_html_path", None):
             # Let the committed frame and clock repaint before Chromium
             # starts loading the next multi-megabyte Plotly document.
-            QTimer.singleShot(
-                250,
-                lambda: model.set_html_path(
+            def start_html_navigation():
+                if request_id != scenario_request_id or not scenario_pending:
+                    return
+                model._dataset_switch_pending = False
+                model.set_html_path(
                     scenario_html,
                     lambda ok: _end_scenario_switch(
                         request_id,
                         None if ok else "场景数据已切换，但 3D 视图加载失败；其余结果仍可用。",
                     ),
-                ),
+                )
+
+            QTimer.singleShot(
+                250,
+                start_html_navigation,
             )
             # A broken WebEngine/GPU subprocess must not leave the controls
             # disabled forever.  The data switch is already committed.
@@ -365,6 +372,7 @@ def build_integrated_page(controller, registry, html_path: Path | None, on_datas
         if request_id != scenario_request_id:
             return
         scenario_pending = False
+        model._dataset_switch_pending = False
         scenario_box.blockSignals(True)
         scenario_box.setCurrentIndex(max(0, scenario_box.findData(getattr(registry, "scenario_id", ""))))
         scenario_box.blockSignals(False)
@@ -397,6 +405,7 @@ def build_integrated_page(controller, registry, html_path: Path | None, on_datas
             return
         if not hasattr(controller, "prepare_scenario_frames"):
             # Compatibility path for a non-Qt/headless controller.
+            model._dataset_switch_pending = True
             if hasattr(controller, "set_dataset") and target_dataset_id != getattr(registry, "dataset_id", ""):
                 controller.set_dataset(str(target_dataset_id))
             controller.set_scenario(str(scenario_id))
@@ -407,10 +416,14 @@ def build_integrated_page(controller, registry, html_path: Path | None, on_datas
                 and scenario_html
                 and getattr(model, "set_html_path", None)
             ):
+                model._dataset_switch_pending = False
                 model.set_html_path(scenario_html)
+            else:
+                model._dataset_switch_pending = False
             return
 
         scenario_pending = True
+        model._dataset_switch_pending = True
         scenario_request_id += 1
         request_id = scenario_request_id
         scenario_was_playing = bool(getattr(timeline, "is_playing", lambda: False)())
@@ -496,7 +509,12 @@ def build_integrated_page(controller, registry, html_path: Path | None, on_datas
         pending_dataset_visual["value"] = False
         scenario_html = registry.html(getattr(registry, "scenario_id", None))
         if visual_stack.currentWidget() is not gif_view and scenario_html and getattr(model, "set_html_path", None):
+            model._dataset_switch_pending = False
             model.set_html_path(scenario_html)
+        else:
+            # No WebEngine navigation is needed for the local no-DAS GIF;
+            # release the guard so the next timeline update can proceed.
+            model._dataset_switch_pending = False
 
     def _refresh_after_global_dataset():
         """Commit the integrated visual change outside the dataset callback."""
@@ -526,6 +544,7 @@ def build_integrated_page(controller, registry, html_path: Path | None, on_datas
         # actually visible; this prevents a hidden QWebEngineView/GIF
         # QStackedWidget transition from causing a native access violation.
         pending_dataset_visual["value"] = True
+        model._dataset_switch_pending = True
         if page.isVisible():
             QTimer.singleShot(150, _refresh_after_global_dataset)
         if on_dataset_changed:

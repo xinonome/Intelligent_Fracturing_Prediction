@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ...core.paths import PATHS
-from ...data.hmi_loader import discover_agent_models
+from ...data.resource_catalog import collect_resource_inventory
 from ..widgets.knowledge_graph_panel import build_knowledge_graph_panel
 from ..widgets.status_card import Panel
 from ..widgets.workspace_sources import show_workspace_sources
@@ -24,9 +24,12 @@ def build_resource_center(
     from PySide6.QtGui import QDesktopServices
     from PySide6.QtWidgets import (
         QAbstractItemView,
+        QApplication,
+        QComboBox,
         QHBoxLayout,
         QHeaderView,
         QLabel,
+        QLineEdit,
         QPushButton,
         QScrollArea,
         QTableWidget,
@@ -87,18 +90,47 @@ def build_resource_center(
     resources.setWidget(resource_content)
     resource_layout = QVBoxLayout(resource_content)
     resource_layout.setContentsMargins(8, 8, 8, 8)
-    model_panel, model_layout = Panel.create("可用模型")
-    model_table = QTableWidget(0, 4)
-    model_table.setHorizontalHeaderLabels(["模型", "状态", "用途", "文件 / 运行来源"])
+    model_panel, model_layout = Panel.create("完整模型与结果清单")
+    model_toolbar = QHBoxLayout()
+    model_filter = QComboBox()
+    model_filter.addItems(["全部资源", "模型", "运行结果", "缓存"])
+    model_filter.setToolTip("按资源类型筛选，清单内容仍来自项目实际文件")
+    model_search = QLineEdit()
+    model_search.setPlaceholderText("搜索模型名、算法、井段或路径")
+    model_search.setClearButtonEnabled(True)
+    model_refresh = QPushButton("刷新模型清单")
+    model_summary = QLabel("")
+    model_summary.setObjectName("muted")
+    model_toolbar.addWidget(model_filter)
+    model_toolbar.addWidget(model_search, 1)
+    model_toolbar.addWidget(model_refresh)
+    model_toolbar.addWidget(model_summary)
+    model_layout.addLayout(model_toolbar)
+    model_table = QTableWidget(0, 7)
+    model_table.setObjectName("resourceModelInventory")
+    model_table.setHorizontalHeaderLabels(["类型", "模型 / 运行", "状态", "用途", "算法 / 场景", "大小", "文件 / 运行来源"])
     model_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
     model_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-    model_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+    model_table.setSelectionMode(QAbstractItemView.SingleSelection)
+    model_table.setAlternatingRowColors(True)
+    model_table.setMinimumHeight(480)
+    header = model_table.horizontalHeader()
+    header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+    header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+    header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+    header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+    header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+    header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
     model_table.horizontalHeader().setStretchLastSection(True)
     model_layout.addWidget(model_table)
     resource_layout.addWidget(model_panel)
     resource_actions = QHBoxLayout()
-    open_inventory = QPushButton("查看完整数据、模型与运行清单")
+    open_selected = QPushButton("打开所选资源")
+    copy_selected = QPushButton("复制所选路径")
+    open_inventory = QPushButton("打开来源总览")
     open_outputs = QPushButton("打开项目输出目录")
+    resource_actions.addWidget(open_selected)
+    resource_actions.addWidget(copy_selected)
     resource_actions.addWidget(open_inventory)
     resource_actions.addWidget(open_outputs)
     resource_actions.addStretch(1)
@@ -132,7 +164,7 @@ def build_resource_center(
             dataset_ids.append(str(dataset_id))
             rows.append([
                 str(dataset_id),
-                str(value.get("display_name") or value.get("stage_id") or value.get("well_id") or "--"),
+                str(value.get("display_name") or value.get("stage_id") or value.get("well_id") or ""),
                 "有 DAS" if value.get("fiber_source") else "无 DAS",
                 "可用" if source and source.exists() else "缺失",
                 "可用" if cache and cache.exists() else "等待计算",
@@ -149,22 +181,86 @@ def build_resource_center(
             dataset_table.selectRow(dataset_ids.index(active))
         dataset_status.setText(f"{len(rows)} 个独立井段")
 
-        model_rows = []
-        runtime = registry.runtime_selection() if hasattr(registry, "runtime_selection") else {}
-        model_rows.append(["PKN / KG-EnKF", "已登记", "裂缝数字孪生", str(runtime.get("enkf_run_dir") or "项目注册表")])
-        for item in discover_agent_models(registry):
-            model_rows.append([
-                str(item.get("display_name") or item.get("model_id") or "--"),
-                "可用" if item.get("ready") else "不可用",
-                "智能调控离线回放",
-                str(item.get("policy_path") or item.get("evaluation_path") or ""),
-            ])
-        model_table.setRowCount(len(model_rows))
-        for row_index, row in enumerate(model_rows):
-            for column, value in enumerate(row):
+        refresh_model_inventory()
+
+    inventory_rows = []
+    visible_inventory_rows = []
+
+    def refresh_model_inventory():
+        nonlocal inventory_rows
+        inventory_rows = collect_resource_inventory(registry)
+        apply_model_filter()
+
+    def apply_model_filter():
+        nonlocal visible_inventory_rows
+        selected_kind = model_filter.currentText()
+        query = model_search.text().strip().lower()
+        visible = []
+        for row in inventory_rows:
+            if selected_kind != "全部资源" and row.get("kind") != selected_kind:
+                continue
+            haystack = " ".join(str(row.get(key, "")) for key in ("kind", "name", "status", "purpose", "context", "display_path")).lower()
+            if query and query not in haystack:
+                continue
+            visible.append(row)
+        visible_inventory_rows = visible
+        model_table.setRowCount(len(visible))
+        for row_index, row in enumerate(visible):
+            values = [
+                str(row.get("kind") or ""),
+                str(row.get("name") or ""),
+                str(row.get("status") or ""),
+                str(row.get("purpose") or ""),
+                str(row.get("context") or ""),
+                str(row.get("size") or ""),
+                str(row.get("display_path") or row.get("path") or ""),
+            ]
+            for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
-                item.setToolTip(value)
+                item.setToolTip(str(row.get("path") or value))
+                if column == 6:
+                    item.setData(Qt.UserRole, str(row.get("path") or ""))
                 model_table.setItem(row_index, column, item)
+        if not query and selected_kind == "全部资源":
+            counts = {kind: sum(1 for item in inventory_rows if item.get("kind") == kind) for kind in ("模型", "运行结果", "缓存")}
+            model_summary.setText(
+                f"共 {len(visible)} 项 · 模型 {counts['模型']} · 结果 {counts['运行结果']} · 缓存 {counts['缓存']}"
+            )
+        else:
+            model_summary.setText(f"显示 {len(visible)} / 共 {len(inventory_rows)} 项")
+        update_resource_actions()
+
+    def update_resource_actions():
+        path = selected_inventory_path()
+        available = bool(path and path.exists())
+        open_selected.setEnabled(available)
+        copy_selected.setEnabled(available)
+
+    def selected_inventory_path() -> Path | None:
+        row = model_table.currentRow()
+        if row < 0:
+            return None
+        item = model_table.item(row, 6)
+        if item is None:
+            return None
+        value = str(item.data(Qt.UserRole) or item.text()).strip()
+        path = Path(value) if value else None
+        return path if path and path.exists() else None
+
+    def open_selected_resource():
+        path = selected_inventory_path()
+        if path:
+            open_path(path)
+        else:
+            model_summary.setText("请选择包含有效路径的资源")
+
+    def copy_selected_resource():
+        path = selected_inventory_path()
+        if path:
+            QApplication.clipboard().setText(str(path))
+            model_summary.setText("已复制所选资源路径")
+        else:
+            model_summary.setText("当前记录没有可用路径")
 
     def select_dataset():
         row = dataset_table.currentRow()
@@ -177,16 +273,26 @@ def build_resource_center(
             dataset_status.setText("井段切换请求已提交")
 
     def open_path(path: Path):
+        if not path.exists():
+            return
         target = path if path.is_dir() else path.parent
-        target.mkdir(parents=True, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
 
     apply_dataset.clicked.connect(select_dataset)
     dataset_table.doubleClicked.connect(lambda _index: select_dataset())
     refresh_dataset.clicked.connect(refresh_catalog)
+    model_filter.currentTextChanged.connect(lambda _value: apply_model_filter())
+    model_search.textChanged.connect(lambda _value: apply_model_filter())
+    model_refresh.clicked.connect(refresh_model_inventory)
+    open_selected.clicked.connect(open_selected_resource)
+    copy_selected.clicked.connect(copy_selected_resource)
+    model_table.cellDoubleClicked.connect(lambda _row, _column: open_selected_resource())
+    model_table.itemSelectionChanged.connect(update_resource_actions)
     open_inventory.clicked.connect(lambda: show_workspace_sources(page, registry, controller, edition="integrated"))
     open_outputs.clicked.connect(lambda: open_path(PATHS.outputs))
     if research_mode:
+        open_runs.setEnabled(PATHS.app_runs.exists())
+        open_audit.setEnabled((PATHS.app_outputs / "operator_decisions.jsonl").exists())
         open_runs.clicked.connect(lambda: open_path(PATHS.app_runs))
         open_audit.clicked.connect(lambda: open_path(PATHS.app_outputs / "operator_decisions.jsonl"))
 

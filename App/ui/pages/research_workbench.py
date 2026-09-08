@@ -31,13 +31,18 @@ _TASKS = {
         TaskSpec("模型训练", "图神经网络训练", "fsl", "gnn", PATHS.outputs / "fsl" / "gnn"),
         TaskSpec("模型训练", "工况直接分类训练", "fsl", "direct", PATHS.outputs / "fsl" / "direct"),
         TaskSpec("模型训练", "工况转移模型训练", "fsl", "transition", PATHS.outputs / "fsl" / "transition"),
+        TaskSpec("风险训练", "砂堵风险概率训练", "fsl", "risk", PATHS.outputs / "fsl" / "risk", note="需要原始施工表与对应增强标注表"),
+        TaskSpec("风险训练", "未来绿黄红风险等级训练", "fsl", "risk-levels", PATHS.outputs / "fsl" / "risk_levels", note="附加参数需指定 --enhanced-file 与 --reference-risk-run"),
+        TaskSpec("风险训练", "风险边界校准", "fsl", "risk-boundaries", PATHS.outputs / "fsl" / "risk_boundaries", note="附加参数需指定 --prediction-run"),
+        TaskSpec("风险训练", "同井参数与风险联合评估", "fsl", "risk-evaluate", PATHS.outputs / "fsl" / "risk_evaluation", note="附加参数需指定 --enhanced-file 与 --risk-run"),
+        TaskSpec("风险训练", "Z6HF→Z7HF风险等级迁移", "fsl", "risk-transfer", PATHS.outputs / "fsl" / "risk_transfer", note="使用已登记Z6HF权重和目标井支持集"),
         TaskSpec("迁移训练", "跨井迁移训练", "fsl", "transfer", PATHS.outputs / "fsl" / "transfer"),
     ),
     "dt": (
-        TaskSpec("观测融合", "KG-EnKF观测同化验证", "dt", "validate", PATHS.outputs / "dt", needs_ml=False),
-        TaskSpec("正演对比", "PKN / PyFrac正演对比", "dt", "benchmark", PATHS.outputs / "dt", needs_ml=False),
-        TaskSpec("裂缝推演", "PyFrac内生推演与三维可视化", "dt", "visualize", PATHS.outputs / "dt" / "digital_twin_3d.html", needs_ml=False),
-        TaskSpec("液量调控", "Piggy-Bank阶段液量计算", "dt", "piggy-bank", PATHS.outputs / "dt" / "piggy_bank_open_loop", needs_ml=False),
+        TaskSpec("观测融合", "KG-EnKF观测同化验证", "dt", "validate", PATHS.outputs / "dt"),
+        TaskSpec("正演对比", "PKN / PyFrac正演对比", "dt", "benchmark", PATHS.outputs / "dt"),
+        TaskSpec("裂缝推演", "PyFrac内生推演与三维可视化", "dt", "visualize", PATHS.outputs / "dt" / "digital_twin_3d.html"),
+        TaskSpec("液量调控", "Piggy-Bank阶段液量计算", "dt", "piggy-bank", PATHS.outputs / "dt" / "piggy_bank_open_loop"),
     ),
     "hmi": (
         TaskSpec("响应代理", "训练响应代理模型", "hmi", "train-surrogate", PATHS.outputs / "hmi" / "response_surrogate"),
@@ -105,13 +110,13 @@ def _actual_input_text(area: str, task: TaskSpec | None) -> str:
         for label, path in _DT_FIXED_INPUTS.get(task.action, ()):
             status = "已找到" if path.is_file() else "缺失"
             lines.append(f"{label}：{_relative_path(path)}　[{status}]")
-        lines.append("井段切换不会替换上述文件；如需运行 FDBH10，需先登记对应 TXT、轨迹 CSV 和施工 XLS。")
         return "\n".join(lines)
     if area in {"fsl", "hmi"}:
-        return (
+        base = (
             "实际输入范围：Data/raw_frac/（按脚本参数读取独立井段数据）\n"
             f"当前任务输出：{_relative_path(task.output)}"
         )
+        return base + (f"\n运行条件：{task.note}" if task.note else "")
     return "实际输入：由任务脚本参数确定"
 
 
@@ -121,12 +126,14 @@ def build_research_workbench(area: str, registry, controller):
     from PySide6.QtCore import QProcess, QUrl, Qt
     from PySide6.QtGui import QDesktopServices, QTextCursor
     from PySide6.QtWidgets import (
+        QComboBox,
         QHBoxLayout,
         QLabel,
         QLineEdit,
         QPlainTextEdit,
         QPushButton,
         QScrollArea,
+        QSpinBox,
         QTabWidget,
         QVBoxLayout,
         QWidget,
@@ -156,6 +163,7 @@ def build_research_workbench(area: str, registry, controller):
     layout.addWidget(tabs)
     selected = {"task": tasks[0] if tasks else None}
     select_buttons = []
+    selected_button = {"widget": None}
 
     for group in dict.fromkeys(task.group for task in tasks):
         tab = QWidget()
@@ -189,13 +197,47 @@ def build_research_workbench(area: str, registry, controller):
     input_files.setWordWrap(True)
     input_files.setTextInteractionFlags(Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard)
     runner_layout.addWidget(input_files)
-    args_row = QHBoxLayout()
-    args_row.addWidget(QLabel("附加参数"))
-    extra_args = QLineEdit()
-    extra_args.setObjectName("researchExtraArgs")
-    extra_args.setPlaceholderText("可选：填写脚本支持的命令行参数")
-    args_row.addWidget(extra_args, 1)
-    runner_layout.addLayout(args_row)
+    parameter_row = QHBoxLayout()
+    parameter_row.setSpacing(8)
+    algorithm_label = QLabel("算法")
+    algorithm = QComboBox()
+    algorithm.setObjectName("researchAlgorithm")
+    primary_label = QLabel("训练步数")
+    primary_value = QSpinBox()
+    primary_value.setObjectName("researchPrimaryParameter")
+    primary_value.setRange(1, 10_000_000)
+    primary_value.setSingleStep(1000)
+    secondary_label = QLabel("微调轮次")
+    secondary_value = QSpinBox()
+    secondary_value.setObjectName("researchSecondaryParameter")
+    secondary_value.setRange(1, 100_000)
+    seed_label = QLabel("随机种子")
+    seed_value = QSpinBox()
+    seed_value.setObjectName("researchSeed")
+    seed_value.setRange(0, 2_147_483_647)
+    for widget in (
+        algorithm_label,
+        algorithm,
+        primary_label,
+        primary_value,
+        secondary_label,
+        secondary_value,
+        seed_label,
+        seed_value,
+    ):
+        parameter_row.addWidget(widget)
+    parameter_row.addStretch(1)
+    runner_layout.addLayout(parameter_row)
+    extra_row = QHBoxLayout()
+    extra_row.setSpacing(8)
+    extra_row.addWidget(QLabel("附加参数"))
+    extra_arguments = QLineEdit()
+    extra_arguments.setObjectName("researchExtraArguments")
+    extra_arguments.setPlaceholderText("可选，例如：--enhanced-file 文件名.xlsx --risk-run outputs/fsl/risk/运行目录")
+    extra_arguments.setToolTip("参数直接传给所选Python脚本，不通过命令行外壳执行；带空格的路径请用双引号包围")
+    extra_row.addWidget(extra_arguments, 1)
+    runner_layout.addLayout(extra_row)
+    parameter_spec: dict[str, object] = {}
     actions = QHBoxLayout()
     start = QPushButton("开始运行")
     start.setObjectName("researchRunButton")
@@ -235,10 +277,10 @@ def build_research_workbench(area: str, registry, controller):
         identity = dataset.get("display_name") or dataset.get("stage_id") or dataset_id or "未选择井段"
         if area == "dt":
             context.setText(
-                "当前任务输入：JY84-Z1 · Stage 08　·　正演/同化脚本使用固定登记文件，顶部井段切换已禁用"
+                "当前任务输入：JY84-Z1 · Stage 08　·　正演/同化脚本使用固定登记文件"
             )
         else:
-            scope = "训练脚本按已登记数据目录运行；顶部井段用于结果核对，不限制训练数据范围。"
+            scope = "训练脚本按已登记数据目录运行。"
             context.setText(f"当前核对井段：{identity}　·　{scope}")
         if area == "dt":
             native_workbench.set_dataset(dataset)
@@ -250,32 +292,164 @@ def build_research_workbench(area: str, registry, controller):
         if native_visible:
             native_workbench.set_dataset(registry.dataset())
 
-    def choose_task(task: TaskSpec):
+    def configure_parameters(task: TaskSpec | None):
+        nonlocal parameter_spec
+        parameter_spec = {}
+        for widget in (
+            algorithm_label,
+            algorithm,
+            primary_label,
+            primary_value,
+            secondary_label,
+            secondary_value,
+            seed_label,
+            seed_value,
+        ):
+            widget.setVisible(False)
+        if task is None:
+            return
+
+        if task.module == "fsl":
+            seed_label.setVisible(True)
+            seed_value.setVisible(True)
+            seed_value.setValue(42)
+            parameter_spec["seed"] = "--seed"
+            if task.action in {"train", "direct", "transition"}:
+                primary_label.setText("树数量")
+                primary_value.setRange(10, 5000)
+                primary_value.setSingleStep(50)
+                primary_value.setValue(300)
+                parameter_spec["primary"] = "--n-estimators"
+            elif task.action == "gnn":
+                primary_label.setText("训练轮次")
+                primary_value.setRange(1, 10_000)
+                primary_value.setSingleStep(10)
+                primary_value.setValue(50)
+                parameter_spec["primary"] = "--epochs"
+            elif task.action == "risk":
+                primary_label.setText("训练轮次")
+                primary_value.setRange(1, 1000)
+                primary_value.setSingleStep(2)
+                primary_value.setValue(12)
+                parameter_spec["primary"] = "--epochs"
+            elif task.action == "risk-transfer":
+                primary_label.setText("目标井微调轮次")
+                primary_value.setRange(1, 1000)
+                primary_value.setSingleStep(1)
+                primary_value.setValue(5)
+                parameter_spec["primary"] = "--finetune-epochs"
+            elif task.action == "transfer":
+                primary_label.setText("基础训练轮次")
+                primary_value.setRange(1, 10_000)
+                primary_value.setSingleStep(5)
+                primary_value.setValue(20)
+                secondary_label.setText("目标井微调轮次")
+                secondary_value.setValue(10)
+                secondary_label.setVisible(True)
+                secondary_value.setVisible(True)
+                parameter_spec["primary"] = "--pretrain-epochs"
+                parameter_spec["secondary"] = "--finetune-epochs"
+            primary_label.setVisible("primary" in parameter_spec)
+            primary_value.setVisible("primary" in parameter_spec)
+            return
+
+        if task.module != "hmi":
+            return
+        if task.action in {"train", "full-train", "optimize", "curriculum", "scenarios"}:
+            choices = ["PPO", "SAC"] if task.action in {"full-train", "scenarios"} else ["PPO", "SAC", "TD3"]
+            algorithm.clear()
+            algorithm.addItems(choices)
+            algorithm_label.setVisible(True)
+            algorithm.setVisible(True)
+            parameter_spec["algorithm"] = "--algorithm"
+        if task.action in {"train", "full-train", "optimize", "scenarios"}:
+            primary_label.setText("训练步数")
+            primary_value.setRange(100, 10_000_000)
+            primary_value.setSingleStep(5000)
+            primary_value.setValue(100_000 if task.action != "scenarios" else 5000)
+            primary_label.setVisible(True)
+            primary_value.setVisible(True)
+            parameter_spec["primary"] = "--total-timesteps"
+        elif task.action == "curriculum":
+            primary_label.setText("每阶段步数")
+            primary_value.setRange(100, 10_000_000)
+            primary_value.setSingleStep(5000)
+            primary_value.setValue(20_000)
+            primary_label.setVisible(True)
+            primary_value.setVisible(True)
+            parameter_spec["primary"] = "--stage-timesteps"
+        elif task.action == "train-surrogate":
+            primary_label.setText("最大样本数")
+            primary_value.setRange(100, 5_000_000)
+            primary_value.setSingleStep(5000)
+            primary_value.setValue(50_000)
+            primary_label.setVisible(True)
+            primary_value.setVisible(True)
+            parameter_spec["primary"] = "--max-samples"
+        elif task.action == "validate-env":
+            primary_label.setText("验证步数")
+            primary_value.setRange(1, 100_000)
+            primary_value.setSingleStep(5)
+            primary_value.setValue(6)
+            primary_label.setVisible(True)
+            primary_value.setVisible(True)
+            parameter_spec["primary"] = "--steps"
+        if task.action in {"train", "full-train", "optimize", "curriculum", "train-surrogate", "validate-env"}:
+            seed_label.setVisible(True)
+            seed_value.setVisible(True)
+            seed_value.setValue(2026)
+            parameter_spec["seed"] = "--seeds" if task.action in {"full-train", "optimize"} else "--seed"
+
+    def choose_task(task: TaskSpec, button=None, *, reveal: bool = True):
+        previous = selected_button["widget"]
+        if previous is not None and previous is not button:
+            previous.setText("选择任务")
+        if button is not None:
+            button.setText("已选择")
+            selected_button["widget"] = button
         selected["task"] = task
         selected_label.setText(task.name)
         input_files.setText(_actual_input_text(area, task))
         task_status.setText(f"准备运行：{task.module} {task.action}")
+        configure_parameters(task)
         set_task_surface(task)
+        if reveal:
+            # The task runner is below the task tabs.  Selecting a task should
+            # produce visible feedback and take the operator to the next step
+            # instead of silently changing controls below the fold.
+            target_panel = runner_panel if runner_panel.isVisible() else native_workbench
+            page.ensureWidgetVisible(target_panel)
 
     def choose_group(index: int):
         group = tabs.tabText(index)
         task = next((item for item in tasks if item.group == group), None)
         if task is not None:
-            choose_task(task)
+            button = next((widget for widget, item in select_buttons if item == task), None)
+            choose_task(task, button)
 
     for button, task in select_buttons:
-        button.clicked.connect(lambda _checked=False, item=task: choose_task(item))
+        button.clicked.connect(lambda _checked=False, item=task, widget=button: choose_task(item, widget))
     tabs.currentChanged.connect(choose_group)
 
-    def split_args() -> list[str] | None:
-        value = extra_args.text().strip()
-        if not value:
-            return []
-        try:
-            return [item.strip('"') for item in shlex.split(value, posix=False)]
-        except ValueError as exc:
-            task_status.setText(f"附加参数格式错误：{exc}")
-            return None
+    def selected_parameters() -> list[str]:
+        values: list[str] = []
+        if "algorithm" in parameter_spec:
+            values.extend([str(parameter_spec["algorithm"]), algorithm.currentText().lower()])
+        if "primary" in parameter_spec:
+            values.extend([str(parameter_spec["primary"]), str(primary_value.value())])
+        if "secondary" in parameter_spec:
+            values.extend([str(parameter_spec["secondary"]), str(secondary_value.value())])
+        if "seed" in parameter_spec:
+            values.extend([str(parameter_spec["seed"]), str(seed_value.value())])
+        if extra_arguments.text().strip():
+            tokens = shlex.split(extra_arguments.text(), posix=False)
+            values.extend(
+                token[1:-1]
+                if len(token) >= 2 and token[0] == token[-1] and token[0] in {'"', "'"}
+                else token
+                for token in tokens
+            )
+        return values
 
     def start_task():
         task = selected.get("task")
@@ -289,8 +463,10 @@ def build_research_workbench(area: str, registry, controller):
                 task_status.setText(f"任务未启动：{runtime_note}")
                 return
             executable = resolved
-        parsed_args = split_args()
-        if parsed_args is None:
+        try:
+            parsed_args = selected_parameters()
+        except ValueError as exc:
+            task_status.setText(f"附加参数格式错误：{exc}")
             return
         arguments = [str(PATHS.root / "run_project.py"), task.module, task.action, *parsed_args]
         log.clear()
@@ -318,7 +494,7 @@ def build_research_workbench(area: str, registry, controller):
         start.setEnabled(True)
         stop.setEnabled(False)
         if exit_code == 0:
-            task_status.setText(f"运行完成：{task.name if task else '--'}。请在输出目录核对本次结果。")
+            task_status.setText(f"运行完成：{task.name if task else ''}。请在输出目录核对本次结果。")
         else:
             task_status.setText(f"运行失败或已停止（返回码 {exit_code}）；日志保留在本页。")
 
@@ -342,7 +518,8 @@ def build_research_workbench(area: str, registry, controller):
     runner.process.errorOccurred.connect(task_error)
 
     if tasks:
-        choose_task(tasks[0])
+        first_button = select_buttons[0][0] if select_buttons else None
+        choose_task(tasks[0], first_button, reveal=False)
     refresh_context()
 
     def set_global_dataset(dataset_id):

@@ -36,8 +36,8 @@ def create_pyfrac_comparison_panel(comparison: PyFracComparison):
 
     def update_view(value: PyFracComparison) -> None:
         if not value.available or not value.points:
-            status.setText(f"PyFrac 对照：未接入 · {value.note or '暂无有效原生动态结果'}")
-            metric.setText("当前在线链路仍为 PKN + EnKF；PyFrac 未作为在线状态或推荐动作使用。")
+            status.setText(value.note or "暂无 PyFrac 对照结果")
+            metric.clear()
             length_chart.set_series([])
             aperture_chart.set_series([])
             pressure_chart.set_series([])
@@ -69,7 +69,7 @@ def create_pyfrac_comparison_panel(comparison: PyFracComparison):
             f"末检查点 t={latest.time_s:.0f}s："
             f"半缝长 PKN {_fmt(latest.pkn_half_length_m)} m / PyFrac {_fmt(latest.pyfrac_half_length_m)} m；"
             f"最大开度 PKN {_fmt(latest.pkn_max_aperture_mm)} mm / PyFrac {_fmt(latest.pyfrac_max_aperture_mm)} mm；"
-            f"PyFrac耗时 {_fmt(latest.pyfrac_runtime_s)} s，成功步数 {latest.successful_time_steps or '--'}。"
+            f"PyFrac耗时 {_fmt(latest.pyfrac_runtime_s)} s，成功步数 {latest.successful_time_steps or ''}。"
             "模型差异不等于现场几何误差。"
         )
 
@@ -86,4 +86,4 @@ def _or_nan(value):
 
 
 def _fmt(value):
-    return "--" if value is None else f"{float(value):.3f}"
+    return "" if value is None else f"{float(value):.3f}"

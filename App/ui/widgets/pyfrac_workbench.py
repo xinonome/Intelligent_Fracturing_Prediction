@@ -52,7 +52,7 @@ def create_pyfrac_workbench(parent=None, dataset=None):
             points = [(item["x_m"], item["y_m"]) for item in field] + [tuple(item[:2]) for item in front]
             if not points:
                 painter.setPen(QColor(PALETTE["muted"]))
-                painter.drawText(14, 52, "此内部点未保存场与前缘；不插值补造。")
+                painter.drawText(14, 52, "当前内部点没有场与前缘数据")
                 return
             xs, ys = [p[0] for p in points], [p[1] for p in points]
             x_span = max(max(xs) - min(xs), 1.0)
@@ -102,20 +102,24 @@ def create_pyfrac_workbench(parent=None, dataset=None):
     tabs.addTab(evolution_page, "压力与演化")
     tabs.addTab(parameter_page, "参数全流程")
     tabs.addTab(history_page, "内部步与体积")
-    controls, controls_layout = Panel.create("原生单裂缝推演 · 不是多簇EnKF同化")
+    controls, controls_layout = Panel.create("PyFrac 原生推演")
     first_row = QHBoxLayout()
     sigma = QDoubleSpinBox()
+    sigma.setObjectName("pyfracSigmaMin")
     sigma.setRange(20.0, 120.0)
     sigma.setDecimals(2)
     sigma.setValue(112.5)
     sigma.setSuffix(" MPa")
     target = QDoubleSpinBox()
+    target.setObjectName("pyfracTargetTime")
     target.setRange(2.0, 4435.0)
     target.setDecimals(0)
     target.setValue(4435.0)
     target.setSuffix(" s")
     start = QPushButton("开始重新推演")
+    start.setObjectName("pyfracStart")
     stop = QPushButton("停止计算")
+    stop.setObjectName("pyfracStop")
     stop.setEnabled(False)
     save = QPushButton("保存参数方案")
     rollback = QPushButton("回退参数方案")
@@ -130,13 +134,13 @@ def create_pyfrac_workbench(parent=None, dataset=None):
         scheme_row.addWidget(widget)
     scheme_row.addStretch(1)
     controls_layout.addLayout(scheme_row)
-    start.setToolTip("仅使用本井段已验证注入历史（1–4435 s）；从初始状态重算，不复用旧裂缝状态。仅开放σmin及目标时间。")
+    start.setToolTip("从初始状态重新执行 PyFrac 推演")
     run_status = QLabel()
     run_status.setObjectName("notice")
     run_status.setWordWrap(True)
     controls_layout.addWidget(run_status)
     parameter_layout.addWidget(controls)
-    parameter_note = QLabel("可编辑：最小水平应力、目标时间。其余地层/流体/网格配置为已验证模板，只读；不宣称全部参数可反演。")
+    parameter_note = QLabel("可调参数：最小水平应力、目标模拟时间")
     parameter_note.setWordWrap(True)
     parameter_layout.addWidget(parameter_note)
     parameter_details = QPlainTextEdit()
@@ -155,7 +159,7 @@ def create_pyfrac_workbench(parent=None, dataset=None):
     jump.setRange(0.0, 4435.0)
     jump.setSuffix(" s")
     jump_button = QPushButton("跳转")
-    frame_label = QLabel("内部点 --")
+    frame_label = QLabel("")
     for widget in (play, reset, back, forward):
         row.addWidget(widget)
     row.addWidget(slider, 1)
@@ -267,7 +271,7 @@ def create_pyfrac_workbench(parent=None, dataset=None):
 
     def set_index(index):
         if not runtime.frames:
-            frame_label.setText("内部点 --")
+            frame_label.clear()
             detail.setText("当前没有真实原生内部计算点。")
             field_view.set_frame(None)
             return
@@ -283,8 +287,8 @@ def create_pyfrac_workbench(parent=None, dataset=None):
         frame_label.setText(f"内部点 {index + 1}/{runtime.point_count}")
         detail.setText(
             f"内部点 {index + 1}/{runtime.point_count}　|　模拟时间 {frame.time_s:.3f} s　|　"
-            f"Δt {_fmt(frame.time_step_s)} s　|　裂缝单元 {frame.crack_cells or '--'}　|　"
-            f"前缘单元 {frame.tip_cells or '--'}"
+            f"Δt {_fmt(frame.time_step_s)} s　|　裂缝单元 {frame.crack_cells or ''}　|　"
+            f"前缘单元 {frame.tip_cells or ''}"
         )
 
     def toggle_play():
@@ -398,7 +402,7 @@ def create_pyfrac_workbench(parent=None, dataset=None):
     def update_availability():
         reason = native_context_reason(context)
         run_reason = native_run_reason(context)
-        context_label.setText(reason or "焦页84-Z1 / Stage 08 · 原生单裂缝 · 已验证注入窗口1–4435 s（非全段7331 s）")
+        context_label.setText(reason or "当前任务输入：JY84-Z1 · Stage 08")
         start.setEnabled(not run_reason and not running)
         start.setToolTip(run_reason or "使用本井段已验证注入历史，从初始状态重新推演。")
         for control in (sigma, target, save, rollback):
@@ -468,8 +472,8 @@ def _fmt(value):
     try:
         number = float(value)
     except (TypeError, ValueError):
-        return "--"
-    return f"{number:.3f}" if math.isfinite(number) else "--"
+        return ""
+    return f"{number:.3f}" if math.isfinite(number) else ""
 
 
 __all__ = ["create_pyfrac_workbench"]

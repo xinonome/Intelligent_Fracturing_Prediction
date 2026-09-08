@@ -10,7 +10,7 @@ import sys
 from ..parameter_format import format_parameter_map
 from ..theme import PALETTE
 from ..widgets.chart_panel import build_chart
-from ..widgets.cluster_view import create_cluster_share_chart, create_cluster_view, update_cluster_view
+from ..widgets.cluster_view import create_cluster_share_chart
 from ..widgets.parameter_panel import create_parameter_panel, update_parameter_panel
 from ..widgets.status_card import Panel
 from ..widgets.timeline_control import create_timeline_control
@@ -41,8 +41,8 @@ _INTERACTION_PARAMETER_KEYS = (
 
 
 def build_dt_page(controller, registry):
-    from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
+    from PySide6.QtCore import QTimer, Qt
+    from PySide6.QtWidgets import QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSplitter, QVBoxLayout, QWidget
 
     page = QScrollArea()
     page.setObjectName("dtPageScroll")
@@ -64,14 +64,6 @@ def build_dt_page(controller, registry):
     model_box = QComboBox()
     model_box.addItem("PKN + KG-EnKF", "online")
     model_box.addItem("PyFrac原生模型", "pyfrac")
-    model_box.addItem("PyFrac代理模型（不可用）", "surrogate")
-    surrogate_item = model_box.model().item(2)
-    if surrogate_item is not None:
-        surrogate_item.setEnabled(False)
-    scenario_box = QComboBox()
-    scenario_box.addItem("有 DAS", "das_cluster_observation")
-    scenario_box.addItem("无 DAS", "no_das_pressure_only")
-    scenario_box.setCurrentIndex(max(0, scenario_box.findData(getattr(registry, "scenario_id", "das_cluster_observation"))))
     dataset_label = _label("", "key")
     dataset_label.setMinimumWidth(280)
     dataset_label.setVisible(False)
@@ -79,17 +71,14 @@ def build_dt_page(controller, registry):
     recompute_button = QPushButton("重新计算")
     stop_compute_button = QPushButton("停止计算")
     stop_compute_button.setEnabled(False)
-    apply_button = QPushButton("应用当前后验")
-    apply_button.setEnabled(False)
-    apply_button.setToolTip("现场参数写入接口尚未接入；当前页面只读回放")
     rollback_button = QPushButton("回退到上一步")
     export_button = QPushButton("导出当前帧")
-    for widget in (QLabel("模型"), model_box, QLabel("场景"), scenario_box):
+    for widget in (QLabel("模型"), model_box):
         operation_row.addWidget(widget)
     operation_row.addStretch(1)
     operations_layout.addLayout(operation_row)
     operation_actions = QHBoxLayout()
-    for widget in (recompute_button, stop_compute_button, apply_button, rollback_button, export_button):
+    for widget in (recompute_button, stop_compute_button, rollback_button, export_button):
         operation_actions.addWidget(widget)
     operation_actions.addStretch(1)
     operations_layout.addLayout(operation_actions)
@@ -109,7 +98,6 @@ def build_dt_page(controller, registry):
     chart_row.addWidget(error_chart, 0, 1)
     chart_row.setColumnStretch(0, 2)
     chart_row.setColumnStretch(1, 1)
-    layout.addLayout(chart_row)
 
     parameter_trend = build_chart("EnKF参数分组变化 / % · 相对先验", 250)
     cluster_chart = create_cluster_share_chart()
@@ -119,15 +107,13 @@ def build_dt_page(controller, registry):
     state_row.addWidget(cluster_chart, 0, 1)
     state_row.setColumnStretch(0, 2)
     state_row.setColumnStretch(1, 1)
-    layout.addLayout(state_row)
 
     model_panel, model_layout = Panel.create("六簇裂缝演化")
     model = Embedded3DView.create(registry.html(getattr(registry, "scenario_id", None)))
-    model.setMinimumHeight(430)
+    model.setMinimumHeight(690)
     if getattr(timeline, "set_playback_callback", None):
         timeline.set_playback_callback(lambda playing: model.set_interaction_enabled(not playing))
     model_layout.addWidget(model)
-    layout.addWidget(model_panel)
 
     params = create_parameter_panel(
         "EnKF参数更新 · 当前帧",
@@ -156,17 +142,31 @@ def build_dt_page(controller, registry):
                     ("fracture_length", "总半缝长"),
                     ("fracture_width", "最大缝宽"),
                     ("runtime", "当前帧耗时"),
+                    ("cluster_allocation", "簇级半长与份额"),
                 ],
             ),
         ],
         column_stretches=[3, 3, 2],
     )
-    clusters = create_cluster_view()
-    cluster_title = QLabel("六簇裂缝与分配结果 · 当前帧")
-    cluster_title.setObjectName("key")
-    params.layout().addWidget(cluster_title)
-    params.layout().addWidget(clusters)
-    layout.addWidget(params)
+    chart_host = QWidget()
+    chart_host.setLayout(chart_row)
+    state_host = QWidget()
+    state_host.setLayout(state_row)
+    right_column = QWidget()
+    right_layout = QVBoxLayout(right_column)
+    right_layout.setContentsMargins(0, 0, 0, 0)
+    right_layout.setSpacing(8)
+    right_layout.addWidget(chart_host)
+    right_layout.addWidget(state_host)
+    right_layout.addWidget(params)
+    workspace = QSplitter(Qt.Horizontal)
+    workspace.setChildrenCollapsible(False)
+    workspace.addWidget(model_panel)
+    workspace.addWidget(right_column)
+    workspace.setStretchFactor(0, 2)
+    workspace.setStretchFactor(1, 3)
+    workspace.setSizes([580, 980])
+    layout.addWidget(workspace)
 
     source_label = _label("", "muted")
     layout.addWidget(source_label)
@@ -178,17 +178,6 @@ def build_dt_page(controller, registry):
 
         dataset = registry.dataset()
         dataset_label.setText(str(dataset.get("display_name") or dataset.get("stage_id") or registry.dataset_id))
-        current_scenario = str(getattr(registry, "scenario_id", ""))
-        for index in range(scenario_box.count()):
-            scenario_id = str(scenario_box.itemData(index) or "")
-            item = scenario_box.model().item(index)
-            if item is not None:
-                item.setEnabled(bool(registry.dataset_ready_for_scenario(registry.dataset_id, scenario_id)))
-        scenario_index = scenario_box.findData(current_scenario)
-        if scenario_index >= 0:
-            scenario_box.blockSignals(True)
-            scenario_box.setCurrentIndex(scenario_index)
-            scenario_box.blockSignals(False)
         operation_status.setText("")
         pyfrac_workbench.set_dataset(dict(dataset, dataset_id=str(getattr(registry, "dataset_id", ""))))
         recompute_button.setEnabled(dataset.get("adapter") == "raw_frac_construction")
@@ -197,31 +186,6 @@ def build_dt_page(controller, registry):
             if dataset.get("adapter") == "raw_frac_construction"
             else "有 DAS 参考井段使用已登记同化结果；此处不覆盖研究运行。"
         )
-
-    def load_selection():
-        scenario_id = str(scenario_box.currentData() or "")
-        dataset_id = str(getattr(registry, "dataset_id", "") or "")
-        if not dataset_id or not registry.dataset_ready_for_scenario(dataset_id, scenario_id):
-            operation_status.setText("当前井段没有该场景的可用数据。请切换顶部数据井段或场景。")
-            return
-        operation_status.setText("正在读取井段并构建回放…")
-        try:
-            frames = controller.prepare_scenario_frames(scenario_id, dataset_id=dataset_id)
-            controller.apply_scenario_frames(scenario_id, frames, dataset_id=dataset_id)
-            model.set_html_path(registry.html(scenario_id))
-            operation_status.setText(f"已加载当前井段 · {len(frames)} 个回放节点")
-        except Exception as exc:
-            operation_status.setText(f"井段加载失败：{exc}")
-
-    def change_scenario(index):
-        scenario_id = str(scenario_box.itemData(index) or "")
-        if not scenario_id or scenario_id == str(getattr(registry, "scenario_id", "")):
-            return
-        if not registry.dataset_ready_for_scenario(registry.dataset_id, scenario_id):
-            operation_status.setText("当前井段不支持该场景，已保留原场景。")
-            sync_dataset_context()
-            return
-        load_selection()
 
     def recompute():
         dataset = registry.dataset()
@@ -236,14 +200,12 @@ def build_dt_page(controller, registry):
         recompute_button.setEnabled(False)
         stop_compute_button.setEnabled(True)
         model_box.setEnabled(False)
-        scenario_box.setEnabled(False)
         operation_status.setText("正在从当前井段原始数据重新计算无 DAS 数字孪生…")
         runner.start(command[0], command[1:], Path(__file__).resolve().parents[3])
 
     def recompute_finished(exit_code, _status):
         stop_compute_button.setEnabled(False)
         model_box.setEnabled(True)
-        scenario_box.setEnabled(True)
         recompute_button.setEnabled(registry.dataset().get("adapter") == "raw_frac_construction")
         if exit_code != 0:
             operation_status.setText(f"重新计算失败或已停止（返回码 {exit_code}）。")
@@ -263,7 +225,6 @@ def build_dt_page(controller, registry):
             Path(destination).write_text(json.dumps(controller.current or {}, ensure_ascii=False, indent=2), encoding="utf-8")
             operation_status.setText(f"当前帧已导出：{destination}")
 
-    scenario_box.currentIndexChanged.connect(change_scenario)
     recompute_button.clicked.connect(recompute)
     stop_compute_button.clicked.connect(runner.cancel)
     rollback_button.clicked.connect(lambda: controller.step(-1))
@@ -273,21 +234,10 @@ def build_dt_page(controller, registry):
         lambda _error: (
             stop_compute_button.setEnabled(False),
             model_box.setEnabled(True),
-            scenario_box.setEnabled(True),
             operation_status.setText(f"计算进程未能启动：{runner.process.errorString()}"),
         )
     )
-    standard_widgets = (
-        pressure_chart,
-        error_chart,
-        parameter_trend,
-        cluster_chart,
-        model_panel,
-        params,
-        clusters,
-        source_label,
-        timeline,
-    )
+    standard_widgets = (workspace, source_label, timeline)
 
     def set_model_mode():
         mode = str(model_box.currentData() or "online")
@@ -295,11 +245,10 @@ def build_dt_page(controller, registry):
         pyfrac_workbench.setVisible(pyfrac_mode)
         for widget in standard_widgets:
             widget.setVisible(not pyfrac_mode)
-        for widget in (scenario_box, recompute_button, rollback_button, export_button):
+        for widget in (recompute_button, rollback_button, export_button):
             widget.setEnabled(not pyfrac_mode)
         if pyfrac_mode:
             stop_compute_button.setEnabled(False)
-        apply_button.setEnabled(False)
         if pyfrac_mode:
             operation_status.setText("PyFrac原生推演 · 当前井段能力见参数页状态")
         else:
@@ -363,7 +312,6 @@ def build_dt_page(controller, registry):
         error_chart.set_index(controller.index)
         parameter_trend.set_index(controller.index)
         cluster_chart.set_frame(frame)
-        update_cluster_view(clusters, frame)
         time_s = _field(frame, "time_s", "time_s")
         if time_s is not None:
             model.set_time_index(time_s)
@@ -385,6 +333,7 @@ def build_dt_page(controller, registry):
                 "fracture_length": _field(frame, "fracture_length_m", "fracture_length_m"),
                 "fracture_width": _scale(_field(frame, "fracture_width_m", "fracture_width_m"), 1000.0),
                 "runtime": _field(frame, "runtime_ms", "runtime_ms"),
+                "cluster_allocation": _format_cluster_allocation(frame),
             },
             {
                 "balance": "{:.3f}",
@@ -398,20 +347,29 @@ def build_dt_page(controller, registry):
     refresh_visuals()
     controller.frameChanged.connect(update)
     update(controller.current or {})
-    pending_dataset_visual = {"value": False}
+    visual_refresh_token = {"value": 0}
 
-    def refresh_dataset_visual():
-        """Load the selected stage's 3D document only when this page is visible."""
+    def _apply_dataset_visual(token: int):
+        """Load only the newest stage document after the data commit settles."""
 
-        if not page.isVisible():
-            pending_dataset_visual["value"] = True
+        if token != visual_refresh_token["value"] or not page.isVisible():
             return
-        pending_dataset_visual["value"] = False
         scenario_html = registry.html(getattr(registry, "scenario_id", None))
+        model._dataset_switch_pending = False
         if scenario_html and getattr(model, "set_html_path", None):
             model.set_html_path(scenario_html)
 
+    def refresh_dataset_visual():
+        """Defer WebEngine navigation until the global data switch is settled."""
+
+        visual_refresh_token["value"] += 1
+        token = visual_refresh_token["value"]
+        if not page.isVisible():
+            return
+        QTimer.singleShot(180, lambda: _apply_dataset_visual(token))
+
     def set_global_dataset(_dataset_id):
+        model._dataset_switch_pending = True
         sync_dataset_context()
         refresh_dataset_visual()
 
@@ -486,6 +444,74 @@ def _select_parameters(parameters: dict, keys: tuple[str, ...]) -> dict:
     return {key: parameters[key] for key in keys if _number(parameters.get(key)) is not None}
 
 
+def _format_cluster_allocation(frame: dict) -> str | None:
+    """Render the former cluster table as part of the EnKF parameter panel.
+
+    The values are read from the current replay frame.  No fallback values are
+    invented: when a cluster-level result is unavailable, the panel says so
+    explicitly instead of displaying an empty table or placeholder numbers.
+    """
+
+    clusters = _cluster_rows(frame)
+    if not clusters:
+        return None
+
+    rows = []
+    for index, item in enumerate(clusters, start=1):
+        prior = _cluster_number(item.get("prior_length"), scientific=True)
+        posterior = _cluster_number(item.get("length"), scientific=True)
+        liquid = _cluster_number(item.get("liquid"))
+        sand = _cluster_number(item.get("sand"))
+        values = []
+        if prior:
+            values.append(f"先验半长 {prior} m")
+        if posterior:
+            values.append(f"后验半长 {posterior} m")
+        if liquid:
+            values.append(f"液量 {liquid}")
+        if sand:
+            values.append(f"砂量 {sand}")
+        if values:
+            rows.append(f"簇{index}：" + "；".join(values))
+    return "<br>".join(rows) if rows else None
+
+
+def _cluster_rows(frame: dict) -> list[dict]:
+    """Return cluster data from a frame, including legacy array fallbacks."""
+
+    values = frame.get("clusters", []) or []
+    if values:
+        return list(values)
+
+    dt = frame.get("dt", {}) or {}
+    values = dt.get("clusters", []) or []
+    if values:
+        return list(values)
+
+    prior = dt.get("prior_half_lengths_m", []) or []
+    posterior = dt.get("posterior_half_lengths_m", []) or []
+    count = max(len(prior), len(posterior))
+    return [
+        {
+            "id": index + 1,
+            "prior_length": prior[index] if index < len(prior) else None,
+            "length": posterior[index] if index < len(posterior) else None,
+            "liquid": None,
+            "sand": None,
+        }
+        for index in range(count)
+    ]
+
+
+def _cluster_number(value, *, scientific: bool = False) -> str:
+    number = _number(value)
+    if number is None:
+        return ""
+    if scientific and abs(number) < 0.01:
+        return f"{number:.2e}"
+    return f"{number:.2f}"
+
+
 def _parameter_group_change(frame: dict, keys: tuple[str, ...]):
     dt = frame.get("dt", {}) or {}
     prior = dt.get("prior_parameters", {}) or {}
@@ -512,17 +538,17 @@ def _source_name(frame: dict) -> str:
 
 def _fmt_seconds(value) -> str:
     number = _number(value)
-    return "--" if number is None else f"{number:.0f}"
+    return "" if number is None else f"{number:.0f}"
 
 
 def _pct(value):
     value = _number(value)
-    return "--" if value is None else f"{value * 100:.1f}%"
+    return "" if value is None else f"{value * 100:.1f}%"
 
 
 def _ms(value):
     value = _number(value)
-    return "--" if value is None else f"{value:.1f} ms"
+    return "" if value is None else f"{value:.1f} ms"
 
 
 __all__ = ["build_dt_page"]

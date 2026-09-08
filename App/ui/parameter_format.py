@@ -40,7 +40,7 @@ def _format_value(value: Any) -> str:
     try:
         return f"{float(value):.3f}"
     except (TypeError, ValueError):
-        return "--"
+        return ""
 
 
 def format_parameter_map(values: dict[str, Any] | None) -> str:
@@ -52,7 +52,7 @@ def format_parameter_map(values: dict[str, Any] | None) -> str:
     """
 
     if not values:
-        return "缺失 · 未接入"
+        return ""
     formatted = []
     for key, value in values.items():
         symbol, unit = _parameter_label(str(key))

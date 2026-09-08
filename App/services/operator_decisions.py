@@ -22,7 +22,7 @@ def append_decision(entry: dict[str, Any], path: Path | None = None) -> dict[str
     record.setdefault("record_type", "review")
     record.setdefault("recorded_at", datetime.now().isoformat(timespec="seconds"))
     # This service is an audit trail, never an actuator or dispatch queue.
-    record["execution_state"] = "人工撤销记录，未下发现场" if record["record_type"] == "rollback" else "人工已记录，未下发现场"
+    record["execution_state"] = "已撤销" if record["record_type"] == "rollback" else "已记录"
     target = Path(path or DEFAULT_LOG)
     with _LOG_LOCK:
         target.parent.mkdir(parents=True, exist_ok=True)

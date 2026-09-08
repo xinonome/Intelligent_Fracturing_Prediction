@@ -118,6 +118,8 @@ HTML_TEMPLATE = r'''<!doctype html>
     let positions = new Map();
     const manualPositions = new Map();
     let dragState = null;
+    let panOffset = { x:0, y:0 };
+    let zoomScale = 1;
     let visibleIds = [];
     const focusPattern = /砂堵|压力|排量|砂比|滤失|裂缝|应力|风险|异常|施工|处置/;
 
@@ -181,19 +183,19 @@ HTML_TEMPLATE = r'''<!doctype html>
         const ringCount = Math.min(16, sorted.length - 1 - (ring - 1) * 16);
         const slot = index % 16;
         const angle = (Math.PI * 2 * slot / Math.max(ringCount, 1)) - Math.PI / 2;
-        const radius = Math.min(width, height) * (0.18 + ring * 0.14);
+        const radius = Math.min(width, height) * (0.18 + ring * 0.14) * zoomScale;
         const saved = manualPositions.get(id);
         result.set(id, saved ? {
-          x: Math.max(8, Math.min(width - 8, saved.x)),
-          y: Math.max(8, Math.min(height - 8, saved.y)),
+          x: saved.x + panOffset.x,
+          y: saved.y + panOffset.y,
           r: id === selectedId ? 18 : 14,
-        } : { x:centerX + Math.cos(angle) * radius, y:centerY + Math.sin(angle) * radius, r: id === selectedId ? 18 : 14 });
+        } : { x:centerX + Math.cos(angle) * radius + panOffset.x, y:centerY + Math.sin(angle) * radius + panOffset.y, r: id === selectedId ? 18 : 14 });
       });
       if (sorted.length && manualPositions.has(sorted[0])) {
         const saved = manualPositions.get(sorted[0]);
         result.set(sorted[0], {
-          x: Math.max(8, Math.min(width - 8, saved.x)),
-          y: Math.max(8, Math.min(height - 8, saved.y)),
+          x: saved.x + panOffset.x,
+          y: saved.y + panOffset.y,
           r: 22,
         });
       }
@@ -276,9 +278,15 @@ HTML_TEMPLATE = r'''<!doctype html>
     canvas.addEventListener("pointerdown", event => {
       const point = canvasPoint(event);
       const nodeId = nearestNode(point.x, point.y);
-      if (!nodeId) return;
+      if (!nodeId) {
+        dragState = { mode:"pan", start:point, origin:{...panOffset}, moved:false };
+        canvas.classList.add("dragging");
+        canvas.setPointerCapture(event.pointerId);
+        event.preventDefault();
+        return;
+      }
       selectedId = nodeId;
-      dragState = { id: nodeId, moved: false };
+      dragState = { mode:"node", id: nodeId, moved: false };
       canvas.classList.add("dragging");
       canvas.setPointerCapture(event.pointerId);
       showNode(nodeId);
@@ -287,7 +295,14 @@ HTML_TEMPLATE = r'''<!doctype html>
     canvas.addEventListener("pointermove", event => {
       if (!dragState) return;
       const point = canvasPoint(event);
-      manualPositions.set(dragState.id, { x: point.x, y: point.y });
+      if (dragState.mode === "pan") {
+        panOffset = {
+          x: dragState.origin.x + point.x - dragState.start.x,
+          y: dragState.origin.y + point.y - dragState.start.y,
+        };
+      } else {
+        manualPositions.set(dragState.id, { x: point.x - panOffset.x, y: point.y - panOffset.y });
+      }
       dragState.moved = true;
       draw();
       event.preventDefault();
@@ -303,13 +318,19 @@ HTML_TEMPLATE = r'''<!doctype html>
       dragState = null;
       canvas.classList.remove("dragging");
     });
+    canvas.addEventListener("wheel", event => {
+      const previous = zoomScale;
+      zoomScale = Math.max(0.55, Math.min(2.2, zoomScale * (event.deltaY < 0 ? 1.12 : 0.89)));
+      if (zoomScale !== previous) draw();
+      event.preventDefault();
+    }, { passive:false });
     canvas.addEventListener("click", event => {
       const point = canvasPoint(event);
       const nearest = nearestNode(point.x, point.y);
       if (nearest) showNode(nearest);
     });
     expandButton.addEventListener("click", () => { expansion = Math.min(expansion + 1, 4); draw(); });
-    resetButton.addEventListener("click", () => { expansion = 0; selectedId = null; manualPositions.clear(); searchInput.value = ""; viewSelect.value = "core"; nodeDetail.textContent = "点击节点查看关联关系"; draw(); });
+    resetButton.addEventListener("click", () => { expansion = 0; selectedId = null; manualPositions.clear(); panOffset = {x:0,y:0}; zoomScale = 1; searchInput.value = ""; viewSelect.value = "core"; nodeDetail.textContent = "点击节点查看关联关系"; draw(); });
     searchButton.addEventListener("click", locate);
     searchInput.addEventListener("keydown", event => { if (event.key === "Enter") locate(); });
     viewSelect.addEventListener("change", () => { expansion = 0; selectedId = null; nodeDetail.textContent = "点击节点查看关联关系"; draw(); });

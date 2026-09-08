@@ -9,6 +9,7 @@ from ..widgets.status_card import Panel
 
 
 def build_data_import_page(registry, on_imported=None):
+    from PySide6.QtCore import QObject, QThread, QTimer, Signal, Slot
     from PySide6.QtWidgets import (
         QFileDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QTableWidget,
         QTableWidgetItem, QVBoxLayout, QWidget,
@@ -75,6 +76,34 @@ def build_data_import_page(registry, on_imported=None):
     selected: list[Path] = []
     inspections: dict[str, ImportInspection] = {}
     metadata: dict[str, dict[str, str]] = {}
+    operation_thread = None
+    operation_worker = None
+    operation_sources: list[Path] = []
+    operation_poll_timer = QTimer(page)
+    operation_poll_timer.setInterval(50)
+
+    class ImportWorker(QObject):
+        done = Signal()
+
+        def __init__(self, mode: str, sources: list[Path], metadata_snapshot=None):
+            super().__init__()
+            self.mode = mode
+            self.sources = list(sources)
+            self.metadata_snapshot = dict(metadata_snapshot or {})
+            self.result = None
+            self.error = ""
+
+        @Slot()
+        def run(self):
+            try:
+                if self.mode == "inspect":
+                    self.result = [(source, inspect_table(source)) for source in self.sources]
+                else:
+                    self.result = import_tables(self.sources, metadata_by_path=self.metadata_snapshot)
+            except Exception as exc:
+                self.error = str(exc)
+            finally:
+                self.done.emit()
 
     def key(path: Path) -> str:
         return str(path.resolve()).lower()
@@ -96,15 +125,31 @@ def build_data_import_page(registry, on_imported=None):
         files_table.setRowCount(0)
         valid_count = 0
         for source in selected:
-            inspection = inspections.get(key(source)) or inspect_table(source)
-            inspections[key(source)] = inspection
+            inspection = inspections.get(key(source))
             row = files_table.rowCount()
             files_table.insertRow(row)
+            if inspection is None:
+                values = (source.name, source.suffix.lower(), "检查中…", "", "", "")
+                for column, value in enumerate(values):
+                    files_table.setItem(row, column, QTableWidgetItem(str(value)))
+                files_table.setItem(row, 6, QTableWidgetItem("正在读取字段"))
+                if source.suffix.lower() == ".txt":
+                    source_key = key(source)
+                    for column, field, placeholder in ((4, "well_name", "必填：真实井名"), (5, "stage_id", "必填：井段")):
+                        edit = QLineEdit()
+                        edit.setObjectName(f"txt_{field}_{row}")
+                        edit.setPlaceholderText(placeholder)
+                        edit.setText(metadata.get(source_key, {}).get(field, ""))
+                        edit.textChanged.connect(
+                            lambda value, source_key=source_key, field=field: save_identity(source_key, field, value)
+                        )
+                        files_table.setCellWidget(row, column, edit)
+                continue
             values = (
                 source.name,
-                inspection.extension or "--",
+                inspection.extension or "",
                 inspection.field_profile,
-                "、".join(inspection.suggested_scenarios) if inspection.suggested_scenarios else "--",
+                "、".join(inspection.suggested_scenarios) if inspection.suggested_scenarios else "",
             )
             for column, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
@@ -131,10 +176,12 @@ def build_data_import_page(registry, on_imported=None):
         status.setText(f"已选择 {len(selected)} 个文件，其中 {valid_count} 个通过检查。TXT 需填写真实井名和井段后导入。")
 
     def choose_files() -> None:
+        import_demo_dir = registry.path("Data/import_demo")
+        initial_dir = import_demo_dir if import_demo_dir and import_demo_dir.exists() else registry.path("Data/raw_frac")
         paths, _ = QFileDialog.getOpenFileNames(
             page,
             "选择施工表格",
-            str(registry.path("Data/raw_frac") or Path.cwd()),
+            str(initial_dir or Path.cwd()),
             "施工表格 (*.xlsx *.xls *.csv *.txt)",
         )
         for raw in paths:
@@ -142,6 +189,7 @@ def build_data_import_page(registry, on_imported=None):
             if key(source) not in {key(item) for item in selected}:
                 selected.append(source)
         refresh_table()
+        start_inspection([source for source in selected if key(source) not in inspections])
 
     def remove_selected() -> None:
         rows = sorted({item.row() for item in files_table.selectedItems()}, reverse=True)
@@ -162,22 +210,22 @@ def build_data_import_page(registry, on_imported=None):
         valid = []
         for source in selected:
             inspection = inspections.get(key(source))
-            if inspection is None:
-                inspection = inspect_table(source)
-                inspections[key(source)] = inspection
-            if inspection.can_import:
+            if inspection is not None and inspection.can_import:
                 valid.append(source)
         if not valid:
             status.setText("没有通过基础检查的文件可导入。")
             return
-        result = import_tables(valid, metadata_by_path=metadata)
+        set_busy(True, "正在导入并建立数据索引…")
+        start_worker("import", valid, dict(metadata))
+
+    def apply_import_result(result) -> None:
         imported_names = "、".join(path.name for path in result.imported) or "无"
         rejected_names = "；".join(f"{path.name}：{reason}" for path, reason in result.rejected)
         message = f"已导入 {len(result.imported)} 个文件：{imported_names}。"
         if rejected_names:
             message += f" 未导入：{rejected_names}。"
         rejected_keys = {key(path) for path, _ in result.rejected}
-        for source in valid:
+        for source in list(operation_sources):
             if key(source) not in rejected_keys:
                 selected.remove(source)
                 inspections.pop(key(source), None)
@@ -189,10 +237,86 @@ def build_data_import_page(registry, on_imported=None):
         if result.imported and on_imported:
             on_imported()
 
+    def set_busy(busy: bool, message: str = "") -> None:
+        choose.setEnabled(not busy)
+        remove.setEnabled(not busy)
+        clear.setEnabled(not busy)
+        files_table.setEnabled(not busy)
+        if busy:
+            import_button.setEnabled(False)
+            status.setText(message)
+        else:
+            update_import_button()
+
+    def start_inspection(sources: list[Path]) -> None:
+        if not sources:
+            return
+        set_busy(True, f"正在检查 {len(sources)} 个文件的字段与数据格式…")
+        start_worker("inspect", sources)
+
+    def apply_inspections(results) -> None:
+        for source, inspection in results:
+            inspections[key(source)] = inspection
+        refresh_table()
+
+    def worker_failed(message: str) -> None:
+        status.setText(f"操作失败：{message}")
+
+    def worker_finished() -> None:
+        nonlocal operation_thread, operation_worker, operation_sources
+        set_busy(False)
+        if operation_thread is not None:
+            operation_thread.deleteLater()
+        operation_thread = None
+        operation_worker = None
+        operation_sources = []
+
+    def poll_worker() -> None:
+        if operation_thread is None or operation_worker is None or operation_thread.isRunning():
+            return
+        operation_poll_timer.stop()
+        if operation_worker.error:
+            worker_failed(operation_worker.error)
+        elif operation_worker.mode == "inspect":
+            apply_inspections(operation_worker.result or [])
+        else:
+            apply_import_result(operation_worker.result)
+        worker_finished()
+
+    def start_worker(mode: str, sources: list[Path], metadata_snapshot=None) -> None:
+        nonlocal operation_thread, operation_worker, operation_sources
+        if operation_thread is not None:
+            return
+        operation_sources = list(sources)
+        # Tiny files complete faster than thread startup and keeping this path
+        # synchronous preserves immediate field feedback.  Large workbooks,
+        # which caused the reported UI freeze, always use the worker thread.
+        total_size = sum(source.stat().st_size for source in sources if source.exists())
+        if total_size <= 64 * 1024:
+            try:
+                if mode == "inspect":
+                    apply_inspections([(source, inspect_table(source)) for source in sources])
+                else:
+                    apply_import_result(import_tables(sources, metadata_by_path=dict(metadata_snapshot or {})))
+            except Exception as exc:
+                worker_failed(str(exc))
+            finally:
+                operation_sources = []
+                set_busy(False)
+            return
+        operation_thread = QThread(page)
+        operation_worker = ImportWorker(mode, sources, metadata_snapshot)
+        operation_worker.moveToThread(operation_thread)
+        operation_thread.started.connect(operation_worker.run)
+        operation_worker.done.connect(operation_thread.quit)
+        operation_thread.start()
+        operation_poll_timer.start()
+
     def refresh_catalog() -> None:
         """Refresh pending inspections without losing user-entered identities."""
         inspections.clear()
         refresh_table()
+        start_inspection(list(selected))
 
     def set_global_dataset(dataset_id: str) -> None:
         # This page owns no timeline/player. Switching never discards pending
@@ -201,6 +325,8 @@ def build_data_import_page(registry, on_imported=None):
 
     page.refresh_catalog = refresh_catalog
     page.set_global_dataset = set_global_dataset
+    page.active_import_thread = lambda: operation_thread
+    operation_poll_timer.timeout.connect(poll_worker)
 
     choose.clicked.connect(choose_files)
     remove.clicked.connect(remove_selected)

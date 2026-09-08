@@ -1,0 +1,4 @@
+-r requirements-core.txt
+joblib
+lightgbm
+torch

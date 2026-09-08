@@ -22,7 +22,7 @@ def create_timeline_control(controller):
     slider.setRange(0, max(len(controller.frames) - 1, 0))
     jump = QSpinBox()
     jump.setRange(0, max(len(controller.frames) - 1, 0))
-    time_label = QLabel("t=-- / --")
+    time_label = QLabel("")
     layout.addWidget(play)
     layout.addWidget(reset)
     layout.addWidget(back)
@@ -39,7 +39,7 @@ def create_timeline_control(controller):
 
     def show(frame):
         if not frame:
-            time_label.setText("t=-- / --")
+            time_label.clear()
             return
         index = controller.index
         slider.blockSignals(True)

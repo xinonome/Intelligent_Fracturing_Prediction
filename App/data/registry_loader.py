@@ -124,7 +124,7 @@ class RegistryLoader:
         selected_scenario = str(scenario_id or self.scenario_id)
         result = []
         for dataset_id, value in sorted((self.dataset_catalog().get("datasets", {}) or {}).items()):
-            if self.dataset_supports_scenario(str(dataset_id), selected_scenario):
+            if self.dataset_ready_for_scenario(str(dataset_id), selected_scenario):
                 result.append(dict(value, dataset_id=str(dataset_id)))
         return result
 

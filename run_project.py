@@ -48,6 +48,35 @@ def fsl_command(action: str, extra: list[str]) -> int:
         "direct": "train_direct_grouped_working_type_lgbm.py",
         "transition": "train_working_type_transition_lgbm.py",
     }
+    if action == "risk":
+        return run(
+            module / "latest_risk" / "run_sand_risk_pipeline.py",
+            ["--data-dir", str(DATA / "raw_frac"), "--output-dir", str(OUTPUTS / "fsl" / "risk"), *extra],
+        )
+    if action == "risk-transfer":
+        defaults = [
+            "--data-dir", str(DATA / "raw_frac"),
+            "--source-wells", "JH_焦页5-Z6HF",
+            "--target-well", "JH_焦页5-Z7HF",
+            "--pretrained-checkpoint", str(ROOT / "artifacts" / "fsl" / "risk_prediction" / "models" / "Z6HF_knowledge_risk_level_gnn.pt"),
+            "--output-dir", str(OUTPUTS / "fsl" / "risk_transfer"),
+        ]
+        return run(module / "latest_risk" / "train_future_risk_levels_transfer.py", [*defaults, *extra])
+    if action == "risk-levels":
+        return run(
+            module / "latest_risk" / "evaluate_future_risk_levels.py",
+            ["--data-dir", str(DATA / "raw_frac"), "--output-dir", str(OUTPUTS / "fsl" / "risk_levels"), *extra],
+        )
+    if action == "risk-boundaries":
+        return run(
+            module / "latest_risk" / "evaluate_future_risk_boundaries.py",
+            ["--output-dir", str(OUTPUTS / "fsl" / "risk_boundaries"), *extra],
+        )
+    if action == "risk-evaluate":
+        return run(
+            module / "latest_risk" / "evaluate_same_well_unified.py",
+            ["--data-dir", str(DATA / "raw_frac"), "--output-dir", str(OUTPUTS / "fsl" / "risk_evaluation"), *extra],
+        )
     defaults = ["--data-path", str(DATA / "raw_frac")]
     return run(module / scripts[action], [*defaults, "--run-dir", str(OUTPUTS / "fsl" / action), *extra])
 
@@ -161,7 +190,7 @@ def main() -> None:
     args, extra = parser.parse_known_args()
     if args.module == "fsl":
         action = args.action or "train"
-        if action not in {"train", "gnn", "transfer", "direct", "transition", "knowledge-graph"}:
+        if action not in {"train", "gnn", "transfer", "direct", "transition", "risk", "risk-transfer", "risk-levels", "risk-boundaries", "risk-evaluate", "knowledge-graph"}:
             parser.error(f"unsupported FSL action: {action}")
         code = fsl_command(action, extra)
     elif args.module == "dt":

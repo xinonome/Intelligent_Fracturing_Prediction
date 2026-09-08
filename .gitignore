@@ -1,31 +1,65 @@
-Data/
-outputs/
-*.xlsx
-*.xls
-*.pkl
-*.pt
-*.pth
-*.zip
-__pycache__/
-.pytest_cache/
-.env
-*.log
+# Sensitive project data and generated deliverables
+/Data/
+**/outputs/
+**/runs/
+/artifacts/
+/deliverables/
+/Reports/
+/专利与软著/
+**/docs/
+**/cache/
+DT-Crack/third_party/PyFrac/data/raw/
+FSL-Expert/knowledge_graph/full_book_qwen_output/*
+!FSL-Expert/knowledge_graph/full_book_qwen_output/kg_full_book_qwen.json
+!FSL-Expert/knowledge_graph/full_book_qwen_output/index_app_knowledge_graph.html
 
-# Private project materials and source data are never part of the public code
-# mirror. Existing tracked files are not removed by this rule; review them
-# before adding new release content.
-Data/
-专利与软著/
-deliverables/
-Reports/
-docs/
-tmp/
-.tmp/
-_qa*/
-_manual_assets*/
-.frontend-design/
-node_modules/
+# Local build, preview, QA and temporary workspaces
+/build/
+/dist/
+/node_modules/
+/.frontend-design/
+/.cache/
+/.tmp/
+/tmp/
+/_manual_assets_*/
+/_ppt_future_work_build/
+/_qa_*/
+/_tmp_*/
+/.docx_qa_*/
+/.qa_submission/
+/.tmp_software_test_review/
+/.tmp_txt_format_check*/
+
+# Generated manifests and reports
+/cleanup_manifest*.json
+/release_manifest.json
+
+# Documents, archives, model weights and binary result artifacts
+*.md
 *.doc
 *.docx
 *.pdf
-DT-Crack/third_party/PyFrac/data/raw/
+*.pptx
+*.xlsx
+*.xls
+*.zip
+*.pkl
+*.pt
+*.pth
+*.joblib
+*.onnx
+*.npz
+.DS_Store
+
+# Credentials and local runtime state
+.env
+.env.*
+!.env.example
+**/api_config.json
+*.log
+
+# Python/tool caches
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.egg-info/

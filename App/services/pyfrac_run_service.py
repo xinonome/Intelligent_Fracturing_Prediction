@@ -31,10 +31,10 @@ def native_context_reason(dataset: dict[str, Any] | None) -> str:
             or dataset.get("well_id") != "JY84-Z1"
             or str(dataset.get("stage_id")) != "08"
             or dataset.get("adapter") != "stage_3dfrac"):
-        return "PyFrac仅验证焦页84-Z1 / Stage 08；当前井段尚无已核验的原生注入历史、地层参数和初始状态，不能借用08段结果。"
+        return "当前井段暂无已登记的 PyFrac 输入方案。"
     source = PATHS.root / str(dataset.get("pressure_source", ""))
     if source.resolve() != (PATHS.root / REFERENCE_PRESSURE_SOURCE).resolve():
-        return "当前井段压力源与PyFrac已验证模板不一致，禁止使用旧注入历史。"
+        return "当前井段与已登记的 PyFrac 输入方案不匹配。"
     try:
         spec = json.loads(REFERENCE_SPEC.read_text(encoding="utf-8"))
         summary = json.loads((REFERENCE_RUN / "summary.json").read_text(encoding="utf-8"))
@@ -71,7 +71,14 @@ def load_context_runtime(dataset: dict[str, Any] | None) -> PyFracRuntime:
         for candidate in sorted(directory.iterdir(), reverse=True):
             try:
                 manifest = json.loads((candidate / "manifest.json").read_text(encoding="utf-8"))
-                if manifest.get("dataset_id") != dataset["dataset_id"]:
+                manifest_dataset_id = manifest.get("dataset_id")
+                if manifest_dataset_id != dataset["dataset_id"] and not _legacy_reference_manifest(manifest, dataset):
+                    continue
+                # The registered application task is the full 4435 s
+                # trajectory. Short diagnostics remain visible in the
+                # current session but must not replace the default run after
+                # reopening the workbench.
+                if not math.isclose(float(manifest.get("target_time_s", 0.0)), 4435.0, abs_tol=1e-3):
                     continue
                 value = load_pyfrac_runtime(candidate)
                 if native_run_completed(value, float(manifest["target_time_s"])):
@@ -79,6 +86,34 @@ def load_context_runtime(dataset: dict[str, Any] | None) -> PyFracRuntime:
             except (OSError, ValueError, KeyError, TypeError):
                 continue
     return load_pyfrac_runtime(REFERENCE_RUN)
+
+
+def _legacy_reference_manifest(manifest: dict[str, Any], dataset: dict[str, Any]) -> bool:
+    """Accept the first APP run written before dataset metadata was added.
+
+    This exception is deliberately limited to the verified JY84-Z1 / Stage 08
+    context and the original 4435 s template.  It lets the APP reuse the
+    already completed detailed run (including its persisted front geometry)
+    without borrowing a run from another well or stage.
+    """
+
+    if dataset.get("dataset_id") != REFERENCE_DATASET_ID:
+        return False
+    if manifest.get("dataset_id") is not None:
+        return False
+    try:
+        target_time_s = float(manifest.get("target_time_s"))
+    except (TypeError, ValueError):
+        return False
+    if not math.isclose(target_time_s, 4435.0, abs_tol=1e-3):
+        return False
+    template = manifest.get("source_template")
+    if not template:
+        return False
+    try:
+        return Path(template).resolve() == REFERENCE_SPEC.resolve()
+    except OSError:
+        return False
 
 
 def native_run_completed(runtime: PyFracRuntime, target_time_s: float) -> bool:

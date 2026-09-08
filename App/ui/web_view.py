@@ -109,10 +109,14 @@ class Embedded3DView:
         view._html_load_callback = None
         view._html_navigation_id = 0
         view._interaction_enabled = True
+        view._dataset_switch_pending = False
 
         def set_time_index(time_s: float):
             if getattr(view, "webengine_available", False):
-                if getattr(view, "_html_loading", False):
+                if (
+                    getattr(view, "_html_loading", False)
+                    or getattr(view, "_dataset_switch_pending", False)
+                ):
                     view._pending_time_s = float(time_s)
                     return
                 view.page().runJavaScript(f"window.setTimeIndex({float(time_s)});")
@@ -126,6 +130,7 @@ class Embedded3DView:
             if (
                 getattr(view, "webengine_available", False)
                 and not getattr(view, "_html_loading", False)
+                and not getattr(view, "_dataset_switch_pending", False)
             ):
                 value = "true" if view._interaction_enabled else "false"
                 view.page().runJavaScript(f"window.setInteractionEnabled({value});")
@@ -138,7 +143,14 @@ class Embedded3DView:
 
             next_path = next_path.resolve() if next_path else None
             current_path = view._html_path.resolve() if view._html_path else None
-            if next_path == current_path and getattr(view, "_html_loading", False) is False:
+            if next_path == current_path:
+                if getattr(view, "_html_loading", False):
+                    # Repeated refreshes for the same stage must not start a
+                    # second Chromium navigation. Keep the newest callback
+                    # so the caller observes the in-flight load result.
+                    if callable(on_finished):
+                        view._html_load_callback = on_finished
+                    return
                 if callable(on_finished):
                     from PySide6.QtCore import QTimer
 
@@ -164,11 +176,11 @@ class Embedded3DView:
                 saved_camera = _load_saved_camera()
                 if getattr(view, "_camera_timer", None) is not None:
                     view._camera_timer.stop()
-                # Release the previous document's pending navigation before
-                # allocating the next Plotly/WebGL document.  ``stop`` is
-                # asynchronous but prevents an old local file from keeping a
-                # renderer queue alive during the switch.
-                view.stop()
+                # QWebEngineView.setUrl() cancels the previous navigation. A
+                # synchronous stop() immediately followed by setUrl() is
+                # unstable on some Windows QtWebEngine builds when the old
+                # document contains Plotly/WebGL, so do not force-stop the
+                # renderer here.
                 view.setUrl(QUrl.fromLocalFile(str(next_path.resolve())))
                 from PySide6.QtCore import QTimer
 
@@ -212,7 +224,12 @@ class Embedded3DView:
         view._camera_signature = None
 
         def set_camera(camera):
-            if getattr(view, "webengine_available", False) and isinstance(camera, dict):
+            if (
+                getattr(view, "webengine_available", False)
+                and not getattr(view, "_html_loading", False)
+                and not getattr(view, "_dataset_switch_pending", False)
+                and isinstance(camera, dict)
+            ):
                 payload = json.dumps(camera, ensure_ascii=False, separators=(",", ":"))
                 view.page().runJavaScript(f"window.setCamera({payload});")
 
@@ -241,6 +258,11 @@ class Embedded3DView:
                         _save_camera(camera)
 
             def poll_camera():
+                if (
+                    not getattr(view, "webengine_available", False)
+                    or getattr(view, "_html_loading", False)
+                ):
+                    return
                 view.page().runJavaScript(
                     "(() => { const el = document.getElementById('dt3d'); "
                     "return el && el.layout && el.layout.scene ? JSON.stringify(el.layout.scene.camera || null) : ''; })();",
@@ -256,10 +278,17 @@ class Embedded3DView:
                     view._pending_time_s = None
                     QTimer.singleShot(0, lambda: set_time_index(pending_time))
                 if saved_camera:
-                    QTimer.singleShot(350, lambda: set_camera(saved_camera))
+                    QTimer.singleShot(
+                        350,
+                        lambda: set_camera(saved_camera)
+                        if navigation_id == view._html_navigation_id and not view._html_loading
+                        else None,
+                    )
                 QTimer.singleShot(
                     500,
-                    lambda: set_interaction_enabled(view._interaction_enabled),
+                    lambda: set_interaction_enabled(view._interaction_enabled)
+                    if navigation_id == view._html_navigation_id and not view._html_loading
+                    else None,
                 )
                 QTimer.singleShot(900, poll_camera)
                 view._camera_timer.start()

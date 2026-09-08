@@ -39,7 +39,7 @@ def _compatible_models() -> list[tuple[str, Path, Path]]:
 
 
 def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
-    from PySide6.QtCore import QProcess, Qt
+    from PySide6.QtCore import QProcess, QTimer, Qt
     from PySide6.QtWidgets import (
         QComboBox,
         QFileDialog,
@@ -48,6 +48,7 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
         QLabel,
         QPlainTextEdit,
         QPushButton,
+        QScrollArea,
         QSizePolicy,
         QSpinBox,
         QWidget,
@@ -64,16 +65,20 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
     form.setHorizontalSpacing(10)
     form.setVerticalSpacing(3)
     source_box = QComboBox()
+    source_box.setObjectName("transferSourceWell")
     target_box = QComboBox()
+    target_box.setObjectName("transferTargetWell")
     for well in wells:
         source_box.addItem(well, well)
         target_box.addItem(well, well)
     if target_box.count() > 1:
         target_box.setCurrentIndex(1)
     mode_box = QComboBox()
+    mode_box.setObjectName("transferMode")
     mode_box.addItem("重新训练模型", "train")
     mode_box.addItem("使用已有模型", "apply")
     model_box = QComboBox()
+    model_box.setObjectName("transferModel")
     epoch_box = QSpinBox()
     epoch_box.setRange(1, 50)
     epoch_box.setValue(8)
@@ -150,6 +155,8 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
     current_model: Path | None = None
     current_package: Path | None = None
     active_run_root: Path | None = None
+    progress_timer = QTimer(panel)
+    progress_timer.setInterval(250)
 
     def refresh_models(select_dir: Path | None = None):
         model_box.blockSignals(True)
@@ -163,6 +170,27 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
             if select_dir and model.parent == select_dir:
                 model_box.setCurrentIndex(model_box.count() - 1)
         model_box.blockSignals(False)
+
+    def refresh_rows(new_rows: list[dict]):
+        """Replace the real well/stage inventory after a background rescan."""
+        nonlocal records
+        previous_source = str(source_box.currentData() or "")
+        previous_target = str(target_box.currentData() or "")
+        records = _well_records(list(new_rows or []))
+        refreshed_wells = sorted(records)
+        for combo, previous in ((source_box, previous_source), (target_box, previous_target)):
+            combo.blockSignals(True)
+            combo.clear()
+            for well in refreshed_wells:
+                combo.addItem(well, well)
+            selected = combo.findData(previous)
+            if selected >= 0:
+                combo.setCurrentIndex(selected)
+            combo.blockSignals(False)
+        if target_box.count() > 1 and target_box.currentData() == source_box.currentData():
+            target_box.setCurrentIndex(1 if source_box.currentIndex() == 0 else 0)
+        refresh_models()
+        update_availability()
 
     def update_availability():
         source = str(source_box.currentData() or "")
@@ -189,15 +217,18 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
         model_box.setEnabled(mode_box.currentData() == "apply" and not busy)
         for selector in (source_box, target_box, mode_box):
             selector.setEnabled(not busy)
-        locate_button.setEnabled(current_result is not None)
+        progress_path = active_run_root / "transfer_progress.json" if active_run_root else None
+        locate_button.setEnabled(bool(
+            (current_result is not None and current_result.exists())
+            or (progress_path is not None and progress_path.exists())
+            or (busy and active_run_root is not None)
+        ))
         save_button.setEnabled(current_model is not None and current_model.exists())
         export_button.setEnabled(current_result is not None and current_result.exists())
 
-    def load_result(result_path: Path):
-        nonlocal current_result, current_model, current_package
-        payload = json.loads(result_path.read_text(encoding="utf-8"))
-        if payload.get("status") != "completed":
-            raise ValueError(payload.get("error") or "迁移任务失败")
+    def apply_trace_payload(payload: dict):
+        """Render the newest complete trace snapshot published by the worker."""
+
         traces = payload.get("traces", {}) or {}
         series = []
         observed = traces.get("observed", [])
@@ -211,8 +242,15 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
             series.append(("迁移后识别", after, PALETTE["cyan"]))
         chart.set_series(series)
         windows = traces.get("window_end", [])
-        if windows:
+        if len(windows) >= 2:
             chart.set_time_range(float(windows[0]), float(windows[-1]))
+
+    def load_result(result_path: Path):
+        nonlocal current_result, current_model, current_package
+        payload = json.loads(result_path.read_text(encoding="utf-8"))
+        if payload.get("status") != "completed":
+            raise ValueError(payload.get("error") or "迁移任务失败")
+        apply_trace_payload(payload)
         current_result = result_path
         model_value = payload.get("model_path")
         package_value = payload.get("package_path")
@@ -220,7 +258,7 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
         current_package = Path(package_value) if package_value else None
         mode = "训练完成" if payload.get("mode") == "train" else "模型应用完成"
         status.setText(
-            f"{mode}：{payload.get('source_well', '--')} → {payload.get('target_well', '--')}；"
+            f"{mode}：{payload.get('source_well', '')} → {payload.get('target_well', '')}；"
             f"结果已写入 {result_path.parent}。"
         )
         refresh_models(result_path.parent)
@@ -256,6 +294,13 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
             "--finetune-epochs",
             str(finetune_box.value()),
         ]
+        source_files = []
+        for row in records.get(source, []) + records.get(target, []):
+            candidate = PATHS.data / "raw_frac" / str(row.get("source_file") or "")
+            if candidate.is_file() and str(candidate) not in source_files:
+                source_files.append(str(candidate))
+        if source_files:
+            arguments.extend(["--source-files", *source_files])
         if mode == "apply":
             model_data = model_box.currentData()
             if not model_data:
@@ -267,16 +312,24 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
         current_model = None
         current_package = None
         chart.set_series([])
+        chart.set_progress(0.0)
         console.clear()
         console.appendPlainText(
             f"[启动] {'训练迁移模型' if mode == 'train' else '应用已有模型'}："
             f"{source} → {target}"
         )
-        status.setText("任务运行中 · 正在等待子进程输出…")
+        status.setText("任务运行中 · 正在准备目标井曲线，结果将分阶段显示…")
         runner.start(ml_python, arguments, PATHS.root, environment={"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"})
+        progress_timer.start()
+        # The progress file is created before the worker loads the workbook;
+        # let the operator open the chart immediately and see each stage as it
+        # becomes available.
+        locate_button.setEnabled(True)
         update_availability()
 
     def finish_job(exit_code, _exit_status):
+        progress_timer.stop()
+        refresh_progress()
         process_output()
         result_path = active_run_root / "transfer_result.json" if active_run_root else None
         if result_path is None or not result_path.exists():
@@ -303,7 +356,45 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
         console.verticalScrollBar().setValue(console.verticalScrollBar().maximum())
         status.setText(f"任务运行中 · {lines[-1][:180]}")
 
+    def refresh_progress():
+        if active_run_root is None:
+            return
+        progress_path = active_run_root / "transfer_progress.json"
+        if not progress_path.exists():
+            return
+        try:
+            payload = json.loads(progress_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            # The worker publishes atomically; this also tolerates a file
+            # being replaced between exists() and read_text().
+            return
+        if not isinstance(payload, dict):
+            return
+        apply_trace_payload(payload)
+        progress = payload.get("progress")
+        try:
+            chart.set_progress(float(progress))
+        except (TypeError, ValueError):
+            pass
+        phase = str(payload.get("phase") or "正在计算")
+        if payload.get("status") == "running":
+            try:
+                percent = f"（{float(progress) * 100:.0f}%）" if progress is not None else ""
+            except (TypeError, ValueError):
+                percent = ""
+            status.setText(f"任务运行中 · {phase}{percent}")
+        elif payload.get("status") == "failed":
+            status.setText(f"任务失败 · {payload.get('error') or phase}")
+        locate_button.setEnabled(True)
+
     def locate_chart():
+        refresh_progress()
+        parent = chart.parentWidget()
+        while parent is not None:
+            if isinstance(parent, QScrollArea):
+                parent.ensureWidgetVisible(chart, 16, 16)
+                break
+            parent = parent.parentWidget()
         chart.setFocus(Qt.OtherFocusReason)
         chart.update()
 
@@ -336,12 +427,16 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
     export_button.clicked.connect(export_result)
     runner.process.readyReadStandardOutput.connect(process_output)
     runner.process.finished.connect(finish_job)
-    runner.process.errorOccurred.connect(lambda _error: status.setText(f"任务进程未能启动：{runner.process.errorString()}"))
+    runner.process.errorOccurred.connect(
+        lambda _error: (progress_timer.stop(), status.setText(f"任务进程未能启动：{runner.process.errorString()}"))
+    )
+    progress_timer.timeout.connect(refresh_progress)
     update_availability()
 
     panel._transfer_runner = runner
     panel._transfer_chart = chart
     panel._transfer_console = console
+    panel.refresh_rows = refresh_rows
     return panel
 
 

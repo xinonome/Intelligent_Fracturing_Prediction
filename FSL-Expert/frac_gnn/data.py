@@ -150,6 +150,7 @@ def discover_segment_frames(
     label_column: str,
     reference_header_path: str | None,
     exclude_name_patterns: Iterable[str] | None,
+    well_names: Iterable[str] | None = None,
 ) -> dict[str, pd.DataFrame]:
     path = Path(data_path)
     if not path.exists():
@@ -157,6 +158,7 @@ def discover_segment_frames(
 
     reference_columns = load_reference_columns(reference_header_path)
     exclude_patterns = tuple(pattern.lower() for pattern in (exclude_name_patterns or []))
+    selected_wells = {str(value).strip() for value in (well_names or []) if str(value).strip()}
     segment_frames: dict[str, pd.DataFrame] = {}
 
     def add_segment_frame(key: str, frame: pd.DataFrame, source_name: str | None = None) -> None:
@@ -172,6 +174,10 @@ def discover_segment_frames(
 
     if path.is_file():
         frame = load_dataset_frame(path, reference_columns, label_column)
+        if selected_wells and "JTBH" in frame.columns:
+            frame = frame[frame["JTBH"].astype(str).str.strip().isin(selected_wells)]
+            if frame.empty:
+                raise ValueError("指定井名在数据文件中不存在")
         if segment_column is None or segment_column not in frame.columns:
             raise ValueError(
                 "A segment column is required when loading a single total dataset file."
@@ -191,6 +197,10 @@ def discover_segment_frames(
         frame = load_dataset_frame(file_path, reference_columns, label_column)
         if label_column not in frame.columns:
             continue
+        if selected_wells and "JTBH" in frame.columns:
+            frame = frame[frame["JTBH"].astype(str).str.strip().isin(selected_wells)]
+            if frame.empty:
+                continue
         if segment_column and segment_column in frame.columns and frame[segment_column].nunique(dropna=False) > 1:
             for segment_id, segment_frame in frame.groupby(segment_column, dropna=False):
                 add_segment_frame(str(segment_id), segment_frame, file_path.name)
@@ -542,20 +552,34 @@ def build_graphs_for_segments(
     imputer: SimpleImputer,
     scaler: StandardScaler,
     window_size: int,
+    unknown_label: str | None = None,
 ) -> list[Data]:
     graphs: list[Data] = []
     edge_index = build_edge_index(window_size)
+    known = set(str(value) for value in label_encoder.classes_)
     for segment_id in segment_ids:
         frame = segment_frames[segment_id]
         if len(frame) < window_size:
             continue
         numeric_frame = coerce_numeric_frame(frame, feature_columns)
         feature_matrix = scaler.transform(imputer.transform(numeric_frame))
-        labels = label_encoder.transform(frame[label_column].astype(str))
+        raw_labels = frame[label_column].astype(str)
+        if unknown_label is None:
+            labels = label_encoder.transform(raw_labels)
+        else:
+            # Inference may receive a label that was not present in the
+            # training package.  The target label is not an input feature, so
+            # keep graph construction possible by assigning such windows to a
+            # known fallback only for the auxiliary ``y`` field.  The model
+            # prediction itself is unaffected; training keeps the strict
+            # LabelEncoder behaviour by using the default above.
+            safe_labels = raw_labels.where(raw_labels.isin(known), unknown_label)
+            labels = label_encoder.transform(safe_labels)
         for start in range(0, len(frame) - window_size + 1):
             end = start + window_size
             window_x = torch.tensor(feature_matrix[start:end], dtype=torch.float32)
             target = torch.tensor(labels[end - 1], dtype=torch.long)
+            observed_label = str(raw_labels.iloc[end - 1])
             graphs.append(
                 Data(
                     x=window_x,
@@ -564,6 +588,8 @@ def build_graphs_for_segments(
                     segment_id=segment_id,
                     window_start=start,
                     window_end=end - 1,
+                    observed_label=observed_label,
+                    label_known=observed_label in known,
                 )
             )
     return graphs

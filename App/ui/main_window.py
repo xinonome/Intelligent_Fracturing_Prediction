@@ -11,11 +11,10 @@ from ..data.registry_loader import RegistryLoader
 from .pages.dt_page import build_dt_page
 from .pages.fsl_page import build_fsl_page
 from .pages.hmi_page import build_hmi_page
-from .pages.integrated_page import build_integrated_page
 from .pages.research_workbench import build_research_workbench
 from .pages.resource_center import build_resource_center
 from .theme import set_theme, stylesheet
-from .widgets.mode_center import create_mode_center, create_tabbed_center
+from .widgets.mode_center import create_mode_center
 
 
 def create_main_window(
@@ -35,6 +34,7 @@ def create_main_window(
         QListWidget,
         QListWidgetItem,
         QMainWindow,
+        QSizePolicy,
         QStackedWidget,
         QToolButton,
         QVBoxLayout,
@@ -42,13 +42,14 @@ def create_main_window(
     )
 
     class DatasetWorker(QObject):
-        ready = Signal(str, str, object)
-        failed = Signal(str)
+        done = Signal()
 
         def __init__(self, dataset_id):
             super().__init__()
             self.dataset_id = dataset_id
             self.agent_model_id = controller.agent_model_id
+            self.result = None
+            self.error = ""
 
         @Slot()
         def run(self):
@@ -58,9 +59,11 @@ def create_main_window(
                     scenario_id=registry.scenario_id, snapshot=registry.snapshot)
                 selected.set_dataset(self.dataset_id)
                 frames = build_replay_frames(selected, agent_model=self.agent_model_id)
-                self.ready.emit(self.dataset_id, selected.scenario_id, frames)
+                self.result = (self.dataset_id, selected.scenario_id, frames)
             except Exception as exc:
-                self.failed.emit(f"井段加载失败：{exc}")
+                self.error = f"井段加载失败：{exc}"
+            finally:
+                self.done.emit()
 
     class MainWindow(QMainWindow):
         def __init__(self):
@@ -79,6 +82,9 @@ def create_main_window(
             self.workspace_mode = saved_mode if saved_mode in {"runtime", "research"} else "runtime"
             self._dataset_thread = None
             self._dataset_worker = None
+            self._dataset_poll_timer = QTimer(self)
+            self._dataset_poll_timer.setInterval(50)
+            self._dataset_poll_timer.timeout.connect(self._poll_dataset_worker)
             self.setStyleSheet(stylesheet(self.font_family))
             self._build()
             self._clock = QTimer(self)
@@ -102,7 +108,7 @@ def create_main_window(
             title.setObjectName("appHeaderTitle")
             title.setWordWrap(True)
             brand_row.addWidget(title, 1)
-            self.clock_label = _header_label("--")
+            self.clock_label = _header_label("")
             brand_row.addWidget(self.clock_label)
             self.theme_button = QToolButton()
             self.theme_button.setObjectName("themeToggle")
@@ -125,7 +131,8 @@ def create_main_window(
             context_row.addWidget(self.dataset_selector, 2)
             self.source_badge = _header_label("")
             self.source_badge.setObjectName("sourceContext")
-            context_row.addWidget(self.source_badge, 1)
+            self.source_badge.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            context_row.addWidget(self.source_badge)
             self.sources_button = QToolButton()
             self.sources_button.setObjectName("sourcesButton")
             self.sources_button.setText("资源中心" if self.edition == "integrated" else "数据与运行")
@@ -162,6 +169,7 @@ def create_main_window(
             self.navigation = QListWidget()
             self.navigation.setObjectName("sidebar")
             self.navigation.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self._resource_nav_index = -1
             sidebar_layout.addWidget(self.navigation, 1)
             self._sync_workspace_mode_buttons()
             self.pages = QStackedWidget()
@@ -182,12 +190,6 @@ def create_main_window(
                 ),
                 "dt": lambda: build_dt_page(controller, registry),
                 "hmi": lambda: build_hmi_page(controller, registry),
-                "integrated": lambda: build_integrated_page(
-                    controller,
-                    registry,
-                    html_path or PATHS.dt_html,
-                    on_dataset_changed=self._update_dataset_header,
-                ),
             }
             if self.edition == "integrated":
                 all_factories = {
@@ -207,36 +209,19 @@ def create_main_window(
                         initial_mode=self.workspace_mode,
                     ),
                     "hmi": lambda: create_mode_center(
-                        lambda: create_tabbed_center([
-                            ("风险与建议", build_hmi_page(controller, registry)),
-                            (
-                                "全流程联动",
-                                build_integrated_page(
-                                    controller,
-                                    registry,
-                                    html_path or PATHS.dt_html,
-                                    on_dataset_changed=self._update_dataset_header,
-                                ),
-                            ),
-                        ]),
+                        lambda: build_hmi_page(controller, registry),
                         lambda: build_research_workbench("hmi", registry, controller),
                         initial_mode=self.workspace_mode,
                     ),
-                    "resources": lambda: create_mode_center(
-                        lambda: build_resource_center(
-                            registry,
-                            controller,
-                            on_imported=self._handle_data_import,
-                            on_dataset_requested=self._select_global_dataset_id,
-                        ),
-                        lambda: build_resource_center(
-                            registry,
-                            controller,
-                            on_imported=self._handle_data_import,
-                            on_dataset_requested=self._select_global_dataset_id,
-                            research_mode=True,
-                        ),
-                        initial_mode=self.workspace_mode,
+                    # The resource center is shared by both workspace modes.
+                    # Do not create a second "模型研发" copy of the same
+                    # data/model inventory; it only duplicates the entry in
+                    # the navigation and makes the source of truth unclear.
+                    "resources": lambda: build_resource_center(
+                        registry,
+                        controller,
+                        on_imported=self._handle_data_import,
+                        on_dataset_requested=self._select_global_dataset_id,
                     ),
                 }
             else:
@@ -252,8 +237,13 @@ def create_main_window(
                 placeholder.setAlignment(Qt.AlignCenter)
                 placeholder.setObjectName("muted")
                 self.pages.addWidget(placeholder)
+            self._resource_nav_index = next(
+                (index for index, (key, _icon, _name) in enumerate(edition_meta["pages"]) if key == "resources"),
+                -1,
+            )
             _enable_text_copy(root)
             self.navigation.currentRowChanged.connect(self._show_page)
+            self._sync_workspace_mode_buttons()
             self.navigation.setCurrentRow(0)
             QTimer.singleShot(0, lambda: self._show_page(0))
 
@@ -390,13 +380,27 @@ def create_main_window(
             self._dataset_worker = DatasetWorker(dataset_id)
             self._dataset_worker.moveToThread(self._dataset_thread)
             self._dataset_thread.started.connect(self._dataset_worker.run)
-            self._dataset_worker.ready.connect(self._commit_dataset)
-            self._dataset_worker.failed.connect(self._dataset_error)
-            self._dataset_worker.ready.connect(self._dataset_thread.quit)
-            self._dataset_worker.failed.connect(self._dataset_thread.quit)
-            self._dataset_thread.finished.connect(self._dataset_worker.deleteLater)
-            self._dataset_thread.finished.connect(self._dataset_finished)
+            # Do not connect a Python worker signal directly to widget code:
+            # some PySide builds dispatch such callbacks in the emitter
+            # thread.  A GUI-owned timer collects the finished result instead.
+            self._dataset_worker.done.connect(self._dataset_thread.quit)
             self._dataset_thread.start()
+            self._dataset_poll_timer.start()
+
+        @Slot()
+        def _poll_dataset_worker(self):
+            thread = self._dataset_thread
+            worker = self._dataset_worker
+            if thread is None or worker is None or thread.isRunning():
+                return
+            self._dataset_poll_timer.stop()
+            result = worker.result
+            error = worker.error
+            if result is not None:
+                self._commit_dataset(*result)
+            else:
+                self._dataset_error(error or "井段加载失败")
+            self._dataset_finished()
 
         @Slot(str, str, object)
         def _commit_dataset(self, dataset_id, scenario_id, frames):
@@ -430,13 +434,17 @@ def create_main_window(
 
         def _refresh_source_context(self):
             dataset = registry.dataset()
-            scene = "有 DAS" if dataset.get("fiber_source") else "无 DAS · 模型推导"
-            cached = bool(registry.frame_source())
-            self.source_badge.setText(f"{scene} · {'缓存回放' if cached else '等待推演'}")
+            scene = "有 DAS" if dataset.get("fiber_source") else "无 DAS"
+            self.source_badge.setText(scene)
             self.source_badge.setToolTip(str(dataset.get("pressure_source") or ""))
 
         def _show_sources(self):
             if self.edition == "integrated":
+                if self.workspace_mode == "research":
+                    # The resource center is a shared runtime page.  If the
+                    # header shortcut is used while researching, switch to
+                    # its single visible owner before navigating there.
+                    self._set_workspace_mode("runtime")
                 for index, (key, _icon, _name) in enumerate(_edition_metadata(self.edition)["pages"]):
                     if key == "resources":
                         self.navigation.setCurrentRow(index)
@@ -463,6 +471,12 @@ def create_main_window(
                 button.blockSignals(True)
                 button.setChecked(mode == self.workspace_mode)
                 button.blockSignals(False)
+            if self._resource_nav_index >= 0:
+                resource_item = self.navigation.item(self._resource_nav_index)
+                if resource_item is not None:
+                    resource_item.setHidden(self.workspace_mode == "research")
+                if self.workspace_mode == "research" and self.navigation.currentRow() == self._resource_nav_index:
+                    self.navigation.setCurrentRow(0)
 
         def closeEvent(self, event):
             if self._dataset_thread is not None and self._dataset_thread.isRunning():
@@ -531,7 +545,6 @@ def _edition_metadata(edition: str) -> dict:
             "pages": (
                 ("dt", "◇", "双场景数字孪生"),
                 ("hmi", "", "智能风险与安全建议"),
-                ("integrated", "◉", "全流程联动"),
             ),
         },
     }

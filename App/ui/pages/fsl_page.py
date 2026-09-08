@@ -12,6 +12,11 @@ from ..widgets.fsl_timeline_panel import build_stage_table, FSLTimelineChart
 from ..widgets.fsl_transfer_workbench import create_fsl_transfer_workbench
 from ..widgets.knowledge_graph_panel import build_knowledge_graph_panel
 from .data_import_page import build_data_import_page
+from ...services.fsl_risk_service import (
+    model_options,
+    save_model_selection,
+    selected_model_id,
+)
 
 
 def build_fsl_page(
@@ -21,7 +26,7 @@ def build_fsl_page(
     *,
     include_resource_tabs: bool = True,
 ):
-    from PySide6.QtCore import QTimer, Qt
+    from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal, Slot
     from PySide6.QtWidgets import (
         QComboBox,
         QFileDialog,
@@ -100,6 +105,16 @@ def build_fsl_page(
     for button in (analyse_button, export_chart_button, export_event_button):
         action_row.addWidget(button)
     action_row.addStretch(1)
+    action_row.addWidget(QLabel("风险模型"))
+    risk_model_box = QComboBox()
+    risk_model_box.setObjectName("fslRiskModel")
+    for model_id, title_text in model_options():
+        risk_model_box.addItem(title_text, model_id)
+    active_model = selected_model_id()
+    active_index = risk_model_box.findData(active_model)
+    risk_model_box.setCurrentIndex(max(active_index, 0))
+    risk_model_box.setToolTip("切换后重新计算当前全部井段；实验GNN缺少原训练预处理器时采用井段自适应标准化")
+    action_row.addWidget(risk_model_box)
     timeline_layout.addLayout(action_row)
 
     playback = QWidget()
@@ -114,21 +129,49 @@ def build_fsl_page(
         speed_box.addItem(f"{value:g}×", value)
     speed_box.setCurrentIndex(1)
     slider = QSlider(Qt.Horizontal)
-    time_label = QLabel("t=--")
+    time_label = QLabel("")
+    risk_point_status = QLabel("")
+    risk_point_status.setObjectName("value")
+    risk_point_status.setMinimumWidth(190)
     for widget in (play_button, reset_button, back_button, next_button, QLabel("速度"), speed_box):
         playback_layout.addWidget(widget)
     playback_layout.addWidget(slider, 1)
+    playback_layout.addWidget(risk_point_status)
     playback_layout.addWidget(time_label)
     timeline_layout.addWidget(playback)
     timer = QTimer(playback)
+    refresh_thread = None
+    refresh_worker = None
+    refresh_poll_timer = QTimer(page)
+    refresh_poll_timer.setInterval(50)
 
-    condition_status = _label("", "warning")
-    timeline_layout.addWidget(condition_status)
-    condition_button = QPushButton("工况模型未接入")
-    condition_button.setEnabled(False)
-    condition_button.setToolTip("正式迁移权重缺配套预处理包；两阶段模型仅有评估输出。smoke 测试模型不作为正式工况预测。")
-    action_row.insertWidget(1, condition_button)
-    event_detail = _label("请选择事件区间：点击左侧曲线中的色带或事件边界查看详情；右侧表格用于切换井段。", "notice")
+    class TimelineRefreshWorker(QObject):
+        done = Signal()
+
+        def __init__(self):
+            super().__init__()
+            self.result = None
+            self.error = ""
+
+        @Slot()
+        def run(self):
+            try:
+                worker_loader = FSLTimelineLoader(registry)
+                rows = worker_loader.refresh()
+                self.result = {
+                    "rows": rows,
+                    "stages": worker_loader._stages,
+                    "status": worker_loader.status,
+                    "status_reason": worker_loader.status_reason,
+                    "source_paths": worker_loader.source_paths,
+                    "source_path": worker_loader.source_path,
+                }
+            except Exception as exc:
+                self.error = str(exc)
+            finally:
+                self.done.emit()
+
+    event_detail = _label("选择图中工况：", "notice")
     timeline_layout.addWidget(event_detail)
 
     def set_playback_index(index):
@@ -143,6 +186,14 @@ def build_fsl_page(
         seconds = float(times[index]) if times else 0.0
         duration = float(current_stage.get("duration_s") or seconds)
         time_label.setText(f"t={seconds:.0f}s / {duration:.0f}s")
+        levels = current_stage.get("risk_level", [])
+        probabilities = current_stage.get("risk_probability", [])
+        level = str(levels[index]) if index < len(levels) else ""
+        probability = probabilities[index] if index < len(probabilities) else None
+        if probability is None:
+            risk_point_status.setText(f"风险：{level or '等待窗口'}")
+        else:
+            risk_point_status.setText(f"风险：{level} {float(probability) * 100:.1f}%")
         active = next(
             (
                 item
@@ -166,11 +217,11 @@ def build_fsl_page(
         slider.setRange(0, 0)
         slider.setValue(0)
         slider.blockSignals(False)
-        time_label.setText("t=--")
+        time_label.clear()
+        risk_point_status.clear()
         for widget in (play_button, reset_button, back_button, next_button, slider, export_chart_button, export_event_button):
             widget.setEnabled(False)
         data_status.setText("当前井段没有可用的施工工况识别数据；可在数据导入后刷新")
-        condition_status.setText("工况模型未接入 · 源表标签与规则检测分开显示")
         show_interval(None)
 
     def set_playback_stage(stage):
@@ -202,15 +253,14 @@ def build_fsl_page(
                 for key in ("intervals", "actual_condition_intervals", "rule_condition_intervals", "predicted_condition_intervals")
             )
             if available:
-                event_detail.setText("请选择事件区间：点击左侧曲线中的色带或事件边界查看详情；右侧表格用于切换井段。")
+                event_detail.setText("选择图中工况：")
             else:
-                event_detail.setText("当前井段没有可选事件区间；可继续回放压力、排量和砂比，或切换到有工况标签的井段。")
+                event_detail.setText("选择图中工况：")
             return
         event_detail.setText(
-            f"类型：{ {'predicted': '模型识别', 'rule': '规则检测', 'actual': '源表实际标签'}.get(interval.get('kind'), '未知来源事件') }　"
-            f"类别：{display_text(interval.get('label', '未标注'))}　"
-            f"边界：{float(interval.get('start_s') or 0):.0f}–{float(interval.get('end_s') or 0):.0f} s　"
-            f"依据：{display_text(interval.get('trigger_reason') or current_stage.get('source_file', '--'))}"
+            f"工况：{display_text(interval.get('label', '未标注'))}　"
+            f"时间：{float(interval.get('start_s') or 0):.0f}–{float(interval.get('end_s') or 0):.0f} s　"
+            f"说明：{display_text(interval.get('description') or interval.get('trigger_reason') or '')}"
         )
 
     def select_stage(stage_id):
@@ -227,20 +277,15 @@ def build_fsl_page(
             widget.setEnabled(bool(stage.get("time_s")))
         set_playback_stage(stage)
         data_status.setText(
-            f"{stage.get('sample_count', 0)} 点 · {len(stage.get('intervals', []))} 个事件 · {stage.get('source_file', '--')}"
+            f"{stage.get('sample_count', 0)} 点 · {len(stage.get('intervals', []))} 个源表事件 · "
+            f"{stage.get('risk_model_source', '')} · {stage.get('source_file', '')}"
         )
-        if stage.get("condition_prediction_status") == "ready":
-            condition_status.setText(f"工况预测 · {len(stage.get('predicted_condition_intervals', []))} 个区间")
-        elif stage.get("condition_prediction_status") == "no_labels":
-            condition_status.setText("当前井段没有工况标签 · 只能回放压力/排量/砂比，不能选择工况区间")
-        else:
-            condition_status.setText("工况预测模型未接入 · 当前色带来自源表标签，点击色带可查看事件区间")
         timeline_chart.setToolTip(_point_prediction_summary(stage))
         show_interval({})
 
     def set_global_dataset(dataset_id):
         """Follow the application-wide dataset selection."""
-        nonlocal selected_dataset_id
+        nonlocal current_stage, selected_dataset_id
         selected_dataset_id = str(dataset_id or "")
         clear_stage()
         dataset = registry.dataset(dataset_id)
@@ -275,10 +320,11 @@ def build_fsl_page(
             for widget in (play_button, reset_button, back_button, next_button, slider, export_chart_button, export_event_button):
                 widget.setEnabled(bool(replay_stage.get("time_s")))
             set_playback_stage(replay_stage)
+            cache_name = str(replay_stage.get("data_source", "")).replace("DT缓存：", "").strip()
+            replay_seconds = int(round(float(replay_stage.get("sample_count") or replay_stage.get("duration_s") or 0.0)))
             data_status.setText(
-                f"{replay_stage.get('sample_count', 0)} 点 · 无工况标签 · {replay_stage.get('data_source', '--')}"
+                f"{replay_seconds}s  缓存文件：{cache_name}"
             )
-            condition_status.setText("当前井段没有工况标签 · 只能回放压力/排量/砂比，不能选择工况区间")
             timeline_chart.setToolTip("当前仅回放已登记的施工压力、排量和砂比数据")
             show_interval({})
 
@@ -318,24 +364,62 @@ def build_fsl_page(
     layout.addWidget(timeline_panel)
 
     def reanalyse():
-        nonlocal timeline_rows
+        nonlocal timeline_rows, refresh_thread, refresh_worker
+        if refresh_thread is not None:
+            return
         clear_stage()
         analyse_button.setEnabled(False)
+        risk_model_box.setEnabled(False)
         data_status.setText("正在重新读取、清洗并分析独立井段数据…")
-        try:
-            timeline_rows = timeline_loader.refresh()
+
+        def complete(payload):
+            nonlocal timeline_rows
+            timeline_rows = list(payload.get("rows") or [])
+            timeline_loader._stages = dict(payload.get("stages") or {})
+            timeline_loader.status = str(payload.get("status") or "not_available")
+            timeline_loader.status_reason = str(payload.get("status_reason") or "")
+            timeline_loader.source_paths = list(payload.get("source_paths") or [])
+            timeline_loader.source_path = payload.get("source_path")
             timeline_table.set_rows(timeline_rows)
             transfer_workbench.refresh_rows(timeline_rows)
             set_global_dataset(selected_dataset_id)
             if not timeline_rows:
-                data_status.setText(timeline_loader.status_reason + "；可继续导入后刷新")
-        except Exception as exc:
-            data_status.setText(f"分析失败：{exc}")
-        finally:
+                data_status.setText(timeline_loader.status_reason + "；可在数据导入后刷新")
+
+        def failed(message):
+            data_status.setText(f"分析失败：{message}")
+
+        def finished():
+            nonlocal refresh_thread, refresh_worker
             analyse_button.setEnabled(True)
+            risk_model_box.setEnabled(True)
+            if refresh_thread is not None:
+                refresh_thread.deleteLater()
+            refresh_thread = None
+            refresh_worker = None
+
+        def poll_refresh():
+            if refresh_thread is None or refresh_worker is None or refresh_thread.isRunning():
+                return
+            refresh_poll_timer.stop()
+            refresh_poll_timer.timeout.disconnect(poll_refresh)
+            if refresh_worker.error:
+                failed(refresh_worker.error)
+            else:
+                complete(refresh_worker.result or {})
+            finished()
+
+        refresh_thread = QThread(page)
+        refresh_worker = TimelineRefreshWorker()
+        refresh_worker.moveToThread(refresh_thread)
+        refresh_thread.started.connect(refresh_worker.run)
+        refresh_worker.done.connect(refresh_thread.quit)
+        refresh_poll_timer.timeout.connect(poll_refresh)
+        refresh_thread.start()
+        refresh_poll_timer.start()
 
     def export_chart():
-        destination, _ = QFileDialog.getSaveFileName(page, "导出当前图表", "施工工况与逐点预测.png", "PNG 图片 (*.png)")
+        destination, _ = QFileDialog.getSaveFileName(page, "导出当前图表", "施工数据回放.png", "PNG 图片 (*.png)")
         if destination and timeline_chart.grab().save(destination, "PNG"):
             data_status.setText(f"图表已导出：{destination}")
 
@@ -355,6 +439,11 @@ def build_fsl_page(
                 "rule_condition_intervals": current_stage.get("rule_condition_intervals", []),
                 "predicted_condition_intervals": current_stage.get("predicted_condition_intervals", []),
                 "condition_prediction_status": current_stage.get("condition_prediction_status"),
+                "condition_prediction_reason": current_stage.get("condition_prediction_reason"),
+                "risk_model_id": current_stage.get("risk_model_id"),
+                "risk_model_source": current_stage.get("risk_model_source"),
+                "risk_probability": current_stage.get("risk_probability", []),
+                "risk_level": current_stage.get("risk_level", []),
                 "point_prediction_source": current_stage.get("point_prediction_source"),
                 "point_prediction_semantics": current_stage.get("point_prediction_semantics"),
                 "point_prediction_metrics": current_stage.get("point_prediction_metrics", {}),
@@ -363,6 +452,16 @@ def build_fsl_page(
             data_status.setText(f"事件报告已导出：{destination}")
 
     analyse_button.clicked.connect(reanalyse)
+    def change_risk_model(_index):
+        model_id = str(risk_model_box.currentData() or "auto")
+        try:
+            save_model_selection(model_id)
+        except (OSError, ValueError) as exc:
+            data_status.setText(f"风险模型切换失败：{exc}")
+            return
+        reanalyse()
+
+    risk_model_box.currentIndexChanged.connect(change_risk_model)
     export_chart_button.clicked.connect(export_chart)
     export_event_button.clicked.connect(export_events)
     refresh_imported_callback = reanalyse
@@ -372,6 +471,7 @@ def build_fsl_page(
     page._fsl_chart = timeline_chart
     page._fsl_timer = timer
     page._fsl_slider = slider
+    page._fsl_refresh_thread = lambda: refresh_thread
     page._fsl_transfer = transfer_workbench
     page.pause_playback = lambda: timer.stop()
 
@@ -384,7 +484,7 @@ def _risk_summary(module: dict[str, Any]) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _get(data: dict[str, Any], *keys: str, default: Any = "--") -> Any:
+def _get(data: dict[str, Any], *keys: str, default: Any = "") -> Any:
     value: Any = data
     for key in keys:
         if not isinstance(value, dict) or key not in value:
@@ -415,24 +515,24 @@ def _fmt(value):
     try:
         return f"{float(value):.3f}"
     except (TypeError, ValueError):
-        return "--"
+        return ""
 
 
 def _pct(value):
     try:
         return f"{float(value) * 100:.1f}%"
     except (TypeError, ValueError):
-        return "--"
+        return ""
 
 
 def _point_prediction_summary(stage: dict[str, Any]) -> str:
     """Describe the point curves without conflating them with frozen metrics."""
 
-    source = display_text(stage.get("point_prediction_source", "未接入逐点预测"))
+    source = display_text(stage.get("point_prediction_source", ""))
     semantics = display_text(stage.get("point_prediction_semantics", ""))
     metrics = stage.get("point_prediction_metrics", {})
     if not isinstance(metrics, dict):
-        return f"逐点预测：{source}。{semantics}"
+        return "。".join(item for item in (source, semantics) if item)
 
     def metric_text(key: str, label: str, unit: str, tolerance: str) -> str:
         value = metrics.get(key, {})
@@ -443,7 +543,7 @@ def _point_prediction_summary(stage: dict[str, Any]) -> str:
         try:
             mae_text = f"{float(mae):.2f}{unit}"
         except (TypeError, ValueError):
-            mae_text = "--"
+            mae_text = ""
         return f"{label} MAE {mae_text}，{tolerance}内 {_pct(hit)}"
 
     pressure = metric_text("pressure", "压力", " MPa", "±2.0 MPa")

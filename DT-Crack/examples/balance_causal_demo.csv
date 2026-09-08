@@ -1,0 +1,5 @@
+stage_id,policy,balance_before,balance_after
+baseline-01,baseline,0.50,0.55
+baseline-02,baseline,0.52,0.56
+piggy-01,piggy_bank,0.50,0.68
+piggy-02,piggy_bank,0.51,0.66
