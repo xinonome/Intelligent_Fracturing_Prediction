@@ -17,6 +17,8 @@ FSL-Expert/knowledge_graph/full_book_qwen_output/*
 /build/
 /dist/
 /node_modules/
+/package.json
+/package-lock.json
 /.frontend-design/
 /.cache/
 /.tmp/
@@ -24,7 +26,7 @@ FSL-Expert/knowledge_graph/full_book_qwen_output/*
 /_manual_assets_*/
 /_ppt_future_work_build/
 /_qa_*/
-/_tmp_*/
+/_tmp_*
 /.docx_qa_*/
 /.qa_submission/
 /.tmp_software_test_review/
