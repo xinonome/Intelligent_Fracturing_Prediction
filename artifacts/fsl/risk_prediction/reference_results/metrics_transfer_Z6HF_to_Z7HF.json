@@ -1,0 +1,367 @@
+{
+  "task": "cross-well transfer for next-sample reviewed green/yellow/red risk level",
+  "target_well": "JH_焦页5-Z7HF",
+  "source_wells": [
+    "JH_焦页5-Z6HF"
+  ],
+  "support_segments": [
+    "JH_焦页5-Z7HF::16",
+    "JH_焦页5-Z7HF::18",
+    "JH_焦页5-Z7HF::23",
+    "JH_焦页5-Z7HF::24",
+    "JH_焦页5-Z7HF::3",
+    "JH_焦页5-Z7HF::4",
+    "JH_焦页5-Z7HF::5"
+  ],
+  "query_segments": [
+    "JH_焦页5-Z7HF::1",
+    "JH_焦页5-Z7HF::10",
+    "JH_焦页5-Z7HF::11",
+    "JH_焦页5-Z7HF::12",
+    "JH_焦页5-Z7HF::13",
+    "JH_焦页5-Z7HF::14",
+    "JH_焦页5-Z7HF::15",
+    "JH_焦页5-Z7HF::17",
+    "JH_焦页5-Z7HF::19",
+    "JH_焦页5-Z7HF::2",
+    "JH_焦页5-Z7HF::20",
+    "JH_焦页5-Z7HF::21",
+    "JH_焦页5-Z7HF::22",
+    "JH_焦页5-Z7HF::6",
+    "JH_焦页5-Z7HF::7",
+    "JH_焦页5-Z7HF::8",
+    "JH_焦页5-Z7HF::9"
+  ],
+  "support_ratio": 0.3,
+  "window_size": 6,
+  "target_definition": "next sample about 10 seconds ahead: green=no interval, yellow=砂堵迹象, red=砂堵风险",
+  "architecture": "KnowledgeTemporalRiskGNN; 6 time nodes + 3 rule nodes; current risk state as one-hot prior",
+  "transfer_strategy": "pretrain source wells, freeze GNN backbone, fine-tune classifier on target support segments",
+  "pretrained_checkpoint": ".\\runs\\future_risk_levels\\20260805_175844\\knowledge_risk_level_gnn.pt",
+  "prior_strength": 1.0,
+  "metrics": {
+    "source_pretrain": {
+      "sample_count": 5571,
+      "label_counts": {
+        "绿色": 5089,
+        "黄色": 460,
+        "红色": 22
+      },
+      "three_level_accuracy": 0.9827679052234787,
+      "three_level_macro_f1": 0.9191402617838494,
+      "three_level_report": {
+        "绿色": {
+          "precision": 0.9915337664894665,
+          "recall": 0.9895853802318727,
+          "f1-score": 0.990558615263572,
+          "support": 5089.0
+        },
+        "黄色": {
+          "precision": 0.8936170212765957,
+          "recall": 0.9130434782608695,
+          "f1-score": 0.9032258064516129,
+          "support": 460.0
+        },
+        "红色": {
+          "precision": 0.8636363636363636,
+          "recall": 0.8636363636363636,
+          "f1-score": 0.8636363636363636,
+          "support": 22.0
+        },
+        "accuracy": 0.9827679052234787,
+        "macro avg": {
+          "precision": 0.9162623838008086,
+          "recall": 0.9220884073763687,
+          "f1-score": 0.9191402617838494,
+          "support": 5571.0
+        },
+        "weighted avg": {
+          "precision": 0.9829436667478242,
+          "recall": 0.9827679052234787,
+          "f1-score": 0.9828462868504865,
+          "support": 5571.0
+        }
+      },
+      "three_level_confusion_matrix": [
+        [
+          5036,
+          50,
+          3
+        ],
+        [
+          40,
+          420,
+          0
+        ],
+        [
+          3,
+          0,
+          19
+        ]
+      ],
+      "green_vs_yellow_red_accuracy": 0.9827679052234787,
+      "yellow_red_precision": 0.8922764227642277,
+      "yellow_red_recall": 0.9107883817427386,
+      "yellow_red_f1": 0.9014373716632443,
+      "green_vs_yellow_red_confusion_matrix": [
+        [
+          5036,
+          53
+        ],
+        [
+          43,
+          439
+        ]
+      ]
+    },
+    "target_query_before_finetune": {
+      "sample_count": 5360,
+      "label_counts": {
+        "绿色": 5059,
+        "黄色": 286,
+        "红色": 15
+      },
+      "three_level_accuracy": 0.9884328358208955,
+      "three_level_macro_f1": 0.9321015506321952,
+      "three_level_report": {
+        "绿色": {
+          "precision": 0.9932885906040269,
+          "recall": 0.9946629768728997,
+          "f1-score": 0.9939753086419754,
+          "support": 5059.0
+        },
+        "黄色": {
+          "precision": 0.9094202898550725,
+          "recall": 0.8776223776223776,
+          "f1-score": 0.8932384341637011,
+          "support": 286.0
+        },
+        "红色": {
+          "precision": 0.8333333333333334,
+          "recall": 1.0,
+          "f1-score": 0.9090909090909091,
+          "support": 15.0
+        },
+        "accuracy": 0.9884328358208955,
+        "macro avg": {
+          "precision": 0.9120140712641444,
+          "recall": 0.9574284514984258,
+          "f1-score": 0.9321015506321952,
+          "support": 5360.0
+        },
+        "weighted avg": {
+          "precision": 0.9883658923067767,
+          "recall": 0.9884328358208955,
+          "f1-score": 0.9883626198184582,
+          "support": 5360.0
+        }
+      },
+      "three_level_confusion_matrix": [
+        [
+          5032,
+          25,
+          2
+        ],
+        [
+          34,
+          251,
+          1
+        ],
+        [
+          0,
+          0,
+          15
+        ]
+      ],
+      "green_vs_yellow_red_accuracy": 0.9886194029850747,
+      "yellow_red_precision": 0.9081632653061225,
+      "yellow_red_recall": 0.8870431893687708,
+      "yellow_red_f1": 0.8974789915966387,
+      "green_vs_yellow_red_confusion_matrix": [
+        [
+          5032,
+          27
+        ],
+        [
+          34,
+          267
+        ]
+      ]
+    },
+    "target_support_after_finetune": {
+      "sample_count": 2343,
+      "label_counts": {
+        "绿色": 2100,
+        "黄色": 188,
+        "红色": 55
+      },
+      "three_level_accuracy": 0.9714041826717883,
+      "three_level_macro_f1": 0.8861658846943682,
+      "three_level_report": {
+        "绿色": {
+          "precision": 0.9829140958709065,
+          "recall": 0.9861904761904762,
+          "f1-score": 0.984549560256715,
+          "support": 2100.0
+        },
+        "黄色": {
+          "precision": 0.8677248677248677,
+          "recall": 0.8723404255319149,
+          "f1-score": 0.870026525198939,
+          "support": 188.0
+        },
+        "红色": {
+          "precision": 0.8723404255319149,
+          "recall": 0.7454545454545455,
+          "f1-score": 0.803921568627451,
+          "support": 55.0
+        },
+        "accuracy": 0.9714041826717883,
+        "macro avg": {
+          "precision": 0.9076597963758964,
+          "recall": 0.8679951490589789,
+          "f1-score": 0.8861658846943682,
+          "support": 2343.0
+        },
+        "weighted avg": {
+          "precision": 0.9710758001986486,
+          "recall": 0.9714041826717883,
+          "f1-score": 0.9711202516222841,
+          "support": 2343.0
+        }
+      },
+      "three_level_confusion_matrix": [
+        [
+          2071,
+          24,
+          5
+        ],
+        [
+          23,
+          164,
+          1
+        ],
+        [
+          13,
+          1,
+          41
+        ]
+      ],
+      "green_vs_yellow_red_accuracy": 0.9722577891591976,
+      "yellow_red_precision": 0.8771186440677966,
+      "yellow_red_recall": 0.8518518518518519,
+      "yellow_red_f1": 0.8643006263048016,
+      "green_vs_yellow_red_confusion_matrix": [
+        [
+          2071,
+          29
+        ],
+        [
+          36,
+          207
+        ]
+      ]
+    },
+    "target_query_after_finetune": {
+      "sample_count": 5360,
+      "label_counts": {
+        "绿色": 5059,
+        "黄色": 286,
+        "红色": 15
+      },
+      "three_level_accuracy": 0.9875,
+      "three_level_macro_f1": 0.8607599510888934,
+      "three_level_report": {
+        "绿色": {
+          "precision": 0.991725768321513,
+          "recall": 0.9950583119193517,
+          "f1-score": 0.9933892451899359,
+          "support": 5059.0
+        },
+        "黄色": {
+          "precision": 0.9094202898550725,
+          "recall": 0.8776223776223776,
+          "f1-score": 0.8932384341637011,
+          "support": 286.0
+        },
+        "红色": {
+          "precision": 1.0,
+          "recall": 0.5333333333333333,
+          "f1-score": 0.6956521739130435,
+          "support": 15.0
+        },
+        "accuracy": 0.9875,
+        "macro avg": {
+          "precision": 0.9670486860588619,
+          "recall": 0.8020046742916875,
+          "f1-score": 0.8607599510888934,
+          "support": 5360.0
+        },
+        "weighted avg": {
+          "precision": 0.9873572509024413,
+          "recall": 0.9875,
+          "f1-score": 0.987212157872276,
+          "support": 5360.0
+        }
+      },
+      "three_level_confusion_matrix": [
+        [
+          5034,
+          25,
+          0
+        ],
+        [
+          35,
+          251,
+          0
+        ],
+        [
+          7,
+          0,
+          8
+        ]
+      ],
+      "green_vs_yellow_red_accuracy": 0.9875,
+      "yellow_red_precision": 0.9119718309859155,
+      "yellow_red_recall": 0.8604651162790697,
+      "yellow_red_f1": 0.8854700854700854,
+      "green_vs_yellow_red_confusion_matrix": [
+        [
+          5034,
+          25
+        ],
+        [
+          42,
+          259
+        ]
+      ]
+    },
+    "target_query_persistence": {
+      "sample_count": 5360,
+      "accuracy": 0.9884328358208955
+    }
+  },
+  "pretrain_history": [],
+  "finetune_history": [
+    {
+      "epoch": 1,
+      "loss": 0.5225445926189423
+    },
+    {
+      "epoch": 2,
+      "loss": 0.5010726302862167
+    },
+    {
+      "epoch": 3,
+      "loss": 0.4885948598384857
+    },
+    {
+      "epoch": 4,
+      "loss": 0.4763086438179016
+    },
+    {
+      "epoch": 5,
+      "loss": 0.48345454037189484
+    }
+  ]
+}

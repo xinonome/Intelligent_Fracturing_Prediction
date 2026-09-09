@@ -1,0 +1,113 @@
+{
+  "run_root": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543",
+  "plan": "contract3_agent_safety_first_20260817",
+  "candidate_algorithms": [
+    "ppo",
+    "sac",
+    "td3"
+  ],
+  "model_comparison_policy": "same grouped split, same scenarios, same safety projection, same seeds; no automatic promotion",
+  "training_data": "Data/raw_frac full authorized construction segments; split by segment_id inside each training run",
+  "hmi_holdout": {
+    "available": true,
+    "path": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\deliverables\\third_part_hmi_delivery\\data\\hmi_demo_sample.json",
+    "record_count": 240,
+    "schema_version": 1,
+    "source_record_count": 240,
+    "training_input": false,
+    "independent_feature_windows_available": false,
+    "evaluation_scope": "HMI decision-output safety audit; not a new policy rollout evaluation",
+    "event_like_records": 63,
+    "max_current_sand_ratio_percent": 7.0,
+    "max_recommended_sand_ratio_percent": 7.048,
+    "p95_recommended_sand_ratio_percent": 7.044,
+    "max_sand_delta_from_reference_percent": 0.341,
+    "high_sand_recommended_fraction": 0.0,
+    "hard_limit_configured": false,
+    "hard_limit_violations": null,
+    "step_limit_violations": 0,
+    "violation_indices": [],
+    "safety_audit_pass": true
+  },
+  "runs": [
+    {
+      "seed": 2026,
+      "algorithm": "ppo",
+      "status": "ok",
+      "summary_path": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\ppo\\seed_2026\\ppo_20260818_192658\\summary.json",
+      "model": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\ppo\\seed_2026\\ppo_20260818_192658\\ppo_fracturing_policy.zip"
+    },
+    {
+      "seed": 2027,
+      "algorithm": "ppo",
+      "status": "ok",
+      "summary_path": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\ppo\\seed_2027\\ppo_20260818_193947\\summary.json",
+      "model": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\ppo\\seed_2027\\ppo_20260818_193947\\ppo_fracturing_policy.zip"
+    },
+    {
+      "seed": 2028,
+      "algorithm": "ppo",
+      "status": "ok",
+      "summary_path": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\ppo\\seed_2028\\ppo_20260818_195217\\summary.json",
+      "model": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\ppo\\seed_2028\\ppo_20260818_195217\\ppo_fracturing_policy.zip"
+    },
+    {
+      "seed": 2026,
+      "algorithm": "sac",
+      "status": "ok",
+      "summary_path": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\sac\\seed_2026\\sac_20260818_200628\\summary.json",
+      "model": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\sac\\seed_2026\\sac_20260818_200628\\sac_fracturing_policy.zip"
+    },
+    {
+      "seed": 2027,
+      "algorithm": "sac",
+      "status": "ok",
+      "summary_path": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\sac\\seed_2027\\sac_20260818_202217\\summary.json",
+      "model": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\sac\\seed_2027\\sac_20260818_202217\\sac_fracturing_policy.zip"
+    },
+    {
+      "seed": 2028,
+      "algorithm": "sac",
+      "status": "ok",
+      "summary_path": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\sac\\seed_2028\\sac_20260818_203721\\summary.json",
+      "model": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\sac\\seed_2028\\sac_20260818_203721\\sac_fracturing_policy.zip"
+    },
+    {
+      "seed": 2026,
+      "algorithm": "td3",
+      "status": "ok",
+      "summary_path": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\td3\\seed_2026\\td3_20260818_205159\\summary.json",
+      "model": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\td3\\seed_2026\\td3_20260818_205159\\td3_fracturing_policy.zip"
+    },
+    {
+      "seed": 2027,
+      "algorithm": "td3",
+      "status": "ok",
+      "summary_path": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\td3\\seed_2027\\td3_20260818_211603\\summary.json",
+      "model": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\td3\\seed_2027\\td3_20260818_211603\\td3_fracturing_policy.zip"
+    },
+    {
+      "seed": 2028,
+      "algorithm": "td3",
+      "status": "ok",
+      "summary_path": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\td3\\seed_2028\\td3_20260818_212910\\summary.json",
+      "model": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\td3\\seed_2028\\td3_20260818_212910\\td3_fracturing_policy.zip"
+    }
+  ],
+  "successful_runs": 9,
+  "all_seed_quality_gates_pass": false,
+  "default_decision": {
+    "status": "experimental_only_fallback_to_pkn_enkf_and_conservative_rules",
+    "default_online_model": "PKN+EnKF",
+    "direct_device_control": false,
+    "promotion_candidate": null,
+    "reason": "This run compares candidate policies only; no model is promoted automatically."
+  },
+  "outputs": {
+    "model_comparison": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\model_comparison.csv",
+    "scenario_metrics": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\scenario_metrics.csv",
+    "action_safety_audit": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\action_safety_audit.csv",
+    "holdout_metrics": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\holdout_metrics.json",
+    "model_card": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\model_comparison_formal_v3_20260818\\20260818_192543\\model_card.md"
+  }
+}

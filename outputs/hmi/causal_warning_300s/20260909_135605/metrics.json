@@ -1,0 +1,140 @@
+{
+  "model": "causal_warning_300s_v1",
+  "purpose": "Predict explicit abnormal labels occurring in the next 300 seconds",
+  "input_contract": "past_window_and_current_operating_point_only",
+  "future_measured_actions_used": false,
+  "sample_interval_seconds": 1.0,
+  "history_seconds": 300.0,
+  "warning_seconds": 300.0,
+  "normal_history_only": true,
+  "maximum_train_negative_ratio": 6.0,
+  "source_segments": 19,
+  "source_samples": 154450,
+  "retained_samples": 150891,
+  "split_segments": {
+    "train": [
+      "FDBH1.1",
+      "FDBH1",
+      "FDBH22",
+      "FDBH8",
+      "16",
+      "FDBH2",
+      "FDBH15",
+      "imported_FDBH14_20260907_195303_637364",
+      "imported_FDBH23_20260909_130658_070547",
+      "FDBH7",
+      "imported_FDBH23_20260907_195303_784780",
+      "FDBH26"
+    ],
+    "validation": [
+      "12",
+      "imported_FDBH14_20260909_130657_896549",
+      "FDBH3"
+    ],
+    "test": [
+      "FDBH5",
+      "FDBH18",
+      "fdbh10",
+      "FDBH26.1"
+    ]
+  },
+  "split_samples": {
+    "train": 8848,
+    "validation": 16666,
+    "test": 16514
+  },
+  "label_statistics": {
+    "abnormal": {
+      "positive_count": 1264,
+      "negative_count": 7584,
+      "available": true,
+      "reason": null
+    },
+    "sand_plug": {
+      "positive_count": 966,
+      "negative_count": 7882,
+      "available": true,
+      "reason": null
+    }
+  },
+  "threshold_calibration": {
+    "source": "validation",
+    "target_recall": 0.9,
+    "abnormal": {
+      "samples": 16666,
+      "positive_samples": 491,
+      "negative_samples": 16175,
+      "threshold": 6.137402835890737e-05,
+      "true_positive": 491,
+      "false_negative": 0,
+      "false_positive": 16165,
+      "true_negative": 10,
+      "recall": 1.0,
+      "precision": 0.02947886647454371,
+      "false_alarm_rate": 0.9993817619783617,
+      "roc_auc": 0.5031265719583099
+    },
+    "sand_plug": {
+      "samples": 16666,
+      "positive_samples": 300,
+      "negative_samples": 16366,
+      "threshold": 7.065125928021385e-05,
+      "true_positive": 300,
+      "false_negative": 0,
+      "false_positive": 13459,
+      "true_negative": 2907,
+      "recall": 1.0,
+      "precision": 0.021803910167890107,
+      "false_alarm_rate": 0.8223756568495662,
+      "roc_auc": 0.271242820481486,
+      "available": true
+    }
+  },
+  "held_out_test": {
+    "abnormal": {
+      "samples": 16514,
+      "positive_samples": 438,
+      "negative_samples": 16076,
+      "threshold": 6.137402835890737e-05,
+      "true_positive": 438,
+      "false_negative": 0,
+      "false_positive": 16076,
+      "true_negative": 0,
+      "recall": 1.0,
+      "precision": 0.02652295022405232,
+      "false_alarm_rate": 1.0,
+      "roc_auc": 0.9114853702902083,
+      "target_recall": 0.9,
+      "sample_window_recall": 1.0,
+      "strict_event_300s": {
+        "definition": "warning_at_future_event_0_to_1_boundary",
+        "horizon_seconds": 300.0,
+        "event_windows": 2,
+        "detected_event_windows": 2,
+        "missed_event_windows": 0,
+        "recall": 1.0,
+        "threshold": 6.137402835890737e-05
+      },
+      "pass_5min_warning_recall": true
+    },
+    "sand_plug": {
+      "samples": 16514,
+      "positive_samples": 138,
+      "negative_samples": 16376,
+      "threshold": 7.065125928021385e-05,
+      "true_positive": 138,
+      "false_negative": 0,
+      "false_positive": 9665,
+      "true_negative": 6711,
+      "recall": 1.0,
+      "precision": 0.014077323268387228,
+      "false_alarm_rate": 0.5901929653150952,
+      "roc_auc": 0.959090893000007
+    }
+  },
+  "scientific_status": "offline_acceptance_candidate",
+  "outputs": {
+    "model": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\causal_warning_300s\\20260909_135605\\causal_warning_300s.joblib",
+    "predictions": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\outputs\\hmi\\causal_warning_300s\\20260909_135605\\predictions.csv"
+  }
+}

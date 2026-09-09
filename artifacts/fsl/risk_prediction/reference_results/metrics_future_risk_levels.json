@@ -1,0 +1,688 @@
+{
+  "task": "past 60 seconds predict the expert-reviewed green/yellow/red risk level 10 seconds ahead",
+  "well": "JH_焦页5-Z6HF",
+  "label_definition": {
+    "green": "no reviewed warning interval is active at the target time",
+    "yellow": "a reviewed sand-warning interval is active at the target time",
+    "red": "a reviewed sand-risk interval is active at the target time",
+    "execution_zone": "yellow plus red"
+  },
+  "expert_knowledge_input": "current green/yellow/red rule state at time t, one-hot encoded; no future label is used",
+  "split_manifest": {
+    "train": [
+      "JH_焦页5-Z6HF::1",
+      "JH_焦页5-Z6HF::12",
+      "JH_焦页5-Z6HF::14",
+      "JH_焦页5-Z6HF::15",
+      "JH_焦页5-Z6HF::16",
+      "JH_焦页5-Z6HF::18",
+      "JH_焦页5-Z6HF::2",
+      "JH_焦页5-Z6HF::4",
+      "JH_焦页5-Z6HF::6",
+      "JH_焦页5-Z6HF::8",
+      "JH_焦页5-Z6HF::9"
+    ],
+    "val": [
+      "JH_焦页5-Z6HF::11",
+      "JH_焦页5-Z6HF::13",
+      "JH_焦页5-Z6HF::3"
+    ],
+    "transfer": [
+      "JH_焦页5-Z6HF::10",
+      "JH_焦页5-Z6HF::7"
+    ],
+    "test": [
+      "JH_焦页5-Z6HF::17",
+      "JH_焦页5-Z6HF::5"
+    ]
+  },
+  "best_iteration": 123,
+  "lightgbm_baseline": {
+    "train": {
+      "sample_count": 5029,
+      "label_counts": {
+        "绿色": 4564,
+        "黄色": 442,
+        "红色": 23
+      },
+      "three_level_accuracy": 0.9898588188506662,
+      "three_level_macro_f1": 0.9722492586776178,
+      "three_level_report": {
+        "绿色": {
+          "precision": 0.9962612711678029,
+          "recall": 0.9925503943908852,
+          "f1-score": 0.994402370760619,
+          "support": 4564.0
+        },
+        "黄色": {
+          "precision": 0.9260869565217391,
+          "recall": 0.9638009049773756,
+          "f1-score": 0.9445676274944568,
+          "support": 442.0
+        },
+        "红色": {
+          "precision": 1.0,
+          "recall": 0.9565217391304348,
+          "f1-score": 0.9777777777777777,
+          "support": 23.0
+        },
+        "accuracy": 0.9898588188506662,
+        "macro avg": {
+          "precision": 0.974116075896514,
+          "recall": 0.9709576794995652,
+          "f1-score": 0.9722492586776178,
+          "support": 5029.0
+        },
+        "weighted avg": {
+          "precision": 0.990110733026936,
+          "recall": 0.9898588188506662,
+          "f1-score": 0.9899463512413809,
+          "support": 5029.0
+        }
+      },
+      "three_level_confusion_matrix": [
+        [
+          4530,
+          34,
+          0
+        ],
+        [
+          16,
+          426,
+          0
+        ],
+        [
+          1,
+          0,
+          22
+        ]
+      ],
+      "green_vs_yellow_red_accuracy": 0.9898588188506662,
+      "yellow_red_precision": 0.9294605809128631,
+      "yellow_red_recall": 0.9634408602150538,
+      "yellow_red_f1": 0.9461457233368532,
+      "green_vs_yellow_red_confusion_matrix": [
+        [
+          4530,
+          34
+        ],
+        [
+          17,
+          448
+        ]
+      ],
+      "current_rule_state_persistence_accuracy": 0.9819049512825612
+    },
+    "val": {
+      "sample_count": 1211,
+      "label_counts": {
+        "绿色": 1106,
+        "黄色": 101,
+        "红色": 4
+      },
+      "three_level_accuracy": 0.985962014863749,
+      "three_level_macro_f1": 0.9692470019236549,
+      "three_level_report": {
+        "绿色": {
+          "precision": 0.991869918699187,
+          "recall": 0.9927667269439421,
+          "f1-score": 0.9923181201988251,
+          "support": 1106.0
+        },
+        "黄色": {
+          "precision": 0.92,
+          "recall": 0.9108910891089109,
+          "f1-score": 0.9154228855721394,
+          "support": 101.0
+        },
+        "红色": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1-score": 1.0,
+          "support": 4.0
+        },
+        "accuracy": 0.985962014863749,
+        "macro avg": {
+          "precision": 0.9706233062330624,
+          "recall": 0.9678859386842843,
+          "f1-score": 0.9692470019236549,
+          "support": 1211.0
+        },
+        "weighted avg": {
+          "precision": 0.9859026672843112,
+          "recall": 0.985962014863749,
+          "f1-score": 0.9859302662119626,
+          "support": 1211.0
+        }
+      },
+      "three_level_confusion_matrix": [
+        [
+          1098,
+          8,
+          0
+        ],
+        [
+          9,
+          92,
+          0
+        ],
+        [
+          0,
+          0,
+          4
+        ]
+      ],
+      "green_vs_yellow_red_accuracy": 0.985962014863749,
+      "yellow_red_precision": 0.9230769230769231,
+      "yellow_red_recall": 0.9142857142857143,
+      "yellow_red_f1": 0.9186602870813397,
+      "green_vs_yellow_red_confusion_matrix": [
+        [
+          1098,
+          8
+        ],
+        [
+          9,
+          96
+        ]
+      ],
+      "current_rule_state_persistence_accuracy": 0.985962014863749
+    },
+    "transfer": {
+      "sample_count": 1194,
+      "label_counts": {
+        "绿色": 1090,
+        "黄色": 100,
+        "红色": 4
+      },
+      "three_level_accuracy": 0.983249581239531,
+      "three_level_macro_f1": 0.7475171831465127,
+      "three_level_report": {
+        "绿色": {
+          "precision": 0.9881386861313869,
+          "recall": 0.9935779816513761,
+          "f1-score": 0.9908508691674291,
+          "support": 1090.0
+        },
+        "黄色": {
+          "precision": 0.9375,
+          "recall": 0.9,
+          "f1-score": 0.9183673469387755,
+          "support": 100.0
+        },
+        "红色": {
+          "precision": 0.5,
+          "recall": 0.25,
+          "f1-score": 0.3333333333333333,
+          "support": 4.0
+        },
+        "accuracy": 0.983249581239531,
+        "macro avg": {
+          "precision": 0.8085462287104623,
+          "recall": 0.7145259938837921,
+          "f1-score": 0.7475171831465127,
+          "support": 1194.0
+        },
+        "weighted avg": {
+          "precision": 0.9822622846593063,
+          "recall": 0.983249581239531,
+          "f1-score": 0.9825774836010961,
+          "support": 1194.0
+        }
+      },
+      "three_level_confusion_matrix": [
+        [
+          1083,
+          6,
+          1
+        ],
+        [
+          10,
+          90,
+          0
+        ],
+        [
+          3,
+          0,
+          1
+        ]
+      ],
+      "green_vs_yellow_red_accuracy": 0.983249581239531,
+      "yellow_red_precision": 0.9285714285714286,
+      "yellow_red_recall": 0.875,
+      "yellow_red_f1": 0.900990099009901,
+      "green_vs_yellow_red_confusion_matrix": [
+        [
+          1083,
+          7
+        ],
+        [
+          13,
+          91
+        ]
+      ],
+      "current_rule_state_persistence_accuracy": 0.9849246231155779
+    },
+    "test": {
+      "sample_count": 903,
+      "label_counts": {
+        "绿色": 838,
+        "黄色": 62,
+        "红色": 3
+      },
+      "three_level_accuracy": 0.9811738648947951,
+      "three_level_macro_f1": 0.9512835820895522,
+      "three_level_report": {
+        "绿色": {
+          "precision": 0.9904420549581839,
+          "recall": 0.9892601431980907,
+          "f1-score": 0.9898507462686568,
+          "support": 838.0
+        },
+        "黄色": {
+          "precision": 0.8571428571428571,
+          "recall": 0.8709677419354839,
+          "f1-score": 0.864,
+          "support": 62.0
+        },
+        "红色": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1-score": 1.0,
+          "support": 3.0
+        },
+        "accuracy": 0.9811738648947951,
+        "macro avg": {
+          "precision": 0.9491949707003471,
+          "recall": 0.9534092950445249,
+          "f1-score": 0.9512835820895522,
+          "support": 903.0
+        },
+        "weighted avg": {
+          "precision": 0.981321483054059,
+          "recall": 0.9811738648947951,
+          "f1-score": 0.9812435496933936,
+          "support": 903.0
+        }
+      },
+      "three_level_confusion_matrix": [
+        [
+          829,
+          9,
+          0
+        ],
+        [
+          8,
+          54,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ]
+      ],
+      "green_vs_yellow_red_accuracy": 0.9811738648947951,
+      "yellow_red_precision": 0.8636363636363636,
+      "yellow_red_recall": 0.8769230769230769,
+      "yellow_red_f1": 0.8702290076335878,
+      "green_vs_yellow_red_confusion_matrix": [
+        [
+          829,
+          9
+        ],
+        [
+          8,
+          57
+        ]
+      ],
+      "current_rule_state_persistence_accuracy": 0.9800664451827242
+    }
+  },
+  "knowledge_gnn": {
+    "train": {
+      "sample_count": 5029,
+      "label_counts": {
+        "绿色": 4564,
+        "黄色": 442,
+        "红色": 23
+      },
+      "three_level_accuracy": 0.8275999204613244,
+      "three_level_macro_f1": 0.32224756574527086,
+      "three_level_report": {
+        "绿色": {
+          "precision": 0.9046160577554145,
+          "recall": 0.9060035056967572,
+          "f1-score": 0.9053092501368364,
+          "support": 4564.0
+        },
+        "黄色": {
+          "precision": 0.06178489702517163,
+          "recall": 0.06108597285067873,
+          "f1-score": 0.06143344709897611,
+          "support": 442.0
+        },
+        "红色": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1-score": 0.0,
+          "support": 23.0
+        },
+        "accuracy": 0.8275999204613244,
+        "macro avg": {
+          "precision": 0.32213365159352875,
+          "recall": 0.322363159515812,
+          "f1-score": 0.32224756574527086,
+          "support": 5029.0
+        },
+        "weighted avg": {
+          "precision": 0.8264021897158159,
+          "recall": 0.8275999204613244,
+          "f1-score": 0.8270003979403994,
+          "support": 5029.0
+        }
+      },
+      "three_level_confusion_matrix": [
+        [
+          4135,
+          409,
+          20
+        ],
+        [
+          414,
+          27,
+          1
+        ],
+        [
+          22,
+          1,
+          0
+        ]
+      ],
+      "green_vs_yellow_red_accuracy": 0.8279976138397296,
+      "yellow_red_precision": 0.06331877729257641,
+      "yellow_red_recall": 0.06236559139784946,
+      "yellow_red_f1": 0.0628385698808234,
+      "green_vs_yellow_red_confusion_matrix": [
+        [
+          4135,
+          429
+        ],
+        [
+          436,
+          29
+        ]
+      ]
+    },
+    "val": {
+      "sample_count": 1211,
+      "label_counts": {
+        "绿色": 1106,
+        "黄色": 101,
+        "红色": 4
+      },
+      "three_level_accuracy": 0.985962014863749,
+      "three_level_macro_f1": 0.9692470019236549,
+      "three_level_report": {
+        "绿色": {
+          "precision": 0.991869918699187,
+          "recall": 0.9927667269439421,
+          "f1-score": 0.9923181201988251,
+          "support": 1106.0
+        },
+        "黄色": {
+          "precision": 0.92,
+          "recall": 0.9108910891089109,
+          "f1-score": 0.9154228855721394,
+          "support": 101.0
+        },
+        "红色": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1-score": 1.0,
+          "support": 4.0
+        },
+        "accuracy": 0.985962014863749,
+        "macro avg": {
+          "precision": 0.9706233062330624,
+          "recall": 0.9678859386842843,
+          "f1-score": 0.9692470019236549,
+          "support": 1211.0
+        },
+        "weighted avg": {
+          "precision": 0.9859026672843112,
+          "recall": 0.985962014863749,
+          "f1-score": 0.9859302662119626,
+          "support": 1211.0
+        }
+      },
+      "three_level_confusion_matrix": [
+        [
+          1098,
+          8,
+          0
+        ],
+        [
+          9,
+          92,
+          0
+        ],
+        [
+          0,
+          0,
+          4
+        ]
+      ],
+      "green_vs_yellow_red_accuracy": 0.985962014863749,
+      "yellow_red_precision": 0.9230769230769231,
+      "yellow_red_recall": 0.9142857142857143,
+      "yellow_red_f1": 0.9186602870813397,
+      "green_vs_yellow_red_confusion_matrix": [
+        [
+          1098,
+          8
+        ],
+        [
+          9,
+          96
+        ]
+      ]
+    },
+    "transfer": {
+      "sample_count": 1194,
+      "label_counts": {
+        "绿色": 1090,
+        "黄色": 100,
+        "红色": 4
+      },
+      "three_level_accuracy": 0.9849246231155779,
+      "three_level_macro_f1": 0.8867085295656724,
+      "three_level_report": {
+        "绿色": {
+          "precision": 0.9899451553930531,
+          "recall": 0.9935779816513761,
+          "f1-score": 0.9917582417582418,
+          "support": 1090.0
+        },
+        "黄色": {
+          "precision": 0.9375,
+          "recall": 0.9,
+          "f1-score": 0.9183673469387755,
+          "support": 100.0
+        },
+        "红色": {
+          "precision": 0.75,
+          "recall": 0.75,
+          "f1-score": 0.75,
+          "support": 4.0
+        },
+        "accuracy": 0.9849246231155779,
+        "macro avg": {
+          "precision": 0.8924817184643511,
+          "recall": 0.8811926605504588,
+          "f1-score": 0.8867085295656724,
+          "support": 1194.0
+        },
+        "weighted avg": {
+          "precision": 0.9847489274526195,
+          "recall": 0.9849246231155779,
+          "f1-score": 0.9848016902934348,
+          "support": 1194.0
+        }
+      },
+      "three_level_confusion_matrix": [
+        [
+          1083,
+          6,
+          1
+        ],
+        [
+          10,
+          90,
+          0
+        ],
+        [
+          1,
+          0,
+          3
+        ]
+      ],
+      "green_vs_yellow_red_accuracy": 0.9849246231155779,
+      "yellow_red_precision": 0.93,
+      "yellow_red_recall": 0.8942307692307693,
+      "yellow_red_f1": 0.9117647058823529,
+      "green_vs_yellow_red_confusion_matrix": [
+        [
+          1083,
+          7
+        ],
+        [
+          11,
+          93
+        ]
+      ]
+    },
+    "test": {
+      "sample_count": 903,
+      "label_counts": {
+        "绿色": 838,
+        "黄色": 62,
+        "红色": 3
+      },
+      "three_level_accuracy": 0.9800664451827242,
+      "three_level_macro_f1": 0.9034633896569381,
+      "three_level_report": {
+        "绿色": {
+          "precision": 0.9904306220095693,
+          "recall": 0.9880668257756563,
+          "f1-score": 0.989247311827957,
+          "support": 838.0
+        },
+        "黄色": {
+          "precision": 0.8571428571428571,
+          "recall": 0.8709677419354839,
+          "f1-score": 0.864,
+          "support": 62.0
+        },
+        "红色": {
+          "precision": 0.75,
+          "recall": 1.0,
+          "f1-score": 0.8571428571428571,
+          "support": 3.0
+        },
+        "accuracy": 0.9800664451827242,
+        "macro avg": {
+          "precision": 0.8658578263841421,
+          "recall": 0.95301152257038,
+          "f1-score": 0.9034633896569381,
+          "support": 903.0
+        },
+        "weighted avg": {
+          "precision": 0.9804803082911143,
+          "recall": 0.9800664451827242,
+          "f1-score": 0.9802089433923107,
+          "support": 903.0
+        }
+      },
+      "three_level_confusion_matrix": [
+        [
+          828,
+          9,
+          1
+        ],
+        [
+          8,
+          54,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ]
+      ],
+      "green_vs_yellow_red_accuracy": 0.9800664451827242,
+      "yellow_red_precision": 0.8507462686567164,
+      "yellow_red_recall": 0.8769230769230769,
+      "yellow_red_f1": 0.8636363636363636,
+      "green_vs_yellow_red_confusion_matrix": [
+        [
+          828,
+          10
+        ],
+        [
+          8,
+          57
+        ]
+      ]
+    }
+  },
+  "gnn_training": {
+    "history": [
+      {
+        "epoch": 1,
+        "loss": 0.19767273366451263,
+        "val_macro_f1": 0.9692470019236549
+      },
+      {
+        "epoch": 2,
+        "loss": 0.1666575253009796,
+        "val_macro_f1": 0.9692470019236549
+      },
+      {
+        "epoch": 3,
+        "loss": 0.15889135748147964,
+        "val_macro_f1": 0.9692470019236549
+      },
+      {
+        "epoch": 4,
+        "loss": 0.15503986850380896,
+        "val_macro_f1": 0.9692470019236549
+      },
+      {
+        "epoch": 5,
+        "loss": 0.14794899374246598,
+        "val_macro_f1": 0.9692470019236549
+      },
+      {
+        "epoch": 6,
+        "loss": 0.147065232694149,
+        "val_macro_f1": 0.9692470019236549
+      },
+      {
+        "epoch": 7,
+        "loss": 0.14875392913818358,
+        "val_macro_f1": 0.9692470019236549
+      }
+    ],
+    "best_validation_macro_f1": 0.9692470019236549,
+    "class_weights": [
+      1.0,
+      3.2133770172831606,
+      5.0
+    ],
+    "prior_strength": 3.0,
+    "architecture": "6 time nodes + 3 rule nodes + current rule-state prior; 2-layer GAT, hidden 48"
+  },
+  "limitation": "This predicts the next-sample risk state. It is easier and different from predicting a new event start within the next 60 seconds."
+}

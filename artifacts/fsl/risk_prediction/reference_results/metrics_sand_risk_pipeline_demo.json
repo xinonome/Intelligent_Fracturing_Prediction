@@ -1,0 +1,392 @@
+{
+  "task": "past 60 seconds predict future rule-defined sand-risk candidate event",
+  "label_type": "weak supervision from pressure-rise sand-warning rules",
+  "excluded_rule": "pressure-drop candidate events are excluded pending expert confirmation",
+  "data_dir": "Data/risk_training",
+  "source_file_count": 1,
+  "well_count": 1,
+  "segment_count": 18,
+  "sample_count": 8337,
+  "event_count": 144,
+  "window_size": 6,
+  "stride": 2,
+  "split_unit": "segment",
+  "horizons_seconds": [
+    60,
+    180,
+    300
+  ],
+  "boundary_validation_target": 0.97,
+  "minimum_validation_red_count": 10,
+  "minimum_validation_red_recall": 0.05,
+  "selected_horizon_seconds": 60,
+  "split_manifest": {
+    "train": [
+      "JH_焦页5-Z6HF::1",
+      "JH_焦页5-Z6HF::12",
+      "JH_焦页5-Z6HF::14",
+      "JH_焦页5-Z6HF::15",
+      "JH_焦页5-Z6HF::16",
+      "JH_焦页5-Z6HF::18",
+      "JH_焦页5-Z6HF::2",
+      "JH_焦页5-Z6HF::4",
+      "JH_焦页5-Z6HF::6",
+      "JH_焦页5-Z6HF::8",
+      "JH_焦页5-Z6HF::9"
+    ],
+    "val": [
+      "JH_焦页5-Z6HF::11",
+      "JH_焦页5-Z6HF::13",
+      "JH_焦页5-Z6HF::3"
+    ],
+    "transfer": [
+      "JH_焦页5-Z6HF::10",
+      "JH_焦页5-Z6HF::7"
+    ],
+    "test": [
+      "JH_焦页5-Z6HF::17",
+      "JH_焦页5-Z6HF::5"
+    ]
+  },
+  "split_sample_counts": {
+    "train": 5029,
+    "val": 1211,
+    "transfer": 1194,
+    "test": 903
+  },
+  "lightgbm_horizon_results": {
+    "60": {
+      "positive_counts": {
+        "train": 249,
+        "val": 61,
+        "transfer": 51,
+        "test": 39
+      },
+      "threshold": 0.27499999999999997,
+      "validation": {
+        "threshold": 0.27499999999999997,
+        "sample_count": 1211,
+        "positive_count": 61,
+        "accuracy": 0.8901734104046243,
+        "balanced_accuracy": 0.7326015680684248,
+        "precision": 0.24285714285714285,
+        "recall": 0.5573770491803278,
+        "f1": 0.3383084577114428,
+        "macro_f1": 0.6392127610484274,
+        "confusion_matrix": [
+          [
+            1044,
+            106
+          ],
+          [
+            27,
+            34
+          ]
+        ],
+        "roc_auc": 0.8077833214540271,
+        "average_precision": 0.2448722916351988,
+        "brier_score": 0.059383210930844595
+      },
+      "test": {
+        "threshold": 0.27499999999999997,
+        "sample_count": 903,
+        "positive_count": 39,
+        "accuracy": 0.9136212624584718,
+        "balanced_accuracy": 0.7100249287749287,
+        "precision": 0.24675324675324675,
+        "recall": 0.48717948717948717,
+        "f1": 0.3275862068965517,
+        "macro_f1": 0.6407161803713528,
+        "confusion_matrix": [
+          [
+            806,
+            58
+          ],
+          [
+            20,
+            19
+          ]
+        ],
+        "roc_auc": 0.8334817188983855,
+        "average_precision": 0.3375954408808144,
+        "brier_score": 0.04485872903595696
+      },
+      "validation_boundary": {
+        "low_threshold": 0.26999999999999996,
+        "high_threshold": 0.9199999999999999,
+        "sample_count": 1211,
+        "decided_count": 1080,
+        "yellow_count": 131,
+        "coverage": 0.8918249380677127,
+        "yellow_rate": 0.10817506193228736,
+        "decided_accuracy": 0.9703703703703703,
+        "green_count": 1070,
+        "green_accuracy": 0.974766355140187,
+        "red_count": 10,
+        "red_precision": 0.5,
+        "red_recall_over_all_positive": 0.08196721311475409
+      },
+      "test_boundary": {
+        "low_threshold": 0.26999999999999996,
+        "high_threshold": 0.9199999999999999,
+        "sample_count": 903,
+        "decided_count": 830,
+        "yellow_count": 73,
+        "coverage": 0.9191583610188261,
+        "yellow_rate": 0.08084163898117387,
+        "decided_accuracy": 0.9759036144578314,
+        "green_count": 825,
+        "green_accuracy": 0.9757575757575757,
+        "red_count": 5,
+        "red_precision": 1.0,
+        "red_recall_over_all_positive": 0.1282051282051282
+      }
+    },
+    "180": {
+      "positive_counts": {
+        "train": 731,
+        "val": 172,
+        "transfer": 151,
+        "test": 118
+      },
+      "threshold": 0.565,
+      "validation": {
+        "threshold": 0.565,
+        "sample_count": 1211,
+        "positive_count": 172,
+        "accuracy": 0.8398018166804294,
+        "balanced_accuracy": 0.6931754594086443,
+        "precision": 0.4421052631578947,
+        "recall": 0.4883720930232558,
+        "f1": 0.46408839779005523,
+        "macro_f1": 0.6849568202542509,
+        "confusion_matrix": [
+          [
+            933,
+            106
+          ],
+          [
+            88,
+            84
+          ]
+        ],
+        "roc_auc": 0.8144347203258948,
+        "average_precision": 0.4669633645050032,
+        "brier_score": 0.12473241867931419
+      },
+      "test": {
+        "threshold": 0.565,
+        "sample_count": 903,
+        "positive_count": 118,
+        "accuracy": 0.8449612403100775,
+        "balanced_accuracy": 0.691206952391234,
+        "precision": 0.41911764705882354,
+        "recall": 0.4830508474576271,
+        "f1": 0.44881889763779526,
+        "macro_f1": 0.6793063560353925,
+        "confusion_matrix": [
+          [
+            706,
+            79
+          ],
+          [
+            61,
+            57
+          ]
+        ],
+        "roc_auc": 0.8305840440462053,
+        "average_precision": 0.4528611373934686,
+        "brier_score": 0.11562481997296203
+      },
+      "validation_boundary": {
+        "low_threshold": 0.039999999999999994,
+        "high_threshold": 0.95,
+        "sample_count": 1211,
+        "decided_count": 548,
+        "yellow_count": 663,
+        "coverage": 0.45251857968620973,
+        "yellow_rate": 0.5474814203137902,
+        "decided_accuracy": 0.9708029197080292,
+        "green_count": 526,
+        "green_accuracy": 0.9752851711026616,
+        "red_count": 22,
+        "red_precision": 0.8636363636363636,
+        "red_recall_over_all_positive": 0.11046511627906977
+      },
+      "test_boundary": {
+        "low_threshold": 0.039999999999999994,
+        "high_threshold": 0.95,
+        "sample_count": 903,
+        "decided_count": 434,
+        "yellow_count": 469,
+        "coverage": 0.4806201550387597,
+        "yellow_rate": 0.5193798449612403,
+        "decided_accuracy": 0.9608294930875576,
+        "green_count": 426,
+        "green_accuracy": 0.9694835680751174,
+        "red_count": 8,
+        "red_precision": 0.5,
+        "red_recall_over_all_positive": 0.03389830508474576
+      }
+    },
+    "300": {
+      "positive_counts": {
+        "train": 1148,
+        "val": 267,
+        "transfer": 244,
+        "test": 183
+      },
+      "threshold": 0.6449999999999999,
+      "validation": {
+        "threshold": 0.6449999999999999,
+        "sample_count": 1211,
+        "positive_count": 267,
+        "accuracy": 0.8142031379025598,
+        "balanced_accuracy": 0.7451834571192788,
+        "precision": 0.5724137931034483,
+        "recall": 0.6217228464419475,
+        "f1": 0.5960502692998204,
+        "macro_f1": 0.7377034188322158,
+        "confusion_matrix": [
+          [
+            820,
+            124
+          ],
+          [
+            101,
+            166
+          ]
+        ],
+        "roc_auc": 0.8400741128673904,
+        "average_precision": 0.6010843209004275,
+        "brier_score": 0.15611673092871245
+      },
+      "test": {
+        "threshold": 0.6449999999999999,
+        "sample_count": 903,
+        "positive_count": 183,
+        "accuracy": 0.7718715393133998,
+        "balanced_accuracy": 0.7122609289617486,
+        "precision": 0.4534412955465587,
+        "recall": 0.6120218579234973,
+        "f1": 0.5209302325581395,
+        "macro_f1": 0.6856104651162791,
+        "confusion_matrix": [
+          [
+            585,
+            135
+          ],
+          [
+            71,
+            112
+          ]
+        ],
+        "roc_auc": 0.8143214936247724,
+        "average_precision": 0.5533595191188442,
+        "brier_score": 0.17087053223079002
+      },
+      "validation_boundary": {
+        "low_threshold": 0.07999999999999999,
+        "high_threshold": 0.9199999999999999,
+        "sample_count": 1211,
+        "decided_count": 438,
+        "yellow_count": 773,
+        "coverage": 0.36168455821635015,
+        "yellow_rate": 0.6383154417836499,
+        "decided_accuracy": 0.9703196347031964,
+        "green_count": 398,
+        "green_accuracy": 0.9849246231155779,
+        "red_count": 40,
+        "red_precision": 0.825,
+        "red_recall_over_all_positive": 0.12359550561797752
+      },
+      "test_boundary": {
+        "low_threshold": 0.07999999999999999,
+        "high_threshold": 0.9199999999999999,
+        "sample_count": 903,
+        "decided_count": 314,
+        "yellow_count": 589,
+        "coverage": 0.3477297895902547,
+        "yellow_rate": 0.6522702104097453,
+        "decided_accuracy": 0.9426751592356688,
+        "green_count": 291,
+        "green_accuracy": 0.9587628865979382,
+        "red_count": 23,
+        "red_precision": 0.7391304347826086,
+        "red_recall_over_all_positive": 0.09289617486338798
+      }
+    }
+  },
+  "model_summary": {
+    "selected_model": "knowledge_gnn",
+    "lightgbm_role": "baseline_only",
+    "gnn_validation_macro_f1": {
+      "threshold": 0.6449999999999999,
+      "sample_count": 1211,
+      "positive_count": 61,
+      "accuracy": 0.9322873658133773,
+      "balanced_accuracy": 0.661632216678546,
+      "precision": 0.3384615384615385,
+      "recall": 0.36065573770491804,
+      "f1": 0.3492063492063492,
+      "macro_f1": 0.6567460317460317,
+      "confusion_matrix": [
+        [
+          1107,
+          43
+        ],
+        [
+          39,
+          22
+        ]
+      ],
+      "roc_auc": 0.8256735566642908,
+      "average_precision": 0.24809586144177276,
+      "brier_score": 0.1062977260311535
+    }
+  },
+  "model_mode": "gnn_main",
+  "final_validation_boundary": {
+    "low_threshold": 0.48,
+    "high_threshold": 0.83,
+    "sample_count": 1211,
+    "decided_count": 1035,
+    "yellow_count": 176,
+    "coverage": 0.8546655656482246,
+    "yellow_rate": 0.1453344343517754,
+    "decided_accuracy": 0.970048309178744,
+    "green_count": 1025,
+    "green_accuracy": 0.9746341463414634,
+    "red_count": 10,
+    "red_precision": 0.5,
+    "red_recall_over_all_positive": 0.08196721311475409
+  },
+  "final_test_boundary": {
+    "low_threshold": 0.48,
+    "high_threshold": 0.83,
+    "sample_count": 903,
+    "decided_count": 719,
+    "yellow_count": 184,
+    "coverage": 0.7962347729789591,
+    "yellow_rate": 0.20376522702104097,
+    "decided_accuracy": 0.9791376912378303,
+    "green_count": 711,
+    "green_accuracy": 0.9817158931082982,
+    "red_count": 8,
+    "red_precision": 0.75,
+    "red_recall_over_all_positive": 0.15384615384615385
+  },
+  "final_test_event_metrics": {
+    "event_count": 14,
+    "hit_count": 5,
+    "event_recall": 0.35714285714285715,
+    "median_lead_seconds": 40.0,
+    "red_prediction_count": 8,
+    "decided_count": 719
+  },
+  "limitations": [
+    "The current JY workbooks contain no independently reviewed sand-plug event labels.",
+    "Accuracy measures prediction of rule-generated candidate events, not confirmed field sand plugs.",
+    "Final acceptance requires replacing or auditing weak labels with expert-reviewed events."
+  ]
+}

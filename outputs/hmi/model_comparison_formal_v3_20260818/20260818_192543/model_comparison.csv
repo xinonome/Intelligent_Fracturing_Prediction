@@ -1,0 +1,4 @@
+﻿algorithm,mean_episode_reward,mean_high_sand_ratio_fraction,mean_p95_decision_seconds,mean_p95_sand_ratio_percent,mean_preventive_safe_within_180s_rate,mean_unsafe_rate,quality_gate_pass_rate,requested_seeds,status,successful_seeds
+ppo,56.393574227850216,0.1288888888888889,0.05811344000017016,9.46809525390466,1.0,0.0,0.0,3,candidate_evaluation_complete,3
+sac,63.56234521735576,0.1288888888888889,0.06300295333280699,9.39876039624214,1.0,0.0,0.0,3,candidate_evaluation_complete,3
+td3,85.71134220196359,0.12833333333333333,0.06245815499963403,9.333333333333334,1.0,0.0,0.0,3,candidate_evaluation_complete,3

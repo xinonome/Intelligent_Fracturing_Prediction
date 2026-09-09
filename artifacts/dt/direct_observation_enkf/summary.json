@@ -1,0 +1,59 @@
+{
+  "demo": "direct_observable_space_pkn_enkf_heldout_validation",
+  "scientific_status": "engineering validation prototype",
+  "state_vector": [
+    "E'",
+    "C_L",
+    "mu",
+    "sigma_min",
+    "dynamic cluster intake/growth factors",
+    "dynamic cluster sand-transport factors"
+  ],
+  "observations": [
+    "cumulative liquid share by cluster",
+    "cumulative sand share by cluster",
+    "bottom-hole pressure"
+  ],
+  "anti_circularity_design": "PKN receives total rate with uniform base allocation; observed cluster shares are used only in the EnKF residual.",
+  "validation_design": "First 70% calibrates the state. Online validation scores each held-out step before update, then assimilates the arriving observation and scores the posterior; frozen mode does not update held-out steps.",
+  "validation_mode": "online",
+  "metrics": {
+    "calibration_steps": 42,
+    "validation_steps": 18,
+    "validation_liquid_tvd_mean": 0.06185671146111807,
+    "validation_sand_tvd_mean": 0.07096671233197321,
+    "validation_bhp_relative_error_mean": 0.040370206828837525,
+    "validation_prior_liquid_tvd_mean": 0.07243699059212017,
+    "validation_prior_sand_tvd_mean": 0.09086993006580565,
+    "validation_prior_bhp_relative_error_mean": 0.04191712282992186,
+    "all_steps_compute_p50_ms": 38.07474999848637,
+    "all_steps_compute_p95_ms": 57.295705000433365,
+    "all_steps_under_15_seconds_rate": 1.0,
+    "max_rate_conservation_error": 2.38151746687696e-16,
+    "mean_posterior_leakoff_fraction": 0.6074832219973907,
+    "validation_all_observations_within_15_percent_rate": 1.0,
+    "validation_pass": true
+  },
+  "config": {
+    "base_eprime_pa": 32000000000.0,
+    "base_leakoff_m_sqrt_s": 1e-05,
+    "base_viscosity_pa_s": 0.1,
+    "base_min_stress_mpa": 60.0,
+    "height_m": 30.0,
+    "pressure_proxy_scale": 30.0,
+    "min_effective_rate_fraction": 0.05,
+    "max_leakoff_fraction": 0.85,
+    "stress_shadow_strength": 0.06,
+    "leakoff_iterations": 6
+  },
+  "limitations": [
+    "Cluster liquid/sand shares constrain intake allocation, not independently measured fracture geometry.",
+    "The sand transport observation operator is a reduced q_effective*aperture proxy.",
+    "Pressure friction defaults require client calibration before field interpretation."
+  ],
+  "outputs": {
+    "history": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\DT-Crack\\inversion_demo\\runs\\direct_observation_enkf\\20260723_184050\\direct_observation_history.csv",
+    "clusters": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\DT-Crack\\inversion_demo\\runs\\direct_observation_enkf\\20260723_184050\\cluster_share_history.csv",
+    "figure": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\DT-Crack\\inversion_demo\\runs\\direct_observation_enkf\\20260723_184050\\direct_observation_validation.png"
+  }
+}

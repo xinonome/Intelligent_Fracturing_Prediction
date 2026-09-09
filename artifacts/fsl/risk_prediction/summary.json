@@ -1,0 +1,83 @@
+{
+  "model_family": "KnowledgeTemporalRiskGNN + LightGBM baseline",
+  "task": "施工参数预测与未来风险评估",
+  "evaluation_status": "frozen_offline_experiment",
+  "app_integration": {
+    "runtime_rule_engine": "8.4因果砂堵规则",
+    "runtime_rule_status": "已接入施工曲线逐点回放与事件区间",
+    "registered_models": [
+      "Z6HF_knowledge_risk_level_gnn.pt",
+      "Z7HF_finetuned_risk_level_gnn.pt",
+      "Z6HF_knowledge_risk_level_gnn.npz（APP推理）",
+      "Z7HF_finetuned_risk_level_gnn.npz（APP推理）"
+    ],
+    "model_status": "实验模型可切换；缺失的原训练预处理器采用井段自适应重建并明确标识",
+    "cache": "outputs/app/fsl_timeline_cache.json"
+  },
+  "window": "过去6个采样点，约60秒",
+  "parameter_prediction": {
+    "horizon": "下一采样点，约10秒",
+    "pressure": {
+      "field": "施工泵压 SGBY",
+      "within_tolerance_accuracy": 0.9623059867,
+      "tolerance": "±2.0 MPa"
+    },
+    "flow": {
+      "field": "排量 PL",
+      "within_tolerance_accuracy": 0.9722838137,
+      "tolerance": "±0.5 m³/min"
+    },
+    "joint_accuracy": 0.9501108647
+  },
+  "risk_probability": {
+    "label_status": "规则生成并经项目复核的风险区间；不是独立现场砂堵确诊标签",
+    "horizons": {
+      "60": {
+        "test_auc": 0.8334817189,
+        "test_recall": 0.4871794872,
+        "positive_count": 39,
+        "role": "概率基线"
+      },
+      "180": {
+        "test_auc": 0.8305840440,
+        "test_recall": 0.4830508475,
+        "positive_count": 118,
+        "role": "概率基线"
+      },
+      "300": {
+        "test_auc": 0.8143214936,
+        "test_recall": 0.6120218579,
+        "positive_count": 183,
+        "role": "概率基线"
+      }
+    },
+    "main_model_60s": {
+      "test_event_count": 14,
+      "hit_count": 5,
+      "event_recall": 0.3571428571,
+      "median_lead_seconds": 40.0
+    }
+  },
+  "transfer_learning": {
+    "source_well": "JH_焦页5-Z6HF",
+    "target_well": "JH_焦页5-Z7HF",
+    "query_accuracy_before": 0.9884328358,
+    "query_accuracy_after": 0.9875,
+    "query_macro_f1_before": 0.9321015506,
+    "query_macro_f1_after": 0.8607599511,
+    "yellow_red_recall_before": 0.8870431894,
+    "yellow_red_recall_after": 0.8604651163,
+    "status": "迁移后未显示提升"
+  },
+  "display_policy": {
+    "default_online_chain": "PKN+EnKF + 现有安全规则",
+    "online_control": false,
+    "model_role": "实验性风险提示与参数预测对比",
+    "approval_status": "8.4因果规则进入APP风险展示链；GNN未进入现场自动控制链"
+  },
+  "limitations": [
+    "风险标签来自规则/审核区间，当前没有独立现场砂堵事件标签。",
+    "参数预测结果是离线测试指标，不等同于在线控制准确率。",
+    "Z6HF→Z7HF 迁移结果需要在统一因果输入和新井数据上重新验证。"
+  ]
+}

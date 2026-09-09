@@ -1,0 +1,21 @@
+{
+  "available": true,
+  "path": "C:\\Workspace\\Intelligent_Fracturing_Prediction\\deliverables\\third_part_hmi_delivery\\data\\hmi_demo_sample.json",
+  "record_count": 240,
+  "schema_version": 1,
+  "source_record_count": 240,
+  "training_input": false,
+  "independent_feature_windows_available": false,
+  "evaluation_scope": "HMI decision-output safety audit; not a new policy rollout evaluation",
+  "event_like_records": 63,
+  "max_current_sand_ratio_percent": 7.0,
+  "max_recommended_sand_ratio_percent": 7.048,
+  "p95_recommended_sand_ratio_percent": 7.044,
+  "max_sand_delta_from_reference_percent": 0.341,
+  "high_sand_recommended_fraction": 0.0,
+  "hard_limit_configured": false,
+  "hard_limit_violations": null,
+  "step_limit_violations": 0,
+  "violation_indices": [],
+  "safety_audit_pass": true
+}
