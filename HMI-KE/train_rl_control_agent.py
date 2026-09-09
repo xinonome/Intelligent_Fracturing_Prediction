@@ -12,11 +12,24 @@ import matplotlib.pyplot as plt
 from matplotlib import font_manager
 import numpy as np
 import pandas as pd
-from stable_baselines3 import PPO, SAC, TD3
-from stable_baselines3.common.callbacks import CheckpointCallback
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.noise import ActionNoise
-from stable_baselines3.common.vec_env import DummyVecEnv
+
+try:
+    from stable_baselines3 import PPO, SAC, TD3
+    from stable_baselines3.common.callbacks import CheckpointCallback
+    from stable_baselines3.common.monitor import Monitor
+    from stable_baselines3.common.noise import ActionNoise
+    from stable_baselines3.common.vec_env import DummyVecEnv
+    _SB3_IMPORT_ERROR: ModuleNotFoundError | None = None
+except ModuleNotFoundError as exc:
+    # Keep lightweight utilities (for example, acceptance summaries) importable
+    # in the desktop/runtime environment.  The heavy RL stack is required only
+    # when the training entry point is actually executed.
+    _SB3_IMPORT_ERROR = exc
+    PPO = SAC = TD3 = None
+    CheckpointCallback = Monitor = DummyVecEnv = None
+
+    class ActionNoise:  # type: ignore[no-redef]
+        pass
 
 from decision_engine.integrated_reward import IntegratedRewardConfig, load_reward_context
 from decision_engine.pump_schedule_constraints import SCHEDULES, get_schedule_constraint
@@ -38,6 +51,7 @@ from simulator.validation_180s import Validation180sConfig, validate_180s
 from simulator.contract_acceptance import (
     Warning5MinConfig,
     annotate_5min_warnings,
+    evaluate_direct_5min_warning,
     summarize_decision_latency,
 )
 from data_pipeline import (
@@ -66,6 +80,14 @@ DEFAULT_SCENARIO_WEIGHTS = {
     "pressure_limit": 2,
     "diversion_stage": 2,
 }
+
+
+def require_stable_baselines3() -> None:
+    if _SB3_IMPORT_ERROR is not None:
+        raise RuntimeError(
+            "强化学习训练依赖未安装。请在当前 Python 环境执行 "
+            "pip install -r requirements-rl.txt 后重试。"
+        ) from _SB3_IMPORT_ERROR
 
 
 class DecayingNormalActionNoise(ActionNoise):
@@ -493,6 +515,7 @@ def build_quality_gate(
     scenario_validation: dict[str, dict],
     latency_summary: dict | None = None,
     warning_summary: dict | None = None,
+    direct_warning_summary: dict | None = None,
 ) -> dict:
     preventive_pass = rl_180s_summary.get("pass_preventive_180s_safety")
     if preventive_pass is None:
@@ -502,7 +525,24 @@ def build_quality_gate(
     historical_audit = baseline_summary.get("safety_audit", {})
     conservative_audit = conservative_summary.get("safety_audit", {})
     warning_summary = warning_summary or {}
-    warning_estimable = int(warning_summary.get("event_windows", 0)) > 0
+    direct_warning_summary = direct_warning_summary or {}
+    rollout_warning_estimable = int(warning_summary.get("event_windows", 0)) > 0
+    direct_warning_estimable = bool(
+        direct_warning_summary.get("available", False)
+        and int(direct_warning_summary.get("positive_samples", 0)) > 0
+    )
+    rollout_warning_pass = bool(
+        rollout_warning_estimable
+        and warning_summary.get("pass_strict_5min_lead", False)
+    )
+    warning_estimable = rollout_warning_estimable or direct_warning_estimable
+    warning_pass = bool(
+        rollout_warning_pass
+        or (
+            direct_warning_estimable
+            and direct_warning_summary.get("pass_5min_warning_recall", False)
+        )
+    )
     checks = {
         "reward_not_worse_than_baseline": rl_summary["episode_reward_mean"] >= baseline_summary["episode_reward_mean"],
         "unsafe_rate_not_worse_than_historical": rl_summary["unsafe_rate"] <= baseline_summary["unsafe_rate"],
@@ -529,10 +569,13 @@ def build_quality_gate(
             latency_summary and latency_summary.get("pass_15s", False)
         ),
         "warning_5min_event_windows_available": warning_estimable,
+        "warning_5min_recall_target_met": warning_pass,
     }
     notes = []
     if not warning_estimable:
         notes.append("5分钟预警不可估计：评估集没有真实异常事件窗口，不能宣称预警通过。")
+    elif direct_warning_estimable and not warning_pass:
+        notes.append("独立300秒预警测试集有真实异常窗口，但召回率未达到目标。")
     if not conservative_audit:
         notes.append("未提供保守规则基线。")
     return {
@@ -595,6 +638,11 @@ def main() -> None:
     parser.add_argument("--hierarchical", action="store_true", help="Use lightweight option-based HRL prototype.")
     parser.add_argument("--response-model", choices=["empirical", "digital_twin", "learned_hybrid"], default="empirical")
     parser.add_argument("--response-surrogate-path", default=None, help="Trained response_surrogate.joblib required by learned_hybrid.")
+    parser.add_argument(
+        "--warning-predictions-csv",
+        default=None,
+        help="Optional held-out causal 300-second warning predictions used as direct warning evidence.",
+    )
     parser.add_argument("--high-level-interval-steps", type=int, default=6, help="How often the high-level option is refreshed.")
     parser.add_argument("--terminate-on-unsafe", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--eval-episodes", type=int, default=12)
@@ -696,6 +744,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--run-dir", default=str(ROOT / "runs" / "rl_control_agent"))
     args = parser.parse_args()
+    require_stable_baselines3()
     if args.eval_only and not args.resume_model:
         parser.error("--eval-only requires --resume-model")
     if args.include_schedule_context and not args.pump_schedule_path:
@@ -1028,6 +1077,15 @@ def main() -> None:
     warning_config = Warning5MinConfig(action_seconds=args.action_seconds)
     warning_5min, warning_5min_summary = annotate_5min_warnings(rl_eval, warning_config)
     warning_5min.to_csv(out / "warning_5min_validation.csv", index=False, encoding="utf-8-sig")
+    direct_warning_summary = {"available": False, "reason": "not_provided"}
+    if args.warning_predictions_csv:
+        warning_predictions_path = Path(args.warning_predictions_csv).resolve()
+        if not warning_predictions_path.exists():
+            parser.error(f"--warning-predictions-csv does not exist: {warning_predictions_path}")
+        direct_warning_summary = evaluate_direct_5min_warning(
+            pd.read_csv(warning_predictions_path)
+        )
+        direct_warning_summary["source"] = str(warning_predictions_path)
     latency_summary = summarize_decision_latency(rl_eval)
     rl_180s, rl_180s_summary = validate_180s(rl_eval, validation_config)
     baseline_180s, baseline_180s_summary = validate_180s(baseline_eval, validation_config)
@@ -1066,6 +1124,7 @@ def main() -> None:
         rl_validation_by_scenario,
         latency_summary,
         warning_5min_summary,
+        direct_warning_summary,
     )
     quality_gate.setdefault("checks", {})["sand_action_path_sensitive"] = bool(
         sensitivity_summary.get("distinct_engineering_outputs", False)
@@ -1190,6 +1249,7 @@ def main() -> None:
             "conservative_rule_by_scenario": conservative_validation_by_scenario,
         },
         "warning_5min": warning_5min_summary,
+        "direct_warning_300s": direct_warning_summary,
         "decision_latency": latency_summary,
         "human_machine_interaction": {
             "decision_cards": int(len(decision_cards)),

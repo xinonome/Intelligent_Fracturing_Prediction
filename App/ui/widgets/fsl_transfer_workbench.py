@@ -205,7 +205,7 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
         availability.setText(
             f"迁移井：{len(source_rows)} 个井段 / {source_points} 个有效点；"
             f"目标井：{len(target_rows)} 个井段 / {target_points} 个有效点。"
-            + ("迁移井与目标井不能相同。" if same else "")
+            + ("源井与目标井需分别选择，并确保两者均有数据。" if same else "")
         )
         busy = runner.process.state() != QProcess.NotRunning
         train_button.setEnabled(bool(source_ready and target_ready and not same and not busy and mode_box.currentData() == "train"))
@@ -269,11 +269,11 @@ def create_fsl_transfer_workbench(registry, timeline_rows: list[dict]):
         source = str(source_box.currentData() or "")
         target = str(target_box.currentData() or "")
         if not source or not target or source == target:
-            status.setText("请选择两个不同且数据可用的井。")
+            status.setText("请分别选择有数据的源井和目标井。")
             return
         ml_python, runtime_note = resolve_ml_python()
         if not ml_python:
-            status.setText(f"训练环境不可用：{runtime_note}")
+            status.setText(f"训练环境尚未配置：{runtime_note}")
             return
         run_root = PATHS.app_outputs / "transfer_runs" / datetime.now().strftime("%Y%m%d_%H%M%S")
         run_root.mkdir(parents=True, exist_ok=True)

@@ -70,7 +70,6 @@ def create_pyfrac_comparison_panel(comparison: PyFracComparison):
             f"半缝长 PKN {_fmt(latest.pkn_half_length_m)} m / PyFrac {_fmt(latest.pyfrac_half_length_m)} m；"
             f"最大开度 PKN {_fmt(latest.pkn_max_aperture_mm)} mm / PyFrac {_fmt(latest.pyfrac_max_aperture_mm)} mm；"
             f"PyFrac耗时 {_fmt(latest.pyfrac_runtime_s)} s，成功步数 {latest.successful_time_steps or ''}。"
-            "模型差异不等于现场几何误差。"
         )
 
     update_view(comparison)

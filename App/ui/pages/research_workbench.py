@@ -234,7 +234,7 @@ def build_research_workbench(area: str, registry, controller):
     extra_arguments = QLineEdit()
     extra_arguments.setObjectName("researchExtraArguments")
     extra_arguments.setPlaceholderText("可选，例如：--enhanced-file 文件名.xlsx --risk-run outputs/fsl/risk/运行目录")
-    extra_arguments.setToolTip("参数直接传给所选Python脚本，不通过命令行外壳执行；带空格的路径请用双引号包围")
+    extra_arguments.setToolTip("参数直接传给所选 Python 脚本；路径含空格时请使用双引号")
     extra_row.addWidget(extra_arguments, 1)
     runner_layout.addLayout(extra_row)
     parameter_spec: dict[str, object] = {}

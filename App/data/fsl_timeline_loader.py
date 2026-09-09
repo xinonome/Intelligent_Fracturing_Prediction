@@ -839,7 +839,14 @@ class FSLTimelineLoader:
         return [dict(value) for value in self._stages.values()]
 
     def refresh(self) -> list[dict[str, Any]]:
-        """Re-read independent stage files and rebuild the derived timeline cache."""
+        """Refresh the timeline, rebuilding only when the validated cache is stale.
+
+        The refresh button is also used after imports and model changes.  When
+        neither the source signature nor the selected model has changed,
+        forcing a full parse of every workbook only adds latency and makes the
+        UI look hung.  ``_load_cache`` already validates all of those inputs,
+        so reuse it here and rebuild only when validation fails.
+        """
 
         self.module = self.registry.module("fsl")
         self.source_paths = self._resolve_sources()
@@ -847,7 +854,8 @@ class FSLTimelineLoader:
         self.status = "not_available"
         self.status_reason = "未找到第一部分时序数据"
         self._stages = {}
-        self._load()
+        if not self._load_cache():
+            self._load()
         if not self._stages:
             self._write_cache()
         return self.summaries()

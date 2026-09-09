@@ -56,7 +56,7 @@ def build_knowledge_graph_panel(registry):
     model_box.setPlaceholderText("模型名称（可选）")
     key_box = QLineEdit(api_config.api_key)
     key_box.setEchoMode(QLineEdit.Password)
-    key_box.setPlaceholderText("API Key（可选，不在界面明文显示）")
+    key_box.setPlaceholderText("API Key（可选，界面加密显示）")
     save_api_button = QPushButton("保存 API 配置")
     api_status = QLabel("API 未配置" if not api_config.endpoint else "API 已配置")
     api_status.setObjectName("muted")

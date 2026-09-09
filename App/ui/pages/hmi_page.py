@@ -19,7 +19,7 @@ from ..widgets.knowledge_advisory_panel import build_knowledge_advisory_panel
 
 def build_hmi_page(controller, registry):
     """Operator-facing advisory review and confirmation workbench."""
-    from PySide6.QtCore import QProcess, QTimer, Qt
+    from PySide6.QtCore import QProcess, QSignalBlocker, QTimer, Qt
     from PySide6.QtWidgets import (
         QComboBox, QDoubleSpinBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QPushButton,
         QScrollArea, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget,
@@ -141,6 +141,14 @@ def build_hmi_page(controller, registry):
     sand_value.setRange(0.0, 100.0)
     sand_value.setDecimals(2)
     sand_value.setSuffix(" %")
+    review_edits = {"flow": False, "sand": False}
+
+    # A spin-box arrow click is a user edit even when the surrounding page
+    # refreshes the current replay frame immediately afterwards.  Track that
+    # edit separately so update() does not overwrite it with the original
+    # recommendation before the operator can submit the review.
+    flow_value.valueChanged.connect(lambda _value: review_edits.__setitem__("flow", True))
+    sand_value.valueChanged.connect(lambda _value: review_edits.__setitem__("sand", True))
     values.addWidget(QLabel("审核排量"), 0, 0)
     values.addWidget(flow_value, 0, 1)
     values.addWidget(QLabel("审核砂比"), 0, 2)
@@ -292,7 +300,7 @@ def build_hmi_page(controller, registry):
         if destination:
             try:
                 if Path(destination).resolve() == DEFAULT_LOG.resolve():
-                    raise ValueError("导出路径不能覆盖原始审核日志")
+                    raise ValueError("导出路径须与原始审核日志分开")
                 source_text = DEFAULT_LOG.read_text(encoding="utf-8") if DEFAULT_LOG.exists() else ""
                 Path(destination).write_text(source_text, encoding="utf-8")
             except (OSError, ValueError) as exc:
@@ -499,6 +507,10 @@ def build_hmi_page(controller, registry):
 
     def update(frame):
         nonlocal last_frames_token, review_snapshot
+        frame_changed = review_snapshot is None or frame is not review_snapshot["frame"]
+        if frame_changed:
+            review_edits["flow"] = False
+            review_edits["sand"] = False
         if id(controller.frames) != last_frames_token:
             refresh_visuals()
             last_frames_token = id(controller.frames)
@@ -520,10 +532,12 @@ def build_hmi_page(controller, registry):
         available = flow is not None or sand is not None
         for button in (accept, reject, modify):
             button.setEnabled(available)
-        if flow is not None and not flow_value.hasFocus():
-            flow_value.setValue(flow)
-        if sand is not None and not sand_value.hasFocus():
-            sand_value.setValue(sand)
+        if flow is not None and not review_edits["flow"]:
+            with QSignalBlocker(flow_value):
+                flow_value.setValue(flow)
+        if sand is not None and not review_edits["sand"]:
+            with QSignalBlocker(sand_value):
+                sand_value.setValue(sand)
         if available:
             reason.setText(str(action or "调整控制量"))
             status.setText(

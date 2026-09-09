@@ -41,7 +41,7 @@ def build_data_import_page(registry, on_imported=None):
     operations_layout.addLayout(operation_row)
     txt_hint = QLabel(
         "TXT：支持原有九列、逗号或制表符分隔，可带中文表头。类型列填写数字编码，时间须为完整日期和时分秒且严格递增。\n"
-        "请逐文件填写真实井名/井段（TXT 必填，不从文件名推断）；Excel/CSV 沿用原字段，不被这些输入覆盖。"
+        "请逐文件填写真实井名/井段（TXT 井名/井段以表单登记为准）；Excel/CSV 保留源字段，表单仅用于身份登记。"
     )
     txt_hint.setWordWrap(True)
     operations_layout.addWidget(txt_hint)

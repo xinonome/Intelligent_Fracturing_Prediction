@@ -138,7 +138,7 @@ def summarize_decision_latency(evaluation: pd.DataFrame, limit_seconds: float = 
 
 def evaluate_direct_5min_warning(
     predictions: pd.DataFrame,
-    threshold: float = 0.30,
+    threshold: float | None = None,
     target_recall: float = 0.90,
 ) -> dict:
     """Score a model whose target is any abnormal condition in the next 300s."""
@@ -146,6 +146,12 @@ def evaluate_direct_5min_warning(
     required = {"future_abnormal", "predicted_abnormal_probability"}
     if predictions.empty or not required.issubset(predictions.columns):
         return {"available": False, "reason": "missing_prediction_columns"}
+    if threshold is None:
+        threshold = 0.30
+        if "decision_threshold" in predictions.columns:
+            frozen = pd.to_numeric(predictions["decision_threshold"], errors="coerce").dropna()
+            if not frozen.empty:
+                threshold = float(frozen.iloc[0])
     truth = pd.to_numeric(predictions["future_abnormal"], errors="coerce").fillna(0).astype(int).to_numpy()
     score = pd.to_numeric(predictions["predicted_abnormal_probability"], errors="coerce").fillna(0).to_numpy()
     pred = score >= threshold
@@ -155,9 +161,22 @@ def evaluate_direct_5min_warning(
     fn = int(np.sum(~pred & positive))
     fp = int(np.sum(pred & negative))
     tn = int(np.sum(~pred & negative))
-    recall = tp / max(tp + fn, 1)
+    sample_recall = tp / max(tp + fn, 1)
     precision = tp / max(tp + fp, 1)
     false_alarm = fp / max(fp + tn, 1)
+    event_windows = 0
+    detected_event_windows = 0
+    if "segment_id" in predictions.columns:
+        scored = predictions.reset_index(drop=True).copy()
+        scored["_warning_score"] = score
+        for _, segment in scored.groupby("segment_id", sort=False):
+            labels = pd.to_numeric(segment["future_abnormal"], errors="coerce").fillna(0).astype(int).to_numpy()
+            starts = np.flatnonzero((labels == 1) & np.r_[True, labels[:-1] == 0])
+            event_scores = segment["_warning_score"].to_numpy(dtype=float)[starts]
+            event_windows += int(len(starts))
+            detected_event_windows += int(np.sum(event_scores >= threshold))
+    event_recall = detected_event_windows / max(event_windows, 1)
+    acceptance_recall = event_recall if event_windows else sample_recall
     return {
         "available": True,
         "scientific_status": "held_out_segment_300s_horizon",
@@ -168,10 +187,17 @@ def evaluate_direct_5min_warning(
         "false_negative": fn,
         "false_positive": fp,
         "true_negative": tn,
-        "recall": float(recall),
+        "recall": float(acceptance_recall),
+        "sample_window_recall": float(sample_recall),
+        "strict_300s_event_windows": int(event_windows),
+        "strict_300s_detected_event_windows": int(detected_event_windows),
+        "strict_300s_event_recall": float(event_recall),
         "precision": float(precision),
         "false_alarm_rate": float(false_alarm),
         "target_recall": float(target_recall),
-        "pass_5min_warning_recall": bool(np.sum(positive) > 0 and recall >= target_recall),
+        "pass_5min_warning_recall": bool(
+            (event_windows > 0 and event_recall >= target_recall)
+            or (event_windows == 0 and np.sum(positive) > 0 and sample_recall >= target_recall)
+        ),
         "boundary": "Target means an abnormal label occurs anywhere in the next 300 seconds; field prospective validation remains required.",
     }

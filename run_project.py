@@ -143,6 +143,12 @@ def hmi_command(action: str, extra: list[str]) -> int:
             ["--data-path", str(DATA / "raw_frac"), "--run-dir", str(OUTPUTS / "hmi" / "response_surrogate"), *extra],
             module,
         )
+    if action == "train-warning":
+        return run(
+            module / "train_causal_warning_300s.py",
+            ["--data-path", str(DATA / "raw_frac"), "--run-dir", str(OUTPUTS / "hmi" / "causal_warning_300s"), *extra],
+            module,
+        )
     if action == "validate-env":
         return run(module / "validate_simulation_environment.py", extra, module)
     if action == "full-train":
@@ -200,7 +206,7 @@ def main() -> None:
         code = dt_command(action, extra)
     elif args.module == "hmi":
         action = args.action or "train"
-        if action not in {"train", "train-surrogate", "full-train", "optimize", "curriculum", "validate-env", "scenarios", "acceptance"}:
+        if action not in {"train", "train-surrogate", "train-warning", "full-train", "optimize", "curriculum", "validate-env", "scenarios", "acceptance"}:
             parser.error(f"unsupported HMI action: {action}")
         code = hmi_command(action, extra)
     elif args.module == "app":

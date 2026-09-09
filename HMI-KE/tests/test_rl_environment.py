@@ -31,7 +31,7 @@ from simulator.contract_acceptance import (
     evaluate_direct_5min_warning,
     summarize_decision_latency,
 )
-from train_rl_control_agent import summarize_action_safety
+from train_rl_control_agent import build_quality_gate, summarize_action_safety
 
 
 def build_env() -> FracturingControlEnv:
@@ -380,10 +380,43 @@ def test_five_minute_warning_and_latency_gate() -> None:
             {
                 "future_abnormal": [0, 0, 1, 1],
                 "predicted_abnormal_probability": [0.05, 0.2, 0.8, 0.9],
+                "decision_threshold": [0.75, 0.75, 0.75, 0.75],
             }
         )
     )
+    assert direct["threshold"] == 0.75
     assert direct["pass_5min_warning_recall"]
+
+
+def test_quality_gate_accepts_independent_direct_warning_evidence() -> None:
+    audit = {
+        "high_sand_ratio_fraction": 0.0,
+        "hard_sand_limit_configured": True,
+        "hard_sand_limit_violation_count": 0,
+        "sand_increase_over_step_count": 0,
+        "nan_or_inf_output": False,
+    }
+    policy = {"episode_reward_mean": 2.0, "unsafe_rate": 0.0, "safety_audit": audit}
+    baseline = {"episode_reward_mean": 1.0, "unsafe_rate": 0.0, "safety_audit": audit}
+    preventive = {"pass_preventive_180s_safety": True}
+    scenarios = {"normal": {"eligible_complete_windows": 1, "pass_preventive_180s_safety": True}}
+    gate = build_quality_gate(
+        policy,
+        baseline,
+        baseline,
+        preventive,
+        scenarios,
+        {"pass_15s": True},
+        {"event_windows": 0},
+        {
+            "available": True,
+            "positive_samples": 8,
+            "pass_5min_warning_recall": True,
+        },
+    )
+    assert gate["checks"]["warning_5min_event_windows_available"]
+    assert gate["checks"]["warning_5min_recall_target_met"]
+    assert gate["passed"]
 
 
 def test_episode_does_not_cross_segment_boundary() -> None:

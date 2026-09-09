@@ -96,7 +96,7 @@ def build_dt_page(controller, registry):
     chart_row.setSpacing(10)
     chart_row.addWidget(pressure_chart, 0, 0)
     chart_row.addWidget(error_chart, 0, 1)
-    chart_row.setColumnStretch(0, 2)
+    chart_row.setColumnStretch(0, 1)
     chart_row.setColumnStretch(1, 1)
 
     parameter_trend = build_chart("EnKF参数分组变化 / % · 相对先验", 250)
@@ -156,7 +156,6 @@ def build_dt_page(controller, registry):
     right_layout = QVBoxLayout(right_column)
     right_layout.setContentsMargins(0, 0, 0, 0)
     right_layout.setSpacing(8)
-    right_layout.addWidget(chart_host)
     right_layout.addWidget(state_host)
     right_layout.addWidget(params)
     workspace = QSplitter(Qt.Horizontal)
@@ -166,6 +165,10 @@ def build_dt_page(controller, registry):
     workspace.setStretchFactor(0, 2)
     workspace.setStretchFactor(1, 3)
     workspace.setSizes([580, 980])
+    # The pressure and residual charts occupy the full page-width row.  This
+    # keeps the six-cluster 3D panel aligned with the EnKF parameter trend
+    # below, instead of leaving a large unused area above the 3D view.
+    layout.addWidget(chart_host)
     layout.addWidget(workspace)
 
     source_label = _label("", "muted")
@@ -184,13 +187,13 @@ def build_dt_page(controller, registry):
         recompute_button.setToolTip(
             "根据当前施工表重新生成无 DAS 压力校正、PKN估计和三维回放。"
             if dataset.get("adapter") == "raw_frac_construction"
-            else "有 DAS 参考井段使用已登记同化结果；此处不覆盖研究运行。"
+            else "有 DAS 参考井段使用已登记同化结果；当前入口仅用于查看，研究运行请在模型研发入口管理。"
         )
 
     def recompute():
         dataset = registry.dataset()
         if dataset.get("adapter") != "raw_frac_construction":
-            operation_status.setText("当前有 DAS 井段使用已登记结果，不从此入口覆盖研究运行。")
+            operation_status.setText("当前结果来自已登记运行；研究任务请在模型研发入口管理。")
             return
         command = [
             str(Path(sys.executable)),

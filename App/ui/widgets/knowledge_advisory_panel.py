@@ -52,7 +52,7 @@ def build_knowledge_advisory_panel(registry):
 
     result = QTextBrowser()
     result.setObjectName("knowledgeAdvisoryResult")
-    result.setPlaceholderText("建议将在这里显示，并作为人工审核依据；不会自动控制现场设备。")
+    result.setPlaceholderText("建议作为人工审核依据")
     result.setMinimumHeight(170)
     layout.addWidget(result)
 
@@ -143,7 +143,7 @@ def build_knowledge_advisory_panel(registry):
     def finish_error(message: str) -> None:
         nonlocal pending_state
         result.setPlainText(f"知识增强建议生成失败：{message}")
-        status.setText("未生成建议；现有智能体回放不受影响")
+        status.setText("当前未生成知识增强建议；智能体回放继续使用现有结果")
         pending_state = None
 
     def worker_finished() -> None:

@@ -156,7 +156,10 @@ def main() -> None:
     warning_predictions_path = (
         Path(args.warning_predictions_csv).resolve()
         if args.warning_predictions_csv
-        else latest_file("outputs/hmi/warning_surrogate_300s/**/predictions.csv")
+        else (
+            latest_file("outputs/hmi/causal_warning_300s/**/predictions.csv")
+            or latest_file("outputs/hmi/warning_surrogate_300s/**/predictions.csv")
+        )
     )
 
     evaluation = pd.read_csv(evaluation_path)

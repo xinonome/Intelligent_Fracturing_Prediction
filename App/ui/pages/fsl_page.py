@@ -113,7 +113,10 @@ def build_fsl_page(
     active_model = selected_model_id()
     active_index = risk_model_box.findData(active_model)
     risk_model_box.setCurrentIndex(max(active_index, 0))
-    risk_model_box.setToolTip("切换后重新计算当前全部井段；实验GNN缺少原训练预处理器时采用井段自适应标准化")
+    risk_model_box.setToolTip(
+        "切换后后台重新计算当前全部井段；重算期间仍可切换，最终按最后一次选择生效。"
+        "实验GNN缺少原训练预处理器时采用井段自适应标准化"
+    )
     action_row.addWidget(risk_model_box)
     timeline_layout.addLayout(action_row)
 
@@ -142,6 +145,7 @@ def build_fsl_page(
     timer = QTimer(playback)
     refresh_thread = None
     refresh_worker = None
+    refresh_model_id = None
     refresh_poll_timer = QTimer(page)
     refresh_poll_timer.setInterval(50)
 
@@ -364,16 +368,26 @@ def build_fsl_page(
     layout.addWidget(timeline_panel)
 
     def reanalyse():
-        nonlocal timeline_rows, refresh_thread, refresh_worker
+        nonlocal timeline_rows, refresh_thread, refresh_worker, refresh_model_id
         if refresh_thread is not None:
+            selected = str(risk_model_box.currentData() or "auto")
+            data_status.setText(
+                f"已选择 {selected}；当前分析完成后将按最新模型继续计算。"
+            )
             return
+        refresh_model_id = str(risk_model_box.currentData() or selected_model_id())
         clear_stage()
         analyse_button.setEnabled(False)
-        risk_model_box.setEnabled(False)
         data_status.setText("正在重新读取、清洗并分析独立井段数据…")
 
         def complete(payload):
             nonlocal timeline_rows
+            selected = str(risk_model_box.currentData() or "auto")
+            if selected != refresh_model_id:
+                data_status.setText(
+                    f"上一轮 {refresh_model_id} 分析结果已跳过；正在准备按 {selected} 重新计算。"
+                )
+                return
             timeline_rows = list(payload.get("rows") or [])
             timeline_loader._stages = dict(payload.get("stages") or {})
             timeline_loader.status = str(payload.get("status") or "not_available")
@@ -390,13 +404,18 @@ def build_fsl_page(
             data_status.setText(f"分析失败：{message}")
 
         def finished():
-            nonlocal refresh_thread, refresh_worker
+            nonlocal refresh_thread, refresh_worker, refresh_model_id
+            selected = str(risk_model_box.currentData() or "auto")
+            rerun_latest = bool(refresh_model_id and selected != refresh_model_id)
             analyse_button.setEnabled(True)
-            risk_model_box.setEnabled(True)
             if refresh_thread is not None:
                 refresh_thread.deleteLater()
             refresh_thread = None
             refresh_worker = None
+            refresh_model_id = None
+            if rerun_latest:
+                data_status.setText(f"正在按最新选择 {selected} 重新计算…")
+                QTimer.singleShot(0, reanalyse)
 
         def poll_refresh():
             if refresh_thread is None or refresh_worker is None or refresh_thread.isRunning():
@@ -458,6 +477,9 @@ def build_fsl_page(
             save_model_selection(model_id)
         except (OSError, ValueError) as exc:
             data_status.setText(f"风险模型切换失败：{exc}")
+            return
+        if refresh_thread is not None:
+            data_status.setText(f"已选择 {model_id}；当前分析完成后将按该模型继续计算。")
             return
         reanalyse()
 

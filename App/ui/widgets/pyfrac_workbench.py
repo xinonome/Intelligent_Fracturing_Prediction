@@ -427,7 +427,7 @@ def create_pyfrac_workbench(parent=None, dataset=None):
     def restore_scheme():
         sigma.setValue(previous_scheme[0])
         target.setValue(previous_scheme[1])
-        run_status.setText("已回退应力与目标时间草案；图表仍是已标注来源的真实运行，不会重标记为回退方案结果。")
+        run_status.setText("回退方案仅作为参数草案")
 
     def process_error(error):
         nonlocal running
